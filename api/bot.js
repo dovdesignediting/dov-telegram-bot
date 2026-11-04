@@ -12,19 +12,16 @@ module.exports = async (req, res) => {
       const chatId = message.chat.id;
       const userText = message.text;
 
-      let replyText = `קיבלתי את ההודעה שלך: ${userText}`;
       if (userText === '/start') {
-        replyText = 'שלום! הבוט שלך באוויר ועובד מעולה! 🚀 שלח לי כל הודעה ואענה לך.';
+        await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: 'שלום! הבוט שלך באוויר ועובד מעולה! 🚀',
+          }),
+        });
       }
-
-      await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: replyText,
-        }),
-      });
     }
 
     return res.status(200).json({ ok: true });
