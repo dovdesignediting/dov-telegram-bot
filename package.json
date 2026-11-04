@@ -1,6 +1,12 @@
 {
   "name": "dov-telegram-bot",
-  "version": "1.0.0",
-  "description": "Telegram Bot on Vercel",
-  "main": "api/bot.js"
+  "version": "2.0.0",
+  "description": "Modular Telegram Group Management Bot on Vercel",
+  "main": "api/bot.js",
+  "dependencies": {
+    "telegraf": "^4.16.3"
+  },
+  "engines": {
+    "node": ">=18.x"
+  }
 }
