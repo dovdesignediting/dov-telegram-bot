@@ -39,154 +39,87 @@ function createDefaultGroup() {
   };
 }
 
-function createDefaultGlobal() {
-  return {
-    groups: {},
-    users: {},
-    wizards: {},
-    globalBanned: [],
-    maintenance: false,
-    liveChatTarget: null
-  };
-}
-
+// קריאה ושמירה תקינה מול מסד הנתונים Upstash Redis (Vercel KV) שהגדרת ב-Vercel
 async function rawGet(key) {
-  const kvUrl = process.env.KV_REST_API_URL;
-  const kvToken = process.env.KV_REST_API_TOKEN;
+  const kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  const kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+
   if (kvUrl && kvToken) {
     try {
-      const res = await fetch(`${kvUrl}/get/${key}`, {
-        headers: { Authorization: `Bearer ${kvToken}` }
+      const res = await fetch(kvUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${kvToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(['GET', key])
       });
       const data = await res.json();
-      if (data && data.result) return JSON.parse(data.result);
-    } catch (e) {}
+      if (data && data.result) {
+        let parsed = JSON.parse(data.result);
+        if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+        if (parsed && typeof parsed === 'object') return parsed;
+      }
+    } catch (err) {
+      console.error('KV Read Error:', err.message);
+    }
   }
+
   try {
     if (fs.existsSync(TMP_FILE)) {
       const fileData = JSON.parse(fs.readFileSync(TMP_FILE, 'utf8'));
       if (fileData[key]) return fileData[key];
     }
   } catch (e) {}
+
   return memoryCache[key] || null;
 }
 
-async function rawSet(key, val) {
-  memoryCache[key] = val;
-  const kvUrl = process.env.KV_REST_API_URL;
-  const kvToken = process.env.KV_REST_API_TOKEN;
+async function rawSet(key, value) {
+  memoryCache[key] = value;
+  const kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  const kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+
   if (kvUrl && kvToken) {
     try {
-      await fetch(`${kvUrl}/set/${key}`, {
+      await fetch(kvUrl, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${kvToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(JSON.stringify(val))
+        headers: {
+          Authorization: `Bearer ${kvToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(['SET', key, JSON.stringify(value)])
       });
-    } catch (e) {}
+    } catch (err) {
+      console.error('KV Write Error:', err.message);
+    }
   }
+
   try {
-    const all = fs.existsSync(TMP_FILE) ? JSON.parse(fs.readFileSync(TMP_FILE, 'utf8')) : {};
-    all[key] = val;
+    let all = {};
+    if (fs.existsSync(TMP_FILE)) {
+      all = JSON.parse(fs.readFileSync(TMP_FILE, 'utf8'));
+    }
+    all[key] = value;
     fs.writeFileSync(TMP_FILE, JSON.stringify(all), 'utf8');
   } catch (e) {}
 }
 
 async function getGroupData(chatId) {
-  const saved = await rawGet(`group:${chatId}`);
-  return { ...createDefaultGroup(), ...(saved || {}) };
+  const key = `group:${String(chatId)}`;
+  const saved = await rawGet(key);
+  if (saved && typeof saved === 'object') {
+    return { ...createDefaultGroup(), ...saved };
+  }
+  return createDefaultGroup();
 }
 
 async function saveGroupData(chatId, groupData) {
-  await rawSet(`group:${chatId}`, groupData);
+  const key = `group:${String(chatId)}`;
+  await rawSet(key, groupData);
 }
 
-async function getGlobalData() {
-  const saved = await rawGet('global:registry');
-  return { ...createDefaultGlobal(), ...(saved || {}) };
-}
-
-async function saveGlobalData(globalData) {
-  await rawSet('global:registry', globalData);
-}
-
-// חילוץ קישור הזמנה לקבוצה עבור היוצר
-async function fetchGroupLink(telegram, chatId) {
-  try {
-    const chat = await telegram.getChat(chatId);
-    if (chat.username) return `https://t.me/${chat.username}`;
-    if (chat.invite_link) return chat.invite_link;
-  } catch (e) {}
-  try {
-    const created = await telegram.createChatInviteLink(chatId, { name: 'Creator' });
-    if (created?.invite_link) return created.invite_link;
-  } catch (e) {}
-  try {
-    const exported = await telegram.exportChatInviteLink(chatId);
-    if (exported) return exported;
-  } catch (e) {}
-  return null;
-}
-
-function getOwnerKeyboard(globalData) {
-  const maint = globalData.maintenance ? '🟢 כבה מצב תחזוקה' : '🔴 הפעל מצב תחזוקה';
-  return {
-    inline_keyboard: [
-      [
-        { text: '🏢 רשימת קבוצות וקישורים', callback_data: 'own_groups' },
-        { text: '👥 משתמשי הבוט וסטטיסטיקות', callback_data: 'own_users' }
-      ],
-      [
-        { text: '💬 כתיבה חיה לקבוצה', callback_data: 'own_livechat_menu' },
-        { text: '🛑 עצור כתיבה חיה', callback_data: 'own_livechat_stop' }
-      ],
-      [
-        { text: maint, callback_data: 'own_toggle_maint' },
-        { text: '📖 מדריך כל פקודות היוצר', callback_data: 'own_help' }
-      ]
-    ]
-  };
-}
-
-async function sendGroupsList(ctx) {
-  const globalData = await getGlobalData();
-  const groups = Object.values(globalData.groups || {});
-  if (!groups.length) {
-    return ctx.reply('📭 הבוט עדיין לא קלט קבוצות (שלח הודעה כלשהי בקבוצה שבה הבוט נמצא והיא תופיע כאן מיד).');
-  }
-  const buttons = [];
-  let report = `🏢 הקבוצות שבהן הבוט נמצא (${groups.length}):\n\n`;
-  for (const g of groups.slice(0, 15)) {
-    let count = '?';
-    try { count = await ctx.telegram.getChatMembersCount(g.id); } catch (e) {}
-    report += `• ${g.title}\n  🆔 ${g.id} | 👥 חברים: ${count}\n`;
-    buttons.push([
-      { text: `🔗 קישור: ${g.title.slice(0, 10)}`, callback_data: `own_link_${g.id}` },
-      { text: `💬 כתוב לקבוצה`, callback_data: `own_chat_${g.id}` },
-      { text: `🕵️ מידע`, callback_data: `own_spy_${g.id}` }
-    ]);
-  }
-  await ctx.reply(report, { reply_markup: { inline_keyboard: buttons } });
-}
-
-async function sendUsersReport(ctx) {
-  const globalData = await getGlobalData();
-  const today = new Date().toISOString().slice(0, 10);
-  const users = Object.values(globalData.users || {});
-  const todayCount = users.filter((u) => u.lastSeen === today).length;
-  const groupsCount = Object.keys(globalData.groups || {}).length;
-  const list = users.slice(-40).reverse().map((u, i) =>
-    `${i + 1}. ${u.name} (${u.username}) – ${u.id} ${u.lastSeen === today ? '🟢' : ''}`
-  ).join('\n');
-
-  await ctx.reply(
-    `👥 דו"ח משתמשי הבוט:\n` +
-    `• סך הכל משתמשים: ${users.length}\n` +
-    `• פעילים היום (${today}): ${todayCount}\n` +
-    `• קבוצות שבהן הבוט נמצא: ${groupsCount}\n\n` +
-    `📋 רשימת משתמשים (🟢 = פעיל היום):\n${list || 'אין עדיין'}`
-  );
-}
-
+// פענוח הודעה עשירה: מחלץ כפתורי {{טקסט}{קישור}}, מתקן %2B ובונה Inline Keyboard
 function parseRichMessage(rawText, vars = {}) {
   let text = String(rawText || '');
   for (const [k, v] of Object.entries(vars)) {
@@ -220,11 +153,16 @@ function parseRichMessage(rawText, vars = {}) {
   return { text: finalText, extra };
 }
 
+// שליחת הודעה מעוצבת עם תפיסת שגיאות Markdown והצגת מדריך העיצוב אוטומטית
 async function sendFormattedMessage(ctx, rawText, vars = {}) {
   const { text, extra } = parseRichMessage(rawText, vars);
   try {
     return await ctx.reply(text, extra);
   } catch (err) {
+    if (ctx.chat?.type === 'private' && !(ctx.message?.text || '').startsWith('/set') && !(ctx.message?.text || '').startsWith('/echo')) {
+      const plainExtra = extra.reply_markup ? { reply_markup: extra.reply_markup, disable_web_page_preview: true } : { disable_web_page_preview: true };
+      return await ctx.reply(text, plainExtra).catch(() => null);
+    }
     await ctx.reply(FORMAT_GUIDE, { parse_mode: 'Markdown' });
     return null;
   }
@@ -270,12 +208,6 @@ module.exports = {
   FORMAT_GUIDE,
   getGroupData,
   saveGroupData,
-  getGlobalData,
-  saveGlobalData,
-  fetchGroupLink,
-  getOwnerKeyboard,
-  sendGroupsList,
-  sendUsersReport,
   parseRichMessage,
   sendFormattedMessage,
   requireAdmin,
