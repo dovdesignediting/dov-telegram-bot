@@ -39,8 +39,17 @@ function createDefaultGroup() {
   };
 }
 
-async function getGroupData(chatId) {
-  const key = `group:${chatId}`;
+function createDefaultGlobal() {
+  return {
+    groups: {},
+    users: {},
+    globalBanned: [],
+    maintenance: false,
+    liveChatTarget: null
+  };
+}
+
+async function rawGet(key) {
   const kvUrl = process.env.KV_REST_API_URL;
   const kvToken = process.env.KV_REST_API_TOKEN;
   if (kvUrl && kvToken) {
@@ -49,22 +58,20 @@ async function getGroupData(chatId) {
         headers: { Authorization: `Bearer ${kvToken}` }
       });
       const data = await res.json();
-      if (data && data.result) return { ...createDefaultGroup(), ...JSON.parse(data.result) };
+      if (data && data.result) return JSON.parse(data.result);
     } catch (e) {}
   }
   try {
     if (fs.existsSync(TMP_FILE)) {
       const fileData = JSON.parse(fs.readFileSync(TMP_FILE, 'utf8'));
-      if (fileData[key]) return { ...createDefaultGroup(), ...fileData[key] };
+      if (fileData[key]) return fileData[key];
     }
   } catch (e) {}
-  if (!memoryCache[key]) memoryCache[key] = createDefaultGroup();
-  return memoryCache[key];
+  return memoryCache[key] || null;
 }
 
-async function saveGroupData(chatId, groupData) {
-  const key = `group:${chatId}`;
-  memoryCache[key] = groupData;
+async function rawSet(key, val) {
+  memoryCache[key] = val;
   const kvUrl = process.env.KV_REST_API_URL;
   const kvToken = process.env.KV_REST_API_TOKEN;
   if (kvUrl && kvToken) {
@@ -72,62 +79,44 @@ async function saveGroupData(chatId, groupData) {
       await fetch(`${kvUrl}/set/${key}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${kvToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(JSON.stringify(groupData))
+        body: JSON.stringify(JSON.stringify(val))
       });
     } catch (e) {}
   }
   try {
     const all = fs.existsSync(TMP_FILE) ? JSON.parse(fs.readFileSync(TMP_FILE, 'utf8')) : {};
-    all[key] = groupData;
+    all[key] = val;
     fs.writeFileSync(TMP_FILE, JSON.stringify(all), 'utf8');
   } catch (e) {}
 }
 
-// שמירת Session עבור ה-Wizard Scene ב-Vercel Serverless
+async function getGroupData(chatId) {
+  const saved = await rawGet(`group:${chatId}`);
+  return { ...createDefaultGroup(), ...(saved || {}) };
+}
+
+async function saveGroupData(chatId, groupData) {
+  await rawSet(`group:${chatId}`, groupData);
+}
+
+async function getGlobalData() {
+  const saved = await rawGet('global:registry');
+  return { ...createDefaultGlobal(), ...(saved || {}) };
+}
+
+async function saveGlobalData(globalData) {
+  await rawSet('global:registry', globalData);
+}
+
 const sessionStore = {
   async get(name) {
-    const key = `wizard:${name}`;
-    const kvUrl = process.env.KV_REST_API_URL;
-    const kvToken = process.env.KV_REST_API_TOKEN;
-    if (kvUrl && kvToken) {
-      try {
-        const res = await fetch(`${kvUrl}/get/${key}`, {
-          headers: { Authorization: `Bearer ${kvToken}` }
-        });
-        const data = await res.json();
-        if (data && data.result) return JSON.parse(data.result);
-      } catch (e) {}
-    }
-    try {
-      if (fs.existsSync(TMP_FILE)) {
-        const all = JSON.parse(fs.readFileSync(TMP_FILE, 'utf8'));
-        if (all[key]) return all[key];
-      }
-    } catch (e) {}
-    return memoryCache[key] || {};
+    return (await rawGet(`wizard:${name}`)) || {};
   },
   async set(name, value) {
-    const key = `wizard:${name}`;
-    memoryCache[key] = value;
-    const kvUrl = process.env.KV_REST_API_URL;
-    const kvToken = process.env.KV_REST_API_TOKEN;
-    if (kvUrl && kvToken) {
-      try {
-        await fetch(`${kvUrl}/set/${key}`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${kvToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify(JSON.stringify(value))
-        });
-      } catch (e) {}
-    }
-    try {
-      const all = fs.existsSync(TMP_FILE) ? JSON.parse(fs.readFileSync(TMP_FILE, 'utf8')) : {};
-      all[key] = value;
-      fs.writeFileSync(TMP_FILE, JSON.stringify(all), 'utf8');
-    } catch (e) {}
+    await rawSet(`wizard:${name}`, value);
   },
   async delete(name) {
-    await this.set(name, {});
+    await rawSet(`wizard:${name}`, {});
   }
 };
 
@@ -214,6 +203,8 @@ module.exports = {
   FORMAT_GUIDE,
   getGroupData,
   saveGroupData,
+  getGlobalData,
+  saveGlobalData,
   sessionStore,
   parseRichMessage,
   sendFormattedMessage,

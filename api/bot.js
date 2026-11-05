@@ -4,6 +4,7 @@ const {
   sendFormattedMessage,
   sessionStore
 } = require('../commands/utils');
+const registerOwnerCommands = require('../commands/owner');
 const registerUsersCommands = require('../commands/users');
 const registerContentCommands = require('../commands/content');
 const registerProtectionCommands = require('../commands/protection');
@@ -74,6 +75,9 @@ if (bot) {
   const stage = new Scenes.Stage([requestCommandWizard]);
   bot.use(session({ store: sessionStore }));
   bot.use(stage.middleware());
+
+  // טעינת פקודות היוצר הסודיות (ראשונות כדי לתפוס ניטור קבוצות, משתמשים וכתיבה חיה)
+  registerOwnerCommands(bot);
 
   // התחלת האשף בלחיצה על /request_command
   bot.command('request_command', async (ctx) => {
