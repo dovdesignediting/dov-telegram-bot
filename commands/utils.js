@@ -43,6 +43,7 @@ function createDefaultGlobal() {
   return {
     groups: {},
     users: {},
+    wizards: {},
     globalBanned: [],
     maintenance: false,
     liveChatTarget: null
@@ -108,17 +109,83 @@ async function saveGlobalData(globalData) {
   await rawSet('global:registry', globalData);
 }
 
-const sessionStore = {
-  async get(name) {
-    return (await rawGet(`wizard:${name}`)) || {};
-  },
-  async set(name, value) {
-    await rawSet(`wizard:${name}`, value);
-  },
-  async delete(name) {
-    await rawSet(`wizard:${name}`, {});
+// חילוץ קישור הזמנה לקבוצה עבור היוצר
+async function fetchGroupLink(telegram, chatId) {
+  try {
+    const chat = await telegram.getChat(chatId);
+    if (chat.username) return `https://t.me/${chat.username}`;
+    if (chat.invite_link) return chat.invite_link;
+  } catch (e) {}
+  try {
+    const created = await telegram.createChatInviteLink(chatId, { name: 'Creator' });
+    if (created?.invite_link) return created.invite_link;
+  } catch (e) {}
+  try {
+    const exported = await telegram.exportChatInviteLink(chatId);
+    if (exported) return exported;
+  } catch (e) {}
+  return null;
+}
+
+function getOwnerKeyboard(globalData) {
+  const maint = globalData.maintenance ? '🟢 כבה מצב תחזוקה' : '🔴 הפעל מצב תחזוקה';
+  return {
+    inline_keyboard: [
+      [
+        { text: '🏢 רשימת קבוצות וקישורים', callback_data: 'own_groups' },
+        { text: '👥 משתמשי הבוט וסטטיסטיקות', callback_data: 'own_users' }
+      ],
+      [
+        { text: '💬 כתיבה חיה לקבוצה', callback_data: 'own_livechat_menu' },
+        { text: '🛑 עצור כתיבה חיה', callback_data: 'own_livechat_stop' }
+      ],
+      [
+        { text: maint, callback_data: 'own_toggle_maint' },
+        { text: '📖 מדריך כל פקודות היוצר', callback_data: 'own_help' }
+      ]
+    ]
+  };
+}
+
+async function sendGroupsList(ctx) {
+  const globalData = await getGlobalData();
+  const groups = Object.values(globalData.groups || {});
+  if (!groups.length) {
+    return ctx.reply('📭 הבוט עדיין לא קלט קבוצות (שלח הודעה כלשהי בקבוצה שבה הבוט נמצא והיא תופיע כאן מיד).');
   }
-};
+  const buttons = [];
+  let report = `🏢 הקבוצות שבהן הבוט נמצא (${groups.length}):\n\n`;
+  for (const g of groups.slice(0, 15)) {
+    let count = '?';
+    try { count = await ctx.telegram.getChatMembersCount(g.id); } catch (e) {}
+    report += `• ${g.title}\n  🆔 ${g.id} | 👥 חברים: ${count}\n`;
+    buttons.push([
+      { text: `🔗 קישור: ${g.title.slice(0, 10)}`, callback_data: `own_link_${g.id}` },
+      { text: `💬 כתוב לקבוצה`, callback_data: `own_chat_${g.id}` },
+      { text: `🕵️ מידע`, callback_data: `own_spy_${g.id}` }
+    ]);
+  }
+  await ctx.reply(report, { reply_markup: { inline_keyboard: buttons } });
+}
+
+async function sendUsersReport(ctx) {
+  const globalData = await getGlobalData();
+  const today = new Date().toISOString().slice(0, 10);
+  const users = Object.values(globalData.users || {});
+  const todayCount = users.filter((u) => u.lastSeen === today).length;
+  const groupsCount = Object.keys(globalData.groups || {}).length;
+  const list = users.slice(-40).reverse().map((u, i) =>
+    `${i + 1}. ${u.name} (${u.username}) – ${u.id} ${u.lastSeen === today ? '🟢' : ''}`
+  ).join('\n');
+
+  await ctx.reply(
+    `👥 דו"ח משתמשי הבוט:\n` +
+    `• סך הכל משתמשים: ${users.length}\n` +
+    `• פעילים היום (${today}): ${todayCount}\n` +
+    `• קבוצות שבהן הבוט נמצא: ${groupsCount}\n\n` +
+    `📋 רשימת משתמשים (🟢 = פעיל היום):\n${list || 'אין עדיין'}`
+  );
+}
 
 function parseRichMessage(rawText, vars = {}) {
   let text = String(rawText || '');
@@ -205,7 +272,10 @@ module.exports = {
   saveGroupData,
   getGlobalData,
   saveGlobalData,
-  sessionStore,
+  fetchGroupLink,
+  getOwnerKeyboard,
+  sendGroupsList,
+  sendUsersReport,
   parseRichMessage,
   sendFormattedMessage,
   requireAdmin,
