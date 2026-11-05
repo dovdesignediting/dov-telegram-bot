@@ -1,31 +1,94 @@
-const { getGroupData, saveGroupData, requireAdmin, getTarget } = require('./utils');
+const {
+  getGroupData,
+  saveGroupData,
+  sendFormattedMessage,
+  requireAdmin,
+  getTarget
+} = require('./utils');
 
 module.exports = function registerInfoCommands(bot) {
-  // 24. /rules + /setrules [טקסט] - הצגת והגדרת חוקי הקבוצה
+  // 24. /rules + /setrules [טקסט עשיר + כפתורים] - הצגת והגדרת חוקי הקבוצה
   bot.command('rules', async (ctx) => {
-    if (!(await requireAdmin(ctx, '/rules'))) return;
+    if (!ctx.chat || ctx.chat.type === 'private') {
+      return ctx.reply('⚠️ פקודה זו פועלת בקבוצות בלבד.');
+    }
     try {
       const data = await getGroupData(ctx.chat.id);
-      await ctx.reply(`📜 **חוקי הקבוצה:**\n\n${data.rules}`, { parse_mode: 'Markdown' });
+      await sendFormattedMessage(ctx, `📜 *חוקי הקבוצה:*\n\n${data.rules}`, {
+        name: ctx.from?.first_name || 'חבר'
+      });
     } catch (err) {
       await ctx.reply('❌ שגיאה בהצגת חוקי הקבוצה. לעזרה: /help');
     }
   });
 
   bot.command('setrules', async (ctx) => {
-    if (!(await requireAdmin(ctx, '/setrules [טקסט החוקים]'))) return;
+    if (!(await requireAdmin(ctx, '/setrules [טקסט החוקים + כפתורים]'))) return;
     try {
-      const text = (ctx.message.text || '').trim().split(/\s+/).slice(1).join(' ');
+      const text = (ctx.message.text || '').replace(/^\/setrules(@\S+)?\s*/i, '');
       if (!text) {
-        return ctx.reply('⚠️ שימוש: `/setrules 1. לשמור על שפה נאותה 2. אין לשלוח ספאם`\nלעזרה: /help', { parse_mode: 'Markdown' });
+        return ctx.reply(
+          '⚠️ שימוש: `/setrules *חוקי הקבוצה:*\n1. שיח מכבד\n{{לערוץ הראשי}{https://t.me/telegram}}`\nלמדריך עיצוב וכפתורים שלח `/format`',
+          { parse_mode: 'Markdown' }
+        );
       }
+      const preview = await sendFormattedMessage(ctx, text, { name: ctx.from.first_name || 'חבר' });
+      if (!preview) return;
       const data = await getGroupData(ctx.chat.id);
       data.rules = text;
       await saveGroupData(ctx.chat.id, data);
-      await ctx.reply('✅ חוקי הקבוצה עודכנו בהצלחה! לצפייה שלח `/rules`.', { parse_mode: 'Markdown' });
+      await ctx.reply('✅ חוקי הקבוצה נשמרו בהצלחה! לצפייה שלח `/rules`.', { parse_mode: 'Markdown' });
     } catch (err) {
       await ctx.reply('❌ שגיאה בעדכון חוקי הקבוצה. לעזרה: /help');
     }
+  });
+
+  // פקודות מותאמות אישית לקבוצה (/addcmd, /delcmd, /cmds) עם תמיכה בעיצוב וכפתורים
+  bot.command('addcmd', async (ctx) => {
+    if (!(await requireAdmin(ctx, '/addcmd [שם פקודה] [תוכן מעוצב + כפתורים]'))) return;
+    try {
+      const raw = (ctx.message.text || '').replace(/^\/addcmd(@\S+)?\s*/i, '');
+      const firstSpace = raw.search(/\s/);
+      if (firstSpace === -1) {
+        return ctx.reply(
+          '⚠️ שימוש: `/addcmd שם_פקודה תוכן ההודעה המעוצבת`\nלדוגמה:\n`/addcmd site *האתר שלנו:*\n{{כניסה לאתר}{https://google.com}}`',
+          { parse_mode: 'Markdown' }
+        );
+      }
+      const cmdName = raw.slice(0, firstSpace).replace(/^\//, '').toLowerCase();
+      const cmdContent = raw.slice(firstSpace + 1).trim();
+      const preview = await sendFormattedMessage(ctx, cmdContent, { name: ctx.from.first_name || 'חבר' });
+      if (!preview) return;
+
+      const data = await getGroupData(ctx.chat.id);
+      data.customCommands = data.customCommands || {};
+      data.customCommands[cmdName] = cmdContent;
+      await saveGroupData(ctx.chat.id, data);
+      await ctx.reply(`✅ הפקודה המותאמת \`/${cmdName}\` נשמרה! (מעל מופיעה תצוגה מקדימה)`, { parse_mode: 'Markdown' });
+    } catch (err) {
+      await ctx.reply('❌ שגיאה בשמירת פקודה מותאמת אישית.');
+    }
+  });
+
+  bot.command('delcmd', async (ctx) => {
+    if (!(await requireAdmin(ctx, '/delcmd [שם פקודה]'))) return;
+    const cmdName = ((ctx.message.text || '').trim().split(/\s+/)[1] || '').replace(/^\//, '').toLowerCase();
+    if (!cmdName) return ctx.reply('⚠️ שימוש: `/delcmd [שם פקודה]`', { parse_mode: 'Markdown' });
+    const data = await getGroupData(ctx.chat.id);
+    if (!data.customCommands || !data.customCommands[cmdName]) {
+      return ctx.reply(`⚠️ הפקודה \`/${cmdName}\` לא קיימת בקבוצה.`, { parse_mode: 'Markdown' });
+    }
+    delete data.customCommands[cmdName];
+    await saveGroupData(ctx.chat.id, data);
+    await ctx.reply(`🗑️ הפקודה המותאמת \`/${cmdName}\` נמחקה.`, { parse_mode: 'Markdown' });
+  });
+
+  bot.command('cmds', async (ctx) => {
+    if (!ctx.chat || ctx.chat.type === 'private') return ctx.reply('⚠️ פקודה זו פועלת בקבוצות בלבד.');
+    const data = await getGroupData(ctx.chat.id);
+    const keys = Object.keys(data.customCommands || {});
+    if (!keys.length) return ctx.reply('📋 אין כרגע פקודות מותאמות אישית בקבוצה. להוספה: `/addcmd`', { parse_mode: 'Markdown' });
+    await ctx.reply(`📌 *פקודות מותאמות אישית בקבוצה:*\n• /${keys.join('\n• /')}`, { parse_mode: 'Markdown' });
   });
 
   // 25. /admins - תיוג והצגת כל האדמינים בקבוצה
@@ -35,14 +98,10 @@ module.exports = function registerInfoCommands(bot) {
       const admins = await ctx.telegram.getChatAdministrators(ctx.chat.id);
       const list = admins
         .filter((a) => !a.user.is_bot)
-        .map((a) => {
-          const role = a.status === 'creator' ? '👑 בעלים' : '🛡️ אדמין';
-          const tag = a.user.username ? `@${a.user.username}` : a.user.first_name;
-          return `${role}: ${tag}`;
-        });
-      await ctx.reply(`👥 **צוות הניהול של הקבוצה (${list.length}):**\n${list.join('\n')}`, { parse_mode: 'Markdown' });
+        .map((a) => `${a.status === 'creator' ? '👑 בעלים' : '🛡️ אדמין'}: ${a.user.username ? `@${a.user.username}` : a.user.first_name}`);
+      await ctx.reply(`👥 *צוות הניהול של הקבוצה (${list.length}):*\n${list.join('\n')}`);
     } catch (err) {
-      await ctx.reply(`❌ שגיאה בשליפת רשימת האדמינים: ${err.description || err.message}. לעזרה: /help`);
+      await ctx.reply(`❌ שגיאה בשליפת רשימת האדמינים. לעזרה: /help`);
     }
   });
 
@@ -58,15 +117,8 @@ module.exports = function registerInfoCommands(bot) {
       const member = await ctx.telegram.getChatMember(ctx.chat.id, target.id).catch(() => ({ status: 'לא ידוע' }));
       const data = await getGroupData(ctx.chat.id);
       const warns = (data.warns[target.id] || []).length;
-
       await ctx.reply(
-        `👤 **מידע על משתמש:**\n` +
-        `• שם: ${target.name}\n` +
-        `• מזהה (User ID): \`${target.id}\`\n` +
-        `• שם משתמש: ${target.username || 'ללא'}\n` +
-        `• מעמד בקבוצה: ${member.status}\n` +
-        `• אזהרות: ${warns}/3\n` +
-        `• מזהה קבוצה (Chat ID): \`${ctx.chat.id}\``,
+        `👤 *מידע על משתמש:*\n• שם: ${target.name}\n• מזהה: \`${target.id}\`\n• מעמד: ${member.status}\n• אזהרות: ${warns}/3\n• מזהה קבוצה: \`${ctx.chat.id}\``,
         { parse_mode: 'Markdown' }
       );
     } catch (err) {
@@ -81,16 +133,11 @@ module.exports = function registerInfoCommands(bot) {
       const count = await ctx.telegram.getChatMembersCount(ctx.chat.id);
       const data = await getGroupData(ctx.chat.id);
       await ctx.reply(
-        `📊 **סטטיסטיקות קבוצה – ${ctx.chat.title || 'הקבוצה'}:**\n` +
-        `• מספר חברים: ${count}\n` +
-        `• הודעות שנוטרו: ${data.stats.messages || 0}\n` +
-        `• סך אזהרות שניתנו: ${data.stats.warnsCount || 0}\n` +
-        `• סך חסימות (Bans): ${data.stats.bans || 0}\n` +
-        `• פילטרים פעילים: ${data.filters.length}`,
+        `📊 *סטטיסטיקות קבוצה:*\n• חברים: ${count}\n• הודעות שנוטרו: ${data.stats.messages || 0}\n• אזהרות: ${data.stats.warnsCount || 0}\n• חסימות: ${data.stats.bans || 0}\n• פילטרים: ${data.filters.length}`,
         { parse_mode: 'Markdown' }
       );
     } catch (err) {
-      await ctx.reply(`❌ שגיאה בשליפת סטטיסטיקות: ${err.description || err.message}. לעזרה: /help`);
+      await ctx.reply(`❌ שגיאה בשליפת סטטיסטיקות. לעזרה: /help`);
     }
   });
 };
