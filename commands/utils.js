@@ -214,4 +214,4 @@ module.exports = {
   getTarget,
   parseDurationSeconds,
   floodTracker
-};
+}
