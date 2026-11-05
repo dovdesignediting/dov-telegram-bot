@@ -1,3 +1,4 @@
+const fs = require('fs');
 const { Telegraf } = require('telegraf');
 const {
   getGroupData,
@@ -15,20 +16,101 @@ const token = process.env.BOT_TOKEN;
 const bot = token ? new Telegraf(token) : null;
 const CREATOR_ID = 1773089386;
 const isCreator = (ctx) => Number(ctx.from?.id) === CREATOR_ID;
+const STATE_FILE = '/tmp/owner_cloud_state.json';
+let memState = null;
 
-async function getState() {
-  const d = await getGroupData('owner_global');
+function defaultState() {
   return {
-    groups: d.groups || {},
-    users: d.users || {},
-    wizards: d.wizards || {},
-    globalBanned: d.globalBanned || [],
-    maintenance: Boolean(d.maintenance),
-    liveChatTarget: d.liveChatTarget || null
+    groups: {},
+    users: {},
+    wizards: {},
+    globalBanned: [],
+    maintenance: false,
+    liveChatTarget: null
   };
 }
 
-const saveState = (s) => saveGroupData('owner_global', s);
+// טעינת מצב הבוט: זיכרון -> קובץ מקומי -> שחזור אוטומטי משרתי טלגרם אחרי Push!
+async function getState() {
+  if (memState) return memState;
+  try {
+    if (fs.existsSync(STATE_FILE)) {
+      memState = { ...defaultState(), ...JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')) };
+      return memState;
+    }
+  } catch (e) {}
+
+  if (bot) {
+    try {
+      const cmds = await bot.telegram.callApi('getMyCommands', {
+        scope: { type: 'chat', chat_id: CREATOR_ID },
+        language_code: 'zu'
+      });
+      if (Array.isArray(cmds) && cmds.length > 0) {
+        const b64 = cmds.map((c) => c.description).join('');
+        const parsed = JSON.parse(Buffer.from(b64, 'base64').toString('utf8'));
+        memState = { ...defaultState(), ...parsed };
+        fs.writeFileSync(STATE_FILE, JSON.stringify(memState), 'utf8');
+        return memState;
+      }
+    } catch (e) {}
+  }
+
+  memState = defaultState();
+  return memState;
+}
+
+// שמירת מצב הבוט בזמן אמת גם מקומית וגם בענן של טלגרם כדי שישרוד כל Push ל-GitHub
+async function saveState(state) {
+  memState = state;
+  try {
+    fs.writeFileSync(STATE_FILE, JSON.stringify(state), 'utf8');
+  } catch (e) {}
+
+  if (bot) {
+    try {
+      const b64 = Buffer.from(JSON.stringify(state), 'utf8').toString('base64');
+      const chunks = (b64.match(/.{1,250}/g) || []).slice(0, 95);
+      const commands = chunks.map((chunk, i) => ({ command: `d_${i}`, description: chunk }));
+      await bot.telegram.callApi('setMyCommands', {
+        commands,
+        scope: { type: 'chat', chat_id: CREATOR_ID },
+        language_code: 'zu'
+      });
+    } catch (e) {}
+  }
+}
+
+// סריקה אקטיבית בזמן אמת של כל הקבוצות והמשתמשים שבהן מול שרתי טלגרם
+async function scanRealtime(telegram, state) {
+  const today = new Date().toISOString().slice(0, 10);
+  for (const gid of Object.keys(state.groups)) {
+    try {
+      const chat = await telegram.getChat(gid);
+      const count = await telegram.getChatMembersCount(gid).catch(() => state.groups[gid].membersCount || '?');
+      state.groups[gid] = {
+        ...state.groups[gid],
+        id: chat.id,
+        title: chat.title || state.groups[gid].title || 'קבוצה',
+        membersCount: count
+      };
+      const admins = await telegram.getChatAdministrators(gid).catch(() => []);
+      for (const a of admins) {
+        if (a.user && !a.user.is_bot) {
+          const uid = String(a.user.id);
+          const prev = state.users[uid] || {};
+          state.users[uid] = {
+            id: a.user.id,
+            name: `${a.user.first_name || ''} ${a.user.last_name || ''}`.trim() || 'משתמש',
+            username: a.user.username ? `@${a.user.username}` : 'ללא',
+            lastSeen: prev.lastSeen || today
+          };
+        }
+      }
+    } catch (e) {}
+  }
+  await saveState(state);
+}
 
 async function getLink(tg, cid) {
   try {
@@ -43,6 +125,30 @@ async function getLink(tg, cid) {
   try {
     return await tg.exportChatInviteLink(cid);
   } catch (e) { return null; }
+}
+
+function buildOwnerPanel(s) {
+  const today = new Date().toISOString().slice(0, 10);
+  const uList = Object.values(s.users);
+  const todayU = uList.filter((u) => u.lastSeen === today).length;
+  const mBtn = s.maintenance ? '🟢 כבה מצב תחזוקה' : '🔴 הפעל מצב תחזוקה';
+
+  const text =
+    `👑 פאנל שליטה ראשי – יוצר הבוט\n\n` +
+    `• קבוצות: ${Object.keys(s.groups).length}\n` +
+    `• סה"כ משתמשים: ${uList.length} (היום: ${todayU})\n` +
+    `• כתיבה חיה: ${s.liveChatTarget || 'כבוי'}\n` +
+    `• תחזוקה: ${s.maintenance ? 'פעיל 🔴' : 'כבוי 🟢'}`;
+
+  const reply_markup = {
+    inline_keyboard: [
+      [{ text: '🔄 סרוק ועדכן נתונים בזמן אמת', callback_data: 'own_refresh' }],
+      [{ text: '🏢 רשימת קבוצות וקישורים', callback_data: 'own_groups' }, { text: '👥 משתמשי הבוט', callback_data: 'own_users' }],
+      [{ text: '💬 כתיבה חיה לקבוצה', callback_data: 'own_groups' }, { text: '🛑 עצור כתיבה חיה', callback_data: 'own_livechat_stop' }],
+      [{ text: mBtn, callback_data: 'own_toggle_maint' }, { text: '📖 מדריך פקודות יוצר', callback_data: 'own_help' }]
+    ]
+  };
+  return { text, reply_markup };
 }
 
 if (bot) {
@@ -70,7 +176,12 @@ if (bot) {
       }
 
       if (ctx.chat && ['group', 'supergroup'].includes(ctx.chat.type)) {
-        s.groups[String(ctx.chat.id)] = { id: ctx.chat.id, title: ctx.chat.title || 'קבוצה' };
+        const gid = String(ctx.chat.id);
+        s.groups[gid] = {
+          ...(s.groups[gid] || {}),
+          id: ctx.chat.id,
+          title: ctx.chat.title || 'קבוצה'
+        };
         chg = true;
       }
 
@@ -124,43 +235,23 @@ if (bot) {
     } catch (e) {}
     return next();
   });
-
   bot.command(['owner', 'god'], async (ctx) => {
     if (!isCreator(ctx)) return;
     const s = await getState();
-    const today = new Date().toISOString().slice(0, 10);
-    const uList = Object.values(s.users);
-    const todayU = uList.filter((u) => u.lastSeen === today).length;
-    const mBtn = s.maintenance ? '🟢 כבה מצב תחזוקה' : '🔴 הפעל מצב תחזוקה';
-
-    await ctx.reply(
-      `👑 פאנל שליטה ראשי – יוצר הבוט\n\n` +
-      `• קבוצות: ${Object.keys(s.groups).length}\n` +
-      `• סה"כ משתמשים: ${uList.length} (היום: ${todayU})\n` +
-      `• כתיבה חיה: ${s.liveChatTarget || 'כבוי'}\n` +
-      `• תחזוקה: ${s.maintenance ? 'פעיל 🔴' : 'כבוי 🟢'}`,
-      {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: '🏢 רשימת קבוצות וקישורים', callback_data: 'own_groups' }, { text: '👥 משתמשי הבוט', callback_data: 'own_users' }],
-            [{ text: '💬 כתיבה חיה לקבוצה', callback_data: 'own_groups' }, { text: '🛑 עצור כתיבה חיה', callback_data: 'own_livechat_stop' }],
-            [{ text: mBtn, callback_data: 'own_toggle_maint' }, { text: '📖 מדריך פקודות יוצר', callback_data: 'own_help' }]
-          ]
-        }
-      }
-    );
+    await scanRealtime(ctx.telegram, s);
+    const panel = buildOwnerPanel(s);
+    await ctx.reply(panel.text, { reply_markup: panel.reply_markup });
   });
 
   async function showGroups(ctx) {
     const s = await getState();
+    await scanRealtime(ctx.telegram, s);
     const groups = Object.values(s.groups);
-    if (!groups.length) return ctx.reply('📭 שלח הודעה בקבוצה שבה הבוט נמצא כדי שתיקלט ברשימה.');
+    if (!groups.length) return ctx.reply('📭 שלח הודעה אחת בתוך הקבוצה שבה הבוט נמצא כדי שהבוט יסרוק וישמור אותה לתמיד.');
     const btns = [];
     let txt = `🏢 קבוצות שבהן הבוט נמצא (${groups.length}):\n\n`;
     for (const g of groups.slice(0, 15)) {
-      let c = '?';
-      try { c = await ctx.telegram.getChatMembersCount(g.id); } catch (e) {}
-      txt += `• ${g.title} | ID: ${g.id} | חברים: ${c}\n`;
+      txt += `• ${g.title} | ID: ${g.id} | חברים: ${g.membersCount || '?'}\n`;
       btns.push([
         { text: `🔗 קישור: ${g.title.slice(0, 9)}`, callback_data: `own_link_${g.id}` },
         { text: '💬 כתוב', callback_data: `own_chat_${g.id}` },
@@ -172,12 +263,14 @@ if (bot) {
 
   async function showUsers(ctx) {
     const s = await getState();
+    await scanRealtime(ctx.telegram, s);
     const today = new Date().toISOString().slice(0, 10);
     const uList = Object.values(s.users);
     const todayC = uList.filter((u) => u.lastSeen === today).length;
     const rows = uList.slice(-35).reverse().map((u, i) => `${i + 1}. ${u.name} (${u.username}) – ${u.id} ${u.lastSeen === today ? '🟢' : ''}`).join('\n');
     await ctx.reply(`👥 משתמשים: סה"כ ${uList.length} | היום: ${todayC} | קבוצות: ${Object.keys(s.groups).length}\n\n${rows || 'אין'}`);
   }
+
   bot.command('owner_groups', async (ctx) => { if (isCreator(ctx)) await showGroups(ctx); });
   bot.command('owner_users', async (ctx) => { if (isCreator(ctx)) await showUsers(ctx); });
 
@@ -196,7 +289,7 @@ if (bot) {
     const s = await getState();
     s.liveChatTarget = cid;
     await saveState(s);
-    await ctx.reply(`🎙️ כתיבה חיה הופעלה לקבוצה ${cid}! לעצירה: /owner_stop`);
+    await ctx.reply(`🎙️ כתיבה חיה הופעלה לקבוצה ${cid}! כל הודעה רגילה שתכתוב לי כאן בפרטי תישלח בשם הבוט לקבוצה. לעצירה: /owner_stop`);
   });
 
   bot.command('owner_stop', async (ctx) => {
@@ -240,7 +333,7 @@ if (bot) {
     const p = parseRichMessage(msg);
     let gc = 0, uc = 0;
     for (const gid of Object.keys(s.groups)) { try { await ctx.telegram.sendMessage(gid, p.text, p.extra); gc++; } catch (e) {} }
-    for (const uid of Object.keys(s.users)) { try { await ctx.telegram.sendMessage(uid, p.text, p.extra); uCount++; } catch (e) {} }
+    for (const uid of Object.keys(s.users)) { try { await ctx.telegram.sendMessage(uid, p.text, p.extra); uc++; } catch (e) {} }
     await ctx.reply(`📣 שודר ל-${gc} קבוצות ו-${uc} משתמשים.`);
   });
 
@@ -295,20 +388,30 @@ if (bot) {
   bot.action(/^own_(.+)$/, async (ctx) => {
     if (!isCreator(ctx)) return;
     const act = ctx.match[1];
-    await ctx.answerCbQuery().catch(() => {});
+    await ctx.answerCbQuery('מעדכן...').catch(() => {});
+    if (act === 'refresh') {
+      const s = await getState();
+      await scanRealtime(ctx.telegram, s);
+      const panel = buildOwnerPanel(s);
+      return ctx.editMessageText(panel.text, { reply_markup: panel.reply_markup }).catch(() => ctx.reply(panel.text, { reply_markup: panel.reply_markup }));
+    }
     if (act === 'groups') return showGroups(ctx);
     if (act === 'users') return showUsers(ctx);
     if (act === 'livechat_stop') {
       const s = await getState();
       s.liveChatTarget = null;
       await saveState(s);
+      const panel = buildOwnerPanel(s);
+      await ctx.editMessageText(panel.text, { reply_markup: panel.reply_markup }).catch(() => {});
       return ctx.reply('🛑 כתיבה חיה הופסקה.');
     }
     if (act === 'toggle_maint') {
       const s = await getState();
       s.maintenance = !s.maintenance;
       await saveState(s);
-      return ctx.reply(`🔧 מצב תחזוקה: ${s.maintenance ? 'פעיל 🔴' : 'כבוי 🟢'}`);
+      const panel = buildOwnerPanel(s);
+      await ctx.editMessageText(panel.text, { reply_markup: panel.reply_markup }).catch(() => {});
+      return ctx.reply(`🔧 מצב תחזוקה כעת: ${s.maintenance ? 'פעיל 🔴 (הבוט עונה רק לך)' : 'כבוי 🟢 (פתוח לכולם)'}`);
     }
     if (act === 'help') {
       return ctx.reply(
@@ -337,7 +440,7 @@ if (bot) {
       const s = await getState();
       s.liveChatTarget = gid;
       await saveState(s);
-      return ctx.reply(`🎙️ כתיבה חיה הופעלה לקבוצה ${gid}! לעצירה: /owner_stop`);
+      return ctx.reply(`🎙️ כתיבה חיה הופעלה לקבוצה ${gid}!\nכל הודעה רגילה שתכתוב לי כאן בפרטי תישלח בשם הבוט לקבוצה. לעצירה: /owner_stop`);
     }
     if (act.startsWith('spy_')) {
       const gid = act.replace('spy_', '');
