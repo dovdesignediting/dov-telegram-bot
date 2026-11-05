@@ -83,7 +83,54 @@ async function saveGroupData(chatId, groupData) {
   } catch (e) {}
 }
 
-// פענוח הודעה עשירה: מחלץ כפתורי {{טקסט}{קישור}}, מתקן %2B ובונה Inline Keyboard
+// שמירת Session עבור ה-Wizard Scene ב-Vercel Serverless
+const sessionStore = {
+  async get(name) {
+    const key = `wizard:${name}`;
+    const kvUrl = process.env.KV_REST_API_URL;
+    const kvToken = process.env.KV_REST_API_TOKEN;
+    if (kvUrl && kvToken) {
+      try {
+        const res = await fetch(`${kvUrl}/get/${key}`, {
+          headers: { Authorization: `Bearer ${kvToken}` }
+        });
+        const data = await res.json();
+        if (data && data.result) return JSON.parse(data.result);
+      } catch (e) {}
+    }
+    try {
+      if (fs.existsSync(TMP_FILE)) {
+        const all = JSON.parse(fs.readFileSync(TMP_FILE, 'utf8'));
+        if (all[key]) return all[key];
+      }
+    } catch (e) {}
+    return memoryCache[key] || {};
+  },
+  async set(name, value) {
+    const key = `wizard:${name}`;
+    memoryCache[key] = value;
+    const kvUrl = process.env.KV_REST_API_URL;
+    const kvToken = process.env.KV_REST_API_TOKEN;
+    if (kvUrl && kvToken) {
+      try {
+        await fetch(`${kvUrl}/set/${key}`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${kvToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(JSON.stringify(value))
+        });
+      } catch (e) {}
+    }
+    try {
+      const all = fs.existsSync(TMP_FILE) ? JSON.parse(fs.readFileSync(TMP_FILE, 'utf8')) : {};
+      all[key] = value;
+      fs.writeFileSync(TMP_FILE, JSON.stringify(all), 'utf8');
+    } catch (e) {}
+  },
+  async delete(name) {
+    await this.set(name, {});
+  }
+};
+
 function parseRichMessage(rawText, vars = {}) {
   let text = String(rawText || '');
   for (const [k, v] of Object.entries(vars)) {
@@ -117,7 +164,6 @@ function parseRichMessage(rawText, vars = {}) {
   return { text: finalText, extra };
 }
 
-// שליחת הודעה מעוצבת עם תפיסת שגיאות Markdown והצגת מדריך העיצוב אוטומטית
 async function sendFormattedMessage(ctx, rawText, vars = {}) {
   const { text, extra } = parseRichMessage(rawText, vars);
   try {
@@ -168,6 +214,7 @@ module.exports = {
   FORMAT_GUIDE,
   getGroupData,
   saveGroupData,
+  sessionStore,
   parseRichMessage,
   sendFormattedMessage,
   requireAdmin,

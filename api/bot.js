@@ -1,5 +1,9 @@
-const { Telegraf } = require('telegraf');
-const { getGroupData, sendFormattedMessage } = require('../commands/utils');
+const { Telegraf, Scenes, session } = require('telegraf');
+const {
+  getGroupData,
+  sendFormattedMessage,
+  sessionStore
+} = require('../commands/utils');
 const registerUsersCommands = require('../commands/users');
 const registerContentCommands = require('../commands/content');
 const registerProtectionCommands = require('../commands/protection');
@@ -8,8 +12,98 @@ const registerSystemCommands = require('../commands/system');
 
 const token = process.env.BOT_TOKEN;
 const bot = token ? new Telegraf(token) : null;
+const CREATOR_ID = 1773089386;
 
 if (bot) {
+  // הגדרת אשף הוספת פקודה (Wizard Scene)
+  const requestCommandWizard = new Scenes.WizardScene(
+    'request_command_wizard',
+    // שלב 1: שאלת הפקודה המבוקשת
+    async (ctx) => {
+      await ctx.reply('איזו מילה או פקודה תרצה שתוסיף? (למשל: /rules)');
+      return ctx.wizard.next();
+    },
+    // שלב 2: קליטת הפקודה ושאלת התשובה המבוקשת
+    async (ctx) => {
+      const requestedCommand = ctx.message?.text?.trim();
+      if (!requestedCommand) {
+        await ctx.reply('איזו מילה או פקודה תרצה שתוסיף? (למשל: /rules)');
+        return;
+      }
+      ctx.wizard.state.requestedCommand = requestedCommand;
+      await ctx.reply('מה הבוט צריך לענות כשמישהו יכתוב את זה?');
+      return ctx.wizard.next();
+    },
+    // שלב 3: קליטת התשובה, שליחה ליוצר הבוט לאישור ועדכון המשתמש
+    async (ctx) => {
+      const requestedAnswer = ctx.message?.text?.trim();
+      if (!requestedAnswer) {
+        await ctx.reply('מה הבוט צריך לענות כשמישהו יכתוב את זה?');
+        return;
+      }
+
+      const requestedCommand = ctx.wizard.state.requestedCommand;
+      const userId = ctx.from.id;
+      const userName = ctx.from.first_name || 'משתמש';
+      const username = ctx.from.username ? `@${ctx.from.username}` : 'ללא שם משתמש';
+
+      await ctx.telegram.sendMessage(
+        CREATOR_ID,
+        `📩 בקשה חדשה להוספת פקודה:\n\n` +
+        `👤 משתמש: ${userName} (${username})\n` +
+        `🆔 User ID: ${userId}\n` +
+        `⌨️ פקודה מבוקשת: ${requestedCommand}\n` +
+        `💬 תשובה מבוקשת:\n${requestedAnswer}`,
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: '✅ לאשר', callback_data: `reqcmd_approve_${userId}` },
+                { text: '❌ לדחות', callback_data: `reqcmd_reject_${userId}` }
+              ]
+            ]
+          }
+        }
+      );
+
+      await ctx.reply('בקשתך נשלחה לאישור היוצר, נעדכן אותך בקרוב');
+      return ctx.scene.leave();
+    }
+  );
+
+  const stage = new Scenes.Stage([requestCommandWizard]);
+  bot.use(session({ store: sessionStore }));
+  bot.use(stage.middleware());
+
+  // התחלת האשף בלחיצה על /request_command
+  bot.command('request_command', async (ctx) => {
+    await ctx.scene.enter('request_command_wizard');
+  });
+
+  // טיפול בלחיצה של היוצר על "✅ לאשר"
+  bot.action(/^reqcmd_approve_(\d+)$/, async (ctx) => {
+    if (Number(ctx.from.id) !== CREATOR_ID) {
+      return ctx.answerCbQuery('רק יוצר הבוט יכול לאשר בקשות.', { show_alert: true });
+    }
+    const targetUserId = ctx.match[1];
+    const originalText = ctx.callbackQuery?.message?.text || '';
+    await ctx.answerCbQuery('אושר');
+    await ctx.editMessageText(`אושר\n\n${originalText}`);
+    await ctx.telegram.sendMessage(targetUserId, 'הפקודה אושרה ועובדת!').catch(() => {});
+  });
+
+  // טיפול בלחיצה של היוצר על "❌ לדחות"
+  bot.action(/^reqcmd_reject_(\d+)$/, async (ctx) => {
+    if (Number(ctx.from.id) !== CREATOR_ID) {
+      return ctx.answerCbQuery('רק יוצר הבוט יכול לדחות בקשות.', { show_alert: true });
+    }
+    const targetUserId = ctx.match[1];
+    const originalText = ctx.callbackQuery?.message?.text || '';
+    await ctx.answerCbQuery('נדחה');
+    await ctx.editMessageText(`נדחה\n\n${originalText}`);
+    await ctx.telegram.sendMessage(targetUserId, 'הפקודה נדחתה עקב החלטת היוצר').catch(() => {});
+  });
+
   // פקודת /start: אם המשתמש הגיע מכפתור חוקי הקבוצה (rules_CHATID), מציג לו בפרטי את חוקי אותה קבוצה
   bot.start(async (ctx) => {
     const payload = ctx.startPayload || (ctx.message?.text || '').split(/\s+/)[1] || '';
@@ -28,7 +122,7 @@ if (bot) {
     await ctx.reply(
       'שלום! הבוט שלך באוויר ועובד מעולה! 🚀\n' +
       'אני בוט מתקדם לניהול קבוצות עם 30 פקודות ניהול והגנה.\n' +
-      'שלח /help כדי לפתוח את תפריט הפקודות המלא.'
+      'שלח /help כדי לפתוח את תפריט הפקודות המלא, או /request_command להצעת פקודה חדשה.'
     );
   });
 
