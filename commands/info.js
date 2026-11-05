@@ -7,15 +7,28 @@ const {
 } = require('./utils');
 
 module.exports = function registerInfoCommands(bot) {
-  // 24. /rules + /setrules [טקסט עשיר + כפתורים] - הצגת והגדרת חוקי הקבוצה
+  // 24. /rules - שולח בקבוצה כפתור שמעביר לפרטי של הבוט ומציג שם את חוקי הקבוצה
   bot.command('rules', async (ctx) => {
     if (!ctx.chat || ctx.chat.type === 'private') {
-      return ctx.reply('⚠️ פקודה זו פועלת בקבוצות בלבד.');
+      return ctx.reply('⚠️ שלח את הפקודה `/rules` בתוך הקבוצה כדי לקבל כפתור לחוקי הקבוצה.', { parse_mode: 'Markdown' });
     }
     try {
       const data = await getGroupData(ctx.chat.id);
-      await sendFormattedMessage(ctx, `📜 *חוקי הקבוצה:*\n\n${data.rules}`, {
-        name: ctx.from?.first_name || 'חבר'
+      if (ctx.chat.title && data.groupTitle !== ctx.chat.title) {
+        data.groupTitle = ctx.chat.title;
+        await saveGroupData(ctx.chat.id, data);
+      }
+
+      const botUsername = ctx.botInfo?.username || (await ctx.telegram.getMe()).username;
+      const deepLink = `https://t.me/${botUsername}?start=rules_${ctx.chat.id}`;
+
+      await ctx.reply('📜 *חוקי הקבוצה:*', {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '📖 לחץ כאן לצפייה בחוקי הקבוצה', url: deepLink }]
+          ]
+        }
       });
     } catch (err) {
       await ctx.reply('❌ שגיאה בהצגת חוקי הקבוצה. לעזרה: /help');
@@ -36,8 +49,9 @@ module.exports = function registerInfoCommands(bot) {
       if (!preview) return;
       const data = await getGroupData(ctx.chat.id);
       data.rules = text;
+      data.groupTitle = ctx.chat.title || data.groupTitle || '';
       await saveGroupData(ctx.chat.id, data);
-      await ctx.reply('✅ חוקי הקבוצה נשמרו בהצלחה! לצפייה שלח `/rules`.', { parse_mode: 'Markdown' });
+      await ctx.reply('✅ חוקי הקבוצה נשמרו בהצלחה! כשמשתמש ישלח `/rules` בקבוצה הוא יקבל כפתור לצפייה בחוקים בפרטי.', { parse_mode: 'Markdown' });
     } catch (err) {
       await ctx.reply('❌ שגיאה בעדכון חוקי הקבוצה. לעזרה: /help');
     }

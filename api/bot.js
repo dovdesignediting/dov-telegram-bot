@@ -1,4 +1,5 @@
 const { Telegraf } = require('telegraf');
+const { getGroupData, sendFormattedMessage } = require('../commands/utils');
 const registerUsersCommands = require('../commands/users');
 const registerContentCommands = require('../commands/content');
 const registerProtectionCommands = require('../commands/protection');
@@ -9,11 +10,24 @@ const token = process.env.BOT_TOKEN;
 const bot = token ? new Telegraf(token) : null;
 
 if (bot) {
-  // שמירה על פקודת /start המקורית והרחבתה
+  // פקודת /start: אם המשתמש הגיע מכפתור חוקי הקבוצה (rules_CHATID), מציג לו בפרטי את חוקי אותה קבוצה
   bot.start(async (ctx) => {
+    const payload = ctx.startPayload || (ctx.message?.text || '').split(/\s+/)[1] || '';
+
+    if (payload.startsWith('rules_')) {
+      const groupChatId = payload.replace('rules_', '');
+      const data = await getGroupData(groupChatId);
+      const groupTitle = data.groupTitle ? ` (${data.groupTitle})` : '';
+      return await sendFormattedMessage(
+        ctx,
+        `📜 *חוקי הקבוצה${groupTitle}:*\n\n${data.rules}`,
+        { name: ctx.from?.first_name || 'חבר' }
+      );
+    }
+
     await ctx.reply(
-      'שלום! אני הבוט וולטיק מוד! 🚀\n' +
-      'אני בוט מתקדם לניהול קבוצות פקודות ניהול והגנה.\n' +
+      'שלום! הבוט שלך באוויר ועובד מעולה! 🚀\n' +
+      'אני בוט מתקדם לניהול קבוצות עם 30 פקודות ניהול והגנה.\n' +
       'שלח /help כדי לפתוח את תפריט הפקודות המלא.'
     );
   });
