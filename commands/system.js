@@ -19,8 +19,9 @@ const HELP_CATEGORIES = {
     '• `/promote` – קידום לאדמין\n' +
     '• `/demote` – הורדה מניהול',
   content:
-    '🧹 *קטגוריה 2: ניהול תוכן וניקוי (7 פקודות)*\n' +
+    '🧹 *קטגוריה 2: ניהול תוכן וניקוי*\n' +
     '• `/del` או `/purge [מספר]` – מחיקת הודעות\n' +
+    '• `/cleanservice on/off` – מחיקה אוטומטית של הודעות שירות (הצטרפות/עזיבה/נעיצה)\n' +
     '• `/pin` – נעיצת הודעה (בהשבה)\n' +
     '• `/unpin` – הסרת נעיצה\n' +
     '• `/unpinall` – הסרת כל הנעוצים\n' +
@@ -57,7 +58,7 @@ function getHelpKeyboard() {
     inline_keyboard: [
       [
         { text: '👮 ניהול משתמשים (10)', callback_data: 'help_users' },
-        { text: '🧹 תוכן וניקוי (7)', callback_data: 'help_content' }
+        { text: '🧹 תוכן וניקוי (8)', callback_data: 'help_content' }
       ],
       [
         { text: '🛡️ אוטומציה והגנה (6)', callback_data: 'help_protection' },
@@ -142,6 +143,7 @@ module.exports = function registerSystemCommands(bot) {
       const status = (v) => (v ? '✅ פעיל' : '❌ כבוי');
       await ctx.reply(
         `⚙️ *פאנל הגדרות קבוצה – ${ctx.chat.title || ''}*\n\n` +
+        `• ניקוי הודעות שירות: ${status(data.cleanService)}\n` +
         `• אנטי-ספאם: ${status(data.antispam)}\n` +
         `• חסימת לינקים: ${status(data.antilink)}\n` +
         `• הגנת הצפה (Anti-Flood): ${data.antiflood || 'כבוי'}\n` +

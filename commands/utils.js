@@ -30,6 +30,7 @@ function createDefaultGroup() {
     rules: 'טרם הוגדרו חוקים לקבוצה זו. אדמין יכול להגדיר בעזרת /setrules',
     welcomeEnabled: true,
     welcomeText: 'ברוך הבא לקבוצה, *{name}*! נשמח שתקרא את חוקי הקבוצה (/rules).',
+    cleanService: false,
     antispam: false,
     antilink: false,
     antiflood: 0,
@@ -88,7 +89,6 @@ function parseRichMessage(rawText, vars = {}) {
   for (const [k, v] of Object.entries(vars)) {
     text = text.replace(new RegExp(`\\{${k}\\}`, 'g'), v);
   }
-  // תמיכה ב-%2B בתוך היפר-קישורים [טקסט](קישור)
   text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, url) => {
     const cleanUrl = url.trim().replace(/%2B/gi, '+');
     return `[${label}](${cleanUrl})`;

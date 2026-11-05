@@ -112,7 +112,7 @@ module.exports = function registerContentCommands(bot) {
         data.locks[type] = true;
       }
       await saveGroupData(ctx.chat.id, data);
-      await ctx.reply(`🔒 נעילת תוכן הופעלה עבור: **${type}**`, { parse_mode: 'Markdown' });
+      await ctx.reply(`🔒 נעילת תוכן הופעלה עבור: *${type}*`, { parse_mode: 'Markdown' });
     } catch (err) {
       await ctx.reply(`❌ הנעילה נכשלה. לעזרה: /help`);
     }
@@ -134,9 +134,33 @@ module.exports = function registerContentCommands(bot) {
         data.locks[type] = false;
       }
       await saveGroupData(ctx.chat.id, data);
-      await ctx.reply(`🔓 נעילת תוכן בוטלה עבור: **${type}**`, { parse_mode: 'Markdown' });
+      await ctx.reply(`🔓 נעילת תוכן בוטלה עבור: *${type}*`, { parse_mode: 'Markdown' });
     } catch (err) {
       await ctx.reply(`❌ פתיחת הנעילה נכשלה. לעזרה: /help`);
+    }
+  });
+
+  // ניקוי הודעות שירות אוטומטי (/cleanservice on/off או /delservice on/off)
+  bot.command(['cleanservice', 'delservice'], async (ctx) => {
+    if (!(await requireAdmin(ctx, '/cleanservice [on | off]'))) return;
+    try {
+      const arg = ((ctx.message.text || '').trim().split(/\s+/)[1] || '').toLowerCase();
+      if (!['on', 'off'].includes(arg)) {
+        return ctx.reply(
+          '⚠️ שימוש: `/cleanservice on` להפעלה או `/cleanservice off` לכיבוי.\n' +
+          '(מוחק אוטומטית הודעות הצטרפות, עזיבה, נעיצה ושינויי קבוצה).\nלעזרה: /help',
+          { parse_mode: 'Markdown' }
+        );
+      }
+      const data = await getGroupData(ctx.chat.id);
+      data.cleanService = arg === 'on';
+      await saveGroupData(ctx.chat.id, data);
+      await ctx.reply(
+        `🧹 ניקוי הודעות שירות אוטומטי כעת: *${data.cleanService ? 'פעיל (ON)' : 'כבוי (OFF)'}*`,
+        { parse_mode: 'Markdown' }
+      );
+    } catch (err) {
+      await ctx.reply('❌ שגיאה בעדכון ניקוי הודעות שירות. לעזרה: /help');
     }
   });
 };

@@ -130,27 +130,38 @@ module.exports = function registerProtectionCommands(bot) {
     }
   });
 
-  // שליחת הודעת ברוכים הבאים מעוצבת עם כפתורים למצטרפים חדשים
-  bot.on('new_chat_members', async (ctx) => {
-    try {
-      const data = await getGroupData(ctx.chat.id);
-      if (!data.welcomeEnabled) return;
-      for (const member of ctx.message.new_chat_members) {
-        if (member.is_bot) continue;
-        await sendFormattedMessage(ctx, data.welcomeText, { name: member.first_name || 'חבר' });
-      }
-    } catch (e) {}
-  });
-
-  // אכיפה אוטומטית + הפעלת פקודות מותאמות אישית של הקבוצה
+  // אכיפה אוטומטית + ניקוי הודעות שירות + ברוכים הבאים + פקודות מותאמות
   bot.on('message', async (ctx, next) => {
     if (!ctx.chat || ctx.chat.type === 'private' || !ctx.from) return next();
     try {
       const data = await getGroupData(ctx.chat.id);
+      const msg = ctx.message;
+
+      // בדיקת הודעת שירות (הצטרפות, עזיבה, נעיצה, שינוי שם/תמונה, שיחת וידאו)
+      const isService = Boolean(
+        msg.new_chat_members || msg.left_chat_member || msg.pinned_message ||
+        msg.new_chat_title || msg.new_chat_photo || msg.delete_chat_photo ||
+        msg.group_chat_created || msg.supergroup_chat_created ||
+        msg.video_chat_started || msg.video_chat_ended || msg.video_chat_participants_invited
+      );
+
+      if (msg.new_chat_members && data.welcomeEnabled) {
+        for (const member of msg.new_chat_members) {
+          if (!member.is_bot) {
+            await sendFormattedMessage(ctx, data.welcomeText, { name: member.first_name || 'חבר' });
+          }
+        }
+      }
+
+      if (isService && data.cleanService) {
+        await ctx.deleteMessage().catch(() => {});
+        return;
+      }
+
       data.stats.messages = (data.stats.messages || 0) + 1;
       await saveGroupData(ctx.chat.id, data);
 
-      const rawText = (ctx.message.text || '').trim();
+      const rawText = (msg.text || '').trim();
       if (rawText.startsWith('/')) {
         const cmdName = rawText.split(/\s+/)[0].slice(1).split('@')[0].toLowerCase();
         if (data.customCommands && data.customCommands[cmdName]) {
@@ -162,18 +173,17 @@ module.exports = function registerProtectionCommands(bot) {
       const member = await ctx.telegram.getChatMember(ctx.chat.id, ctx.from.id).catch(() => null);
       if (member && ['creator', 'administrator'].includes(member.status)) return next();
 
-      const text = (ctx.message.text || ctx.message.caption || '').toLowerCase();
+      const text = (msg.text || msg.caption || '').toLowerCase();
       const hasLink = /(https?:\/\/|t\.me\/|www\.)/i.test(text);
-      const hasMedia = Boolean(ctx.message.photo || ctx.message.video || ctx.message.document);
-      const hasSticker = Boolean(ctx.message.sticker);
+      const hasMedia = Boolean(msg.photo || msg.video || msg.document);
 
       if ((data.antilink || data.locks.links) && hasLink) {
         await ctx.deleteMessage().catch(() => {});
         return ctx.reply(`🚫 ${ctx.from.first_name}, שליחת קישורים אסורה בקבוצה זו.`);
       }
       if (data.locks.media && hasMedia) return ctx.deleteMessage().catch(() => {});
-      if (data.locks.stickers && hasSticker) return ctx.deleteMessage().catch(() => {});
-      if (data.antispam && (text.length > 800 || ctx.message.forward_date)) return ctx.deleteMessage().catch(() => {});
+      if (data.locks.stickers && msg.sticker) return ctx.deleteMessage().catch(() => {});
+      if (data.antispam && (text.length > 800 || msg.forward_date)) return ctx.deleteMessage().catch(() => {});
       if (data.filters.some((w) => w && text.includes(w))) return ctx.deleteMessage().catch(() => {});
 
       if (data.antiflood > 0) {
