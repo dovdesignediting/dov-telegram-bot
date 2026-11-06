@@ -190,16 +190,18 @@ if (bot) {
 
       const uid = ctx.from ? String(ctx.from.id) : null;
       const text = ctx.message?.text?.trim();
-      const wiz = uid ? s.wizards[uid] : null;
+      const isPrivate = ctx.chat?.type === 'private';
+      const wiz = isPrivate && uid ? s.wizards[uid] : null;
       const cmd = text ? text.split(/\s+/)[0].split('@')[0].toLowerCase() : '';
 
-      if (wiz && cmd.startsWith('/') && (cmd.startsWith('/owner') || ['/god', '/start', '/help', '/cancel', '/broadcast'].includes(cmd))) {
+      // אשף הוספת פקודה פועל אך ורק בפרטי!
+      if (wiz && cmd.startsWith('/') && (cmd.startsWith('/owner') || ['/god', '/start', '/help', '/cancel', '/broadcast', '/request_command'].includes(cmd))) {
         delete s.wizards[uid];
         await saveState(s);
         return next();
       }
 
-      if (wiz && text) {
+      if (isPrivate && wiz && text) {
         if (wiz.step === 1) {
           s.wizards[uid] = { step: 2, cmd: text };
           await saveState(s);
@@ -227,7 +229,7 @@ if (bot) {
         }
       }
 
-      if (isCreator(ctx) && ctx.chat?.type === 'private' && s.liveChatTarget && text && !text.startsWith('/')) {
+      if (isCreator(ctx) && isPrivate && s.liveChatTarget && text && !text.startsWith('/')) {
         const p = parseRichMessage(text);
         await ctx.telegram.sendMessage(s.liveChatTarget, p.text, p.extra);
         return await ctx.reply(`✅ נשלח לקבוצה (${s.liveChatTarget}). לעצירה: /owner_stop`);
@@ -455,7 +457,18 @@ if (bot) {
     }
   });
 
+  // /request_command - מוגבל לצ'אט פרטי בלבד! (בקבוצה מפנה בכפתור לפרטי)
   bot.command('request_command', async (ctx) => {
+    if (!ctx.chat || ctx.chat.type !== 'private') {
+      const botUsername = ctx.botInfo?.username || (await ctx.telegram.getMe()).username;
+      return ctx.reply('⚠️ הוספת פקודה מתבצעת בצ׳אט פרטי מול הבוט בלבד:', {
+        reply_markup: {
+          inline_keyboard: [[
+            { text: '💡 לחץ כאן להצעת פקודה בפרטי', url: `https://t.me/${botUsername}?start=request_command` }
+          ]]
+        }
+      });
+    }
     const s = await getState();
     s.wizards[String(ctx.from.id)] = { step: 1 };
     await saveState(s);
@@ -488,8 +501,14 @@ if (bot) {
       const title = data.groupTitle ? ` (${data.groupTitle})` : '';
       return await sendFormattedMessage(ctx, `📜 *חוקי הקבוצה${title}:*\n\n${data.rules}`, { name: ctx.from?.first_name || 'חבר' });
     }
+    if (payload === 'request_command' && ctx.chat?.type === 'private') {
+      const s = await getState();
+      s.wizards[String(ctx.from.id)] = { step: 1 };
+      await saveState(s);
+      return await ctx.reply('איזו מילה או פקודה תרצה שתוסיף? (למשל: /rules)');
+    }
     await ctx.reply(
-      'שלום! הבוט שלך באוויר ועובד מעולה! 🚀\n' +
+      'שלום!\n' +
       'אני בוט מתקדם לניהול קבוצות עם 30 פקודות ניהול והגנה.\n' +
       'שלח /help לתפריט הפקודות המלא, או /request_command להצעת פקודה חדשה.'
     );
