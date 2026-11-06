@@ -30,8 +30,23 @@ function defaultState() {
   };
 }
 
-// טעינת מצב הבוט: זיכרון -> קובץ מקומי -> שחזור אוטומטי משרתי טלגרם אחרי Push!
+// טעינת מצב הבוט מ-Upstash Redis (דרך getGroupData) + גיבוי משרתי טלגרם
 async function getState() {
+  try {
+    const redisData = await getGroupData('owner_global');
+    if (redisData && (redisData.users || redisData.groups || redisData.wizards)) {
+      memState = {
+        groups: redisData.groups || {},
+        users: redisData.users || {},
+        wizards: redisData.wizards || {},
+        globalBanned: redisData.globalBanned || [],
+        maintenance: Boolean(redisData.maintenance),
+        liveChatTarget: redisData.liveChatTarget || null
+      };
+      return memState;
+    }
+  } catch (e) {}
+
   if (memState) return memState;
   try {
     if (fs.existsSync(STATE_FILE)) {
@@ -50,7 +65,7 @@ async function getState() {
         const b64 = cmds.map((c) => c.description).join('');
         const parsed = JSON.parse(Buffer.from(b64, 'base64').toString('utf8'));
         memState = { ...defaultState(), ...parsed };
-        fs.writeFileSync(STATE_FILE, JSON.stringify(memState), 'utf8');
+        await saveGroupData('owner_global', memState);
         return memState;
       }
     } catch (e) {}
@@ -60,9 +75,12 @@ async function getState() {
   return memState;
 }
 
-// שמירת מצב הבוט בזמן אמת גם מקומית וגם בענן של טלגרם כדי שישרוד כל Push ל-GitHub
+// שמירת מצב הבוט ב-Upstash Redis + גיבוי בשרתי טלגרם
 async function saveState(state) {
   memState = state;
+  try {
+    await saveGroupData('owner_global', state);
+  } catch (e) {}
   try {
     fs.writeFileSync(STATE_FILE, JSON.stringify(state), 'utf8');
   } catch (e) {}
@@ -81,7 +99,6 @@ async function saveState(state) {
   }
 }
 
-// סריקה אקטיבית בזמן אמת של כל הקבוצות והמשתמשים שבהן מול שרתי טלגרם
 async function scanRealtime(telegram, state) {
   const today = new Date().toISOString().slice(0, 10);
   for (const gid of Object.keys(state.groups)) {
@@ -151,6 +168,11 @@ function buildOwnerPanel(s) {
   return { text, reply_markup };
 }
 
+const WIZARD_STEP1_TEXT = 'איזו מילה או פקודה תרצה שתוסיף? (למשל: /rules)\n\n❌ לביטול התהליך שלח /cancel';
+const WIZARD_CANCEL_KB = {
+  inline_keyboard: [[{ text: '❌ ביטול', callback_data: 'reqcmd_cancel' }]]
+};
+
 if (bot) {
   bot.use(async (ctx, next) => {
     try {
@@ -194,18 +216,32 @@ if (bot) {
       const wiz = isPrivate && uid ? s.wizards[uid] : null;
       const cmd = text ? text.split(/\s+/)[0].split('@')[0].toLowerCase() : '';
 
-      // אשף הוספת פקודה פועל אך ורק בפרטי!
-      if (wiz && cmd.startsWith('/') && (cmd.startsWith('/owner') || ['/god', '/start', '/help', '/cancel', '/broadcast', '/request_command'].includes(cmd))) {
+      // פקודת /cancel מבטלת את האשף מיד
+      if (isPrivate && cmd === '/cancel') {
+        if (wiz) {
+          delete s.wizards[uid];
+          await saveState(s);
+          return await ctx.reply('❌ תהליך הוספת הפקודה בוטל.');
+        }
+        return await ctx.reply('אין תהליך פעיל לביטול.');
+      }
+
+      // אם המשתמש באמצע האשף ושלח פקודת מערכת (כמו /start, /help, /owner, /request_command) – יוצאים מהאשף ומריצים אותה
+      if (wiz && (cmd.startsWith('/owner') || ['/god', '/start', '/help', '/broadcast', '/request_command'].includes(cmd))) {
         delete s.wizards[uid];
         await saveState(s);
         return next();
       }
 
+      // טיפול בשלבי אשף /request_command בצ'אט פרטי
       if (isPrivate && wiz && text) {
         if (wiz.step === 1) {
           s.wizards[uid] = { step: 2, cmd: text };
           await saveState(s);
-          return await ctx.reply('מה הבוט צריך לענות כשמישהו יכתוב את זה?');
+          return await ctx.reply(
+            'מה הבוט צריך לענות כשמישהו יכתוב את זה?\n\n❌ לביטול התהליך שלח /cancel',
+            { reply_markup: WIZARD_CANCEL_KB }
+          );
         }
         if (wiz.step === 2) {
           const reqCmd = wiz.cmd;
@@ -457,7 +493,7 @@ if (bot) {
     }
   });
 
-  // /request_command - מוגבל לצ'אט פרטי בלבד! (בקבוצה מפנה בכפתור לפרטי)
+  // /request_command - פועל בצ'אט פרטי בלבד + כולל פקודת וכפתור ביטול (/cancel)
   bot.command('request_command', async (ctx) => {
     if (!ctx.chat || ctx.chat.type !== 'private') {
       const botUsername = ctx.botInfo?.username || (await ctx.telegram.getMe()).username;
@@ -472,7 +508,17 @@ if (bot) {
     const s = await getState();
     s.wizards[String(ctx.from.id)] = { step: 1 };
     await saveState(s);
-    await ctx.reply('איזו מילה או פקודה תרצה שתוסיף? (למשל: /rules)');
+    await ctx.reply(WIZARD_STEP1_TEXT, { reply_markup: WIZARD_CANCEL_KB });
+  });
+
+  // כפתור "❌ ביטול" של אשף בקשת הפקודה
+  bot.action('reqcmd_cancel', async (ctx) => {
+    const s = await getState();
+    const uid = String(ctx.from.id);
+    delete s.wizards[uid];
+    await saveState(s);
+    await ctx.answerCbQuery('בוטל');
+    await ctx.editMessageText('❌ תהליך הוספת הפקודה בוטל.').catch(() => ctx.reply('❌ תהליך הוספת הפקודה בוטל.'));
   });
 
   bot.action(/^reqcmd_approve_(\d+)$/, async (ctx) => {
@@ -505,7 +551,7 @@ if (bot) {
       const s = await getState();
       s.wizards[String(ctx.from.id)] = { step: 1 };
       await saveState(s);
-      return await ctx.reply('איזו מילה או פקודה תרצה שתוסיף? (למשל: /rules)');
+      return await ctx.reply(WIZARD_STEP1_TEXT, { reply_markup: WIZARD_CANCEL_KB });
     }
     await ctx.reply(
       'שלום!\n' +
