@@ -6,6 +6,17 @@ const {
   floodTracker
 } = require('./utils');
 
+// שליחת הודעת ברוכים הבאים עם כפתור מובנה לחוקי הקבוצה בפרטי
+async function sendWelcomeWithRulesBtn(ctx, rawText, memberName) {
+  const botUsername = ctx.botInfo?.username || (await ctx.telegram.getMe()).username;
+  const rulesUrl = `https://t.me/${botUsername}?start=rules_${ctx.chat.id}`;
+  const cleanText = String(rawText || 'ברוך הבא לקבוצה, *{name}*! נשמח שתקרא את חוקי הקבוצה:').replace(/\s*\(\/rules\)/g, '');
+  const fullText = cleanText.includes('start=rules_')
+    ? cleanText
+    : `${cleanText}\n{{📖 לחץ כאן לצפייה בחוקי הקבוצה}{${rulesUrl}}}`;
+  return await sendFormattedMessage(ctx, fullText, { name: memberName || 'חבר' });
+}
+
 module.exports = function registerProtectionCommands(bot) {
   // 18. /antispam on/off - אנטי ספאם אוטומטי
   bot.command('antispam', async (ctx) => {
@@ -91,7 +102,7 @@ module.exports = function registerProtectionCommands(bot) {
     }
   });
 
-  // 23. /welcome on/off + /setwelcome [טקסט עשיר עם כפתורים]
+  // 23. /welcome on/off + /setwelcome [טקסט עשיר עם כפתור מובנה לחוקי הקבוצה]
   bot.command('welcome', async (ctx) => {
     if (!(await requireAdmin(ctx, '/welcome [on | off]'))) return;
     try {
@@ -99,7 +110,7 @@ module.exports = function registerProtectionCommands(bot) {
       const data = await getGroupData(ctx.chat.id);
       if (!['on', 'off'].includes(arg)) {
         await ctx.reply('👋 תצוגה מקדימה של הודעת הברוכים הבאים הנוכחית:');
-        return await sendFormattedMessage(ctx, data.welcomeText, { name: ctx.from.first_name || 'חבר' });
+        return await sendWelcomeWithRulesBtn(ctx, data.welcomeText, ctx.from.first_name || 'חבר');
       }
       data.welcomeEnabled = arg === 'on';
       await saveGroupData(ctx.chat.id, data);
@@ -115,29 +126,33 @@ module.exports = function registerProtectionCommands(bot) {
       const text = (ctx.message.text || '').replace(/^\/setwelcome(@\S+)?\s*/i, '');
       if (!text) {
         return ctx.reply(
-          '⚠️ שימוש: `/setwelcome ברוך הבא *{name}*!\n{{חוקי הקבוצה}{https://t.me/telegram}}`\nלמדריך עיצוב מלא שלח `/format`',
+          '⚠️ שימוש: `/setwelcome ברוך הבא *{name}*!`\n(כפתור לחוקי הקבוצה מתווסף אוטומטית מתחת להודעה).\nלמדריך עיצוב מלא שלח `/format`',
           { parse_mode: 'Markdown' }
         );
       }
-      const preview = await sendFormattedMessage(ctx, text, { name: ctx.from.first_name || 'חבר' });
+      const preview = await sendWelcomeWithRulesBtn(ctx, text, ctx.from.first_name || 'חבר');
       if (!preview) return;
       const data = await getGroupData(ctx.chat.id);
       data.welcomeText = text;
+      data.groupTitle = ctx.chat.title || data.groupTitle || '';
       await saveGroupData(ctx.chat.id, data);
-      await ctx.reply('✅ הודעת ברוכים הבאים נשמרה בהצלחה! (מעל מופיעה תצוגה מקדימה)');
+      await ctx.reply('✅ הודעת ברוכים הבאים נשמרה בהצלחה! (מעל מופיעה תצוגה מקדימה עם כפתור החוקים)');
     } catch (err) {
       await ctx.reply('❌ שגיאה בשמירת נוסח ברוכים הבאים. לעזרה: /help');
     }
   });
 
-  // אכיפה אוטומטית + ניקוי הודעות שירות + ברוכים הבאים + פקודות מותאמות
+  // אכיפה אוטומטית + ניקוי הודעות שירות + ברוכים הבאים עם כפתור חוקים + פקודות מותאמות
   bot.on('message', async (ctx, next) => {
     if (!ctx.chat || ctx.chat.type === 'private' || !ctx.from) return next();
     try {
       const data = await getGroupData(ctx.chat.id);
       const msg = ctx.message;
 
-      // בדיקת הודעת שירות (הצטרפות, עזיבה, נעיצה, שינוי שם/תמונה, שיחת וידאו)
+      if (ctx.chat.title && data.groupTitle !== ctx.chat.title) {
+        data.groupTitle = ctx.chat.title;
+      }
+
       const isService = Boolean(
         msg.new_chat_members || msg.left_chat_member || msg.pinned_message ||
         msg.new_chat_title || msg.new_chat_photo || msg.delete_chat_photo ||
@@ -148,12 +163,13 @@ module.exports = function registerProtectionCommands(bot) {
       if (msg.new_chat_members && data.welcomeEnabled) {
         for (const member of msg.new_chat_members) {
           if (!member.is_bot) {
-            await sendFormattedMessage(ctx, data.welcomeText, { name: member.first_name || 'חבר' });
+            await sendWelcomeWithRulesBtn(ctx, data.welcomeText, member.first_name || 'חבר');
           }
         }
       }
 
       if (isService && data.cleanService) {
+        await saveGroupData(ctx.chat.id, data);
         await ctx.deleteMessage().catch(() => {});
         return;
       }
