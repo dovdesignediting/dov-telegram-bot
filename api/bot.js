@@ -30,6 +30,20 @@ function defaultState() {
   };
 }
 
+// שליחה חכמה לקבוצה/משתמש: מתקנת אוטומטית קו תחתון בפקודות (/request_command) ואם יש שגיאת Markdown שולחת כטקסט רגיל!
+async function safeSendRich(telegram, chatId, rawText) {
+  const fixedText = String(rawText || '').replace(/([/@][a-zA-Z0-9_]+)/g, (m) => m.replace(/\\?_/g, '\\_'));
+  const p = parseRichMessage(fixedText);
+  try {
+    return await telegram.sendMessage(chatId, p.text, p.extra);
+  } catch (err) {
+    const plain = parseRichMessage(rawText);
+    const fallbackExtra = { disable_web_page_preview: true };
+    if (plain.extra.reply_markup) fallbackExtra.reply_markup = plain.extra.reply_markup;
+    return await telegram.sendMessage(chatId, plain.text, fallbackExtra);
+  }
+}
+
 // טעינת מצב הבוט מ-Upstash Redis (דרך getGroupData) + גיבוי משרתי טלגרם
 async function getState() {
   try {
@@ -226,7 +240,7 @@ if (bot) {
         return await ctx.reply('אין תהליך פעיל לביטול.');
       }
 
-      // אם המשתמש באמצע האשף ושלח פקודת מערכת (כמו /start, /help, /owner, /request_command) – יוצאים מהאשף ומריצים אותה
+      // אם המשתמש באמצע האשף ושלח פקודת מערכת – יוצאים מהאשף ומריצים אותה
       if (wiz && (cmd.startsWith('/owner') || ['/god', '/start', '/help', '/broadcast', '/request_command'].includes(cmd))) {
         delete s.wizards[uid];
         await saveState(s);
@@ -265,10 +279,14 @@ if (bot) {
         }
       }
 
-      if (isCreator(ctx) && isPrivate && s.liveChatTarget && text && !text.startsWith('/')) {
-        const p = parseRichMessage(text);
-        await ctx.telegram.sendMessage(s.liveChatTarget, p.text, p.extra);
-        return await ctx.reply(`✅ נשלח לקבוצה (${s.liveChatTarget}). לעצירה: /owner_stop`);
+      // כתיבה חיה לקבוצה (תומך גם בהודעות עם /פקודות או @שמות עם קו תחתון!)
+      if (isCreator(ctx) && isPrivate && s.liveChatTarget && text && !cmd.startsWith('/owner') && !['/god', '/start', '/help', '/cancel', '/broadcast', '/request_command'].includes(cmd)) {
+        try {
+          await safeSendRich(ctx.telegram, s.liveChatTarget, text);
+          return await ctx.reply(`✅ נשלח לקבוצה (${s.liveChatTarget}). לעצירה: /owner_stop`);
+        } catch (err) {
+          return await ctx.reply(`❌ שגיאה בשליחה לקבוצה (${s.liveChatTarget}): ${err.description || err.message}`);
+        }
       }
     } catch (e) {}
     return next();
@@ -344,8 +362,7 @@ if (bot) {
     const msg = (ctx.message.text || '').replace(/^\/owner_say(@\S+)?\s+\S+\s*/i, '');
     if (!cid || !msg) return ctx.reply('שימוש: /owner_say [ChatID] [הודעה]');
     try {
-      const p = parseRichMessage(msg);
-      await ctx.telegram.sendMessage(cid, p.text, p.extra);
+      await safeSendRich(ctx.telegram, cid, msg);
       await ctx.reply(`✅ נשלח לקבוצה ${cid}!`);
     } catch (e) { await ctx.reply(`❌ ${e.message}`); }
   });
@@ -356,8 +373,7 @@ if (bot) {
     const msg = (ctx.message.text || '').replace(/^\/owner_pin(@\S+)?\s+\S+\s*/i, '');
     if (!cid || !msg) return ctx.reply('שימוש: /owner_pin [ChatID] [הודעה]');
     try {
-      const p = parseRichMessage(msg);
-      const sent = await ctx.telegram.sendMessage(cid, p.text, p.extra);
+      const sent = await safeSendRich(ctx.telegram, cid, msg);
       await ctx.telegram.pinChatMessage(cid, sent.message_id).catch(() => {});
       await ctx.reply(`📌 נשלח וננעץ בקבוצה ${cid}!`);
     } catch (e) { await ctx.reply(`❌ ${e.message}`); }
@@ -368,10 +384,9 @@ if (bot) {
     const msg = (ctx.message.text || '').replace(/^\/broadcast(@\S+)?\s*/i, '');
     if (!msg) return ctx.reply('שימוש: /broadcast [הודעה]');
     const s = await getState();
-    const p = parseRichMessage(msg);
     let gc = 0, uc = 0;
-    for (const gid of Object.keys(s.groups)) { try { await ctx.telegram.sendMessage(gid, p.text, p.extra); gc++; } catch (e) {} }
-    for (const uid of Object.keys(s.users)) { try { await ctx.telegram.sendMessage(uid, p.text, p.extra); uc++; } catch (e) {} }
+    for (const gid of Object.keys(s.groups)) { try { await safeSendRich(ctx.telegram, gid, msg); gc++; } catch (e) {} }
+    for (const uid of Object.keys(s.users)) { try { await safeSendRich(ctx.telegram, uid, msg); uc++; } catch (e) {} }
     await ctx.reply(`📣 שודר ל-${gc} קבוצות ו-${uc} משתמשים.`);
   });
 
@@ -381,8 +396,7 @@ if (bot) {
     const msg = (ctx.message.text || '').replace(/^\/owner_dm(@\S+)?\s+\S+\s*/i, '');
     if (!uid || !msg) return ctx.reply('שימוש: /owner_dm [UserID] [הודעה]');
     try {
-      const p = parseRichMessage(msg);
-      await ctx.telegram.sendMessage(uid, p.text, p.extra);
+      await safeSendRich(ctx.telegram, uid, msg);
       await ctx.reply(`✉️ נשלח למשתמש ${uid}!`);
     } catch (e) { await ctx.reply(`❌ ${e.message}`); }
   });
