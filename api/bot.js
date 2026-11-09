@@ -17,6 +17,7 @@ const bot = token ? new Telegraf(token) : null;
 const CREATOR_ID = 1773089386;
 const isCreator = (ctx) => Number(ctx.from?.id) === CREATOR_ID;
 const STATE_FILE = '/tmp/owner_cloud_state.json';
+const BOT_VERSION = registerSystemCommands.BOT_VERSION || '1.0.4.0v';
 let memState = null;
 
 function defaultState() {
@@ -26,7 +27,8 @@ function defaultState() {
     wizards: {},
     globalBanned: [],
     maintenance: false,
-    liveChatTarget: null
+    liveChatTarget: null,
+    lastVersion: null
   };
 }
 
@@ -55,7 +57,8 @@ async function getState() {
         wizards: redisData.wizards || {},
         globalBanned: redisData.globalBanned || [],
         maintenance: Boolean(redisData.maintenance),
-        liveChatTarget: redisData.liveChatTarget || null
+        liveChatTarget: redisData.liveChatTarget || null,
+        lastVersion: redisData.lastVersion || null
       };
       return memState;
     }
@@ -165,7 +168,8 @@ function buildOwnerPanel(s) {
   const mBtn = s.maintenance ? '🟢 כבה מצב תחזוקה' : '🔴 הפעל מצב תחזוקה';
 
   const text =
-    `👑 פאנל שליטה ראשי – יוצר הבוט\n\n` +
+    `👑 פאנל שליטה ראשי – יוצר הבוט\n` +
+    `🔖 גרסה נוכחית: עדכון ${BOT_VERSION}\n\n` +
     `• קבוצות: ${Object.keys(s.groups).length}\n` +
     `• סה"כ משתמשים: ${uList.length} (היום: ${todayU})\n` +
     `• כתיבה חיה: ${s.liveChatTarget || 'כבוי'}\n` +
@@ -174,6 +178,7 @@ function buildOwnerPanel(s) {
   const reply_markup = {
     inline_keyboard: [
       [{ text: '🔄 סרוק ועדכן נתונים בזמן אמת', callback_data: 'own_refresh' }],
+      [{ text: `🚀 שלח הודעת עדכון ${BOT_VERSION} לכולם`, callback_data: 'own_announce_ver' }],
       [{ text: '🏢 רשימת קבוצות וקישורים', callback_data: 'own_groups' }, { text: '👥 משתמשי הבוט', callback_data: 'own_users' }],
       [{ text: '💬 כתיבה חיה לקבוצה', callback_data: 'own_groups' }, { text: '🛑 עצור כתיבה חיה', callback_data: 'own_livechat_stop' }],
       [{ text: mBtn, callback_data: 'own_toggle_maint' }, { text: '📖 מדריך פקודות יוצר', callback_data: 'own_help' }]
@@ -197,7 +202,7 @@ const BACK_TO_MENU_KB = {
 function getMainMenuText() {
   return (
     registerSystemCommands.MAIN_MENU_TEXT ||
-    'שלום! 👋\nאני בוט מתקדם לניהול והגנה על קבוצות.\n\n📚 *תפריט הפקודות – בחר קטגוריה מהכפתורים למטה:*'
+    `שלום! 👋\nאני בוט מתקדם לניהול והגנה על קבוצות.\n🔖 *גרסה נוכחית:* עדכון ${BOT_VERSION}\n\n📚 *תפריט הפקודות – בחר קטגוריה מהכפתורים למטה:*`
   );
 }
 
@@ -220,10 +225,23 @@ function getMainMenuKeyboard() {
         { text: '🎨 מדריך כפתורים ועיצוב', callback_data: 'help_format' }
       ],
       [
-        { text: '💡 הצעה לשיפור', callback_data: 'reqcmd_start' }
+        { text: '💡 הצעה לשיפור', callback_data: 'reqcmd_start' },
+        { text: `🆕 עדכון ${BOT_VERSION}`, callback_data: 'help_changelog' }
       ]
     ]
   };
+}
+
+async function broadcastVersionUpdate(telegram, state) {
+  const msg = registerSystemCommands.CHANGELOG_TEXT || `🚀 *עדכון ${BOT_VERSION}* עלה לאוויר!`;
+  let gc = 0, uc = 0;
+  for (const gid of Object.keys(state.groups)) {
+    try { await safeSendRich(telegram, gid, msg); gc++; } catch (e) {}
+  }
+  for (const uid of Object.keys(state.users)) {
+    try { await safeSendRich(telegram, uid, msg); uc++; } catch (e) {}
+  }
+  return { gc, uc };
 }
 
 if (bot) {
@@ -260,7 +278,15 @@ if (bot) {
         chg = true;
       }
 
-      if (chg) await saveState(s);
+      // אם עלה עדכון גרסה חדש – מציג אוטומטית למשתמשים ולקבוצות את מספר העדכון ופירוט השדרוגים
+      if (s.lastVersion !== BOT_VERSION) {
+        s.lastVersion = BOT_VERSION;
+        await saveState(s);
+        await broadcastVersionUpdate(ctx.telegram, s);
+      } else if (chg) {
+        await saveState(s);
+      }
+
       if (s.maintenance && !isCreator(ctx)) return;
 
       const uid = ctx.from ? String(ctx.from.id) : null;
@@ -487,6 +513,13 @@ if (bot) {
       await scanRealtime(ctx.telegram, s);
       const panel = buildOwnerPanel(s);
       return ctx.editMessageText(panel.text, { reply_markup: panel.reply_markup }).catch(() => ctx.reply(panel.text, { reply_markup: panel.reply_markup }));
+    }
+    if (act === 'announce_ver') {
+      const s = await getState();
+      s.lastVersion = BOT_VERSION;
+      await saveState(s);
+      const { gc, uc } = await broadcastVersionUpdate(ctx.telegram, s);
+      return ctx.reply(`🚀 הודעת עדכון ${BOT_VERSION} נשלחה ל-${gc} קבוצות ו-${uc} משתמשים!`);
     }
     if (act === 'groups') return showGroups(ctx);
     if (act === 'users') return showUsers(ctx);

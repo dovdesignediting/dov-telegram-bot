@@ -5,15 +5,30 @@ const {
   requireAdmin
 } = require('./utils');
 
+// מספר הגרסה הנוכחי של הבוט – מתעדכן בכל שדרוג/תיקון/פיתוח
+const BOT_VERSION = '1.0.4.0v';
+
+// פירוט השיפורים, השדרוגים והעריכות של הגרסה הנוכחית
+const CHANGELOG_TEXT =
+  `🚀 *עדכון ${BOT_VERSION}*\n\n` +
+  `✨ *מה חדש בעדכון זה (שיפורים, שדרוגים ועריכות):*\n` +
+  `• הצגת תפריט הפקודות המלא אוטומטית בכניסה לבוט ללא צורך בפקודת /help.\n` +
+  `• הוספת לחצן "💡 הצעה לשיפור" בתוך התפריט כדי שהצ׳אט יישאר נקי לעין.\n` +
+  `• הוספת הודעת ביטול עם לחצן "🔙 חזרה לתפריט" מתחת להודעה.\n` +
+  `• תיקון מערכת "כתיבה חיה" כך שתתמוך בפקודות ותיוגים עם קו תחתון.\n` +
+  `• הוספת מערכת גרסאות המציגה למשתמשים את מספר העדכון (${BOT_VERSION}) ופירוט השדרוגים.`;
+
 const MAIN_MENU_TEXT =
-  'שלום! 👋\n' +
-  'אני בוט מתקדם לניהול והגנה על קבוצות.\n\n' +
-  '📚 *תפריט הפקודות – בחר קטגוריה מהכפתורים למטה:*';
+  `שלום! 👋\n` +
+  `אני בוט מתקדם לניהול והגנה על קבוצות.\n` +
+  `🔖 *גרסה נוכחית:* עדכון ${BOT_VERSION}\n\n` +
+  `📚 *תפריט הפקודות – בחר קטגוריה מהכפתורים למטה:*`;
 
 const HELP_CATEGORIES = {
   main: MAIN_MENU_TEXT,
+  changelog: CHANGELOG_TEXT,
   users:
-    '👮 *קטגוריה 1: ניהול משתמשים*\n' +
+    `👮 *קטגוריה 1: ניהול משתמשים* (עדכון ${BOT_VERSION})\n` +
     '• `/ban [סיבה]` – חסימה לצמיתות (בהשבה)\n' +
     '• `/unban [ID]` – הסרת חסימה\n' +
     '• `/kick` – הוצאה מהקבוצה (בהשבה)\n' +
@@ -25,7 +40,7 @@ const HELP_CATEGORIES = {
     '• `/promote` – קידום לאדמין\n' +
     '• `/demote` – הורדה מניהול',
   content:
-    '🧹 *קטגוריה 2: ניהול תוכן וניקוי*\n' +
+    `🧹 *קטגוריה 2: ניהול תוכן וניקוי* (עדכון ${BOT_VERSION})\n` +
     '• `/del` או `/purge [מספר]` – מחיקת הודעות\n' +
     '• `/cleanservice on/off` – מחיקה אוטומטית של הודעות שירות (הצטרפות/עזיבה/נעיצה)\n' +
     '• `/pin` – נעיצת הודעה (בהשבה)\n' +
@@ -35,7 +50,7 @@ const HELP_CATEGORIES = {
     '• `/lock [links/media/stickers/all]` – נעילת תוכן\n' +
     '• `/unlock [links/media/stickers/all]` – פתיחת נעילה',
   protection:
-    '🛡️ *קטגוריה 3: אוטומציה והגנה*\n' +
+    `🛡️ *קטגוריה 3: אוטומציה והגנה* (עדכון ${BOT_VERSION})\n` +
     '• `/antispam on/off` – אנטי ספאם אוטומטי\n' +
     '• `/antilink on/off` – חסימת לינקים\n' +
     '• `/antiflood [מספר]` – הגנה מהצפה\n' +
@@ -43,7 +58,7 @@ const HELP_CATEGORIES = {
     '• `/filters` – רשימת כל הפילטרים\n' +
     '• `/welcome on/off` + `/setwelcome` – הודעת פתיחה',
   info:
-    'ℹ️ *קטגוריה 4: מידע, חוקים ופקודות מותאמות*\n' +
+    `ℹ️ *קטגוריה 4: מידע, חוקים ופקודות מותאמות* (עדכון ${BOT_VERSION})\n` +
     '• `/rules` + `/setrules [טקסט]` – חוקי הקבוצה\n' +
     '• `/addcmd [שם] [תוכן]` – יצירת פקודה מותאמת\n' +
     '• `/delcmd [שם]` ו-`/cmds` – ניהול פקודות מותאמות\n' +
@@ -51,7 +66,7 @@ const HELP_CATEGORIES = {
     '• `/id` או `/userinfo` – מידע על משתמש\n' +
     '• `/stats` – סטטיסטיקות קבוצה',
   system:
-    '⚙️ *קטגוריה 5: מערכת, עיצוב וכפתורים*\n' +
+    `⚙️ *קטגוריה 5: מערכת, עיצוב וכפתורים* (עדכון ${BOT_VERSION})\n` +
     '• `/help` – פתיחת תפריט הפקודות הראשי\n' +
     '• כפתור *💡 הצעה לשיפור* – שליחת הצעה או בקשת פקודה ליוצר הבוט\n' +
     '• `/echo [טקסט]` – בדיקת עיצוב וכפתורים בצ׳אט פרטי\n' +
@@ -76,9 +91,16 @@ function getHelpKeyboard() {
         { text: '🎨 מדריך כפתורים ועיצוב', callback_data: 'help_format' }
       ],
       [
-        { text: '💡 הצעה לשיפור', callback_data: 'reqcmd_start' }
+        { text: '💡 הצעה לשיפור', callback_data: 'reqcmd_start' },
+        { text: `🆕 עדכון ${BOT_VERSION}`, callback_data: 'help_changelog' }
       ]
     ]
+  };
+}
+
+function getBackToMenuKeyboard() {
+  return {
+    inline_keyboard: [[{ text: '🔙 חזרה לתפריט', callback_data: 'help_main' }]]
   };
 }
 
@@ -98,13 +120,14 @@ function registerSystemCommands(bot) {
     try {
       const cat = ctx.match[1];
       const text = cat === 'format' ? FORMAT_GUIDE : (HELP_CATEGORIES[cat] || MAIN_MENU_TEXT);
+      const kb = cat === 'changelog' ? getBackToMenuKeyboard() : getHelpKeyboard();
       await ctx.answerCbQuery().catch(() => {});
       await ctx.editMessageText(text, {
         parse_mode: 'Markdown',
-        reply_markup: getHelpKeyboard()
+        reply_markup: kb
       }).catch(() => ctx.reply(text, {
         parse_mode: 'Markdown',
-        reply_markup: getHelpKeyboard()
+        reply_markup: kb
       }));
     } catch (e) {}
   });
@@ -150,7 +173,8 @@ function registerSystemCommands(bot) {
       const data = await getGroupData(ctx.chat.id);
       const status = (v) => (v ? '✅ פעיל' : '❌ כבוי');
       await ctx.reply(
-        `⚙️ *פאנל הגדרות קבוצה – ${ctx.chat.title || ''}*\n\n` +
+        `⚙️ *פאנל הגדרות קבוצה – ${ctx.chat.title || ''}*\n` +
+        `🔖 *גרסת בוט:* עדכון ${BOT_VERSION}\n\n` +
         `• ניקוי הודעות שירות: ${status(data.cleanService)}\n` +
         `• אנטי-ספאם: ${status(data.antispam)}\n` +
         `• חסימת לינקים: ${status(data.antilink)}\n` +
@@ -174,6 +198,8 @@ function registerSystemCommands(bot) {
   });
 }
 
+registerSystemCommands.BOT_VERSION = BOT_VERSION;
+registerSystemCommands.CHANGELOG_TEXT = CHANGELOG_TEXT;
 registerSystemCommands.MAIN_MENU_TEXT = MAIN_MENU_TEXT;
 registerSystemCommands.getHelpKeyboard = getHelpKeyboard;
 
