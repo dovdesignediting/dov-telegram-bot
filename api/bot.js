@@ -182,10 +182,49 @@ function buildOwnerPanel(s) {
   return { text, reply_markup };
 }
 
-const WIZARD_STEP1_TEXT = 'איזו מילה או פקודה תרצה שתוסיף? (למשל: /rules)\n\n❌ לביטול התהליך שלח /cancel';
+const WIZARD_STEP1_TEXT =
+  '💡 *הצעה לשיפור / הוספת פקודה*\n\n' +
+  'איזו מילה או פקודה תרצה שתוסיף? (למשל: /rules)';
+
 const WIZARD_CANCEL_KB = {
   inline_keyboard: [[{ text: '❌ ביטול', callback_data: 'reqcmd_cancel' }]]
 };
+
+const BACK_TO_MENU_KB = {
+  inline_keyboard: [[{ text: '🔙 חזרה לתפריט', callback_data: 'help_main' }]]
+};
+
+function getMainMenuText() {
+  return (
+    registerSystemCommands.MAIN_MENU_TEXT ||
+    'שלום! 👋\nאני בוט מתקדם לניהול והגנה על קבוצות.\n\n📚 *תפריט הפקודות – בחר קטגוריה מהכפתורים למטה:*'
+  );
+}
+
+function getMainMenuKeyboard() {
+  if (typeof registerSystemCommands.getHelpKeyboard === 'function') {
+    return registerSystemCommands.getHelpKeyboard();
+  }
+  return {
+    inline_keyboard: [
+      [
+        { text: '👮 ניהול משתמשים', callback_data: 'help_users' },
+        { text: '🧹 תוכן וניקוי', callback_data: 'help_content' }
+      ],
+      [
+        { text: '🛡️ אוטומציה והגנה', callback_data: 'help_protection' },
+        { text: 'ℹ️ מידע ופקודות', callback_data: 'help_info' }
+      ],
+      [
+        { text: '⚙️ מערכת ועיצוב', callback_data: 'help_system' },
+        { text: '🎨 מדריך כפתורים ועיצוב', callback_data: 'help_format' }
+      ],
+      [
+        { text: '💡 הצעה לשיפור', callback_data: 'reqcmd_start' }
+      ]
+    ]
+  };
+}
 
 if (bot) {
   bot.use(async (ctx, next) => {
@@ -230,14 +269,14 @@ if (bot) {
       const wiz = isPrivate && uid ? s.wizards[uid] : null;
       const cmd = text ? text.split(/\s+/)[0].split('@')[0].toLowerCase() : '';
 
-      // פקודת /cancel מבטלת את האשף מיד
+      // פקודת /cancel מבטלת את האשף ומציגה כפתור חזרה לתפריט
       if (isPrivate && cmd === '/cancel') {
         if (wiz) {
           delete s.wizards[uid];
           await saveState(s);
-          return await ctx.reply('❌ תהליך הוספת הפקודה בוטל.');
+          return await ctx.reply('❌ תהליך שליחת ההצעה בוטל.', { reply_markup: BACK_TO_MENU_KB });
         }
-        return await ctx.reply('אין תהליך פעיל לביטול.');
+        return await ctx.reply('אין תהליך פעיל לביטול.', { reply_markup: BACK_TO_MENU_KB });
       }
 
       // אם המשתמש באמצע האשף ושלח פקודת מערכת – יוצאים מהאשף ומריצים אותה
@@ -247,13 +286,13 @@ if (bot) {
         return next();
       }
 
-      // טיפול בשלבי אשף /request_command בצ'אט פרטי
+      // טיפול בשלבי אשף "הצעה לשיפור" בצ'אט פרטי
       if (isPrivate && wiz && text) {
         if (wiz.step === 1) {
           s.wizards[uid] = { step: 2, cmd: text };
           await saveState(s);
           return await ctx.reply(
-            'מה הבוט צריך לענות כשמישהו יכתוב את זה?\n\n❌ לביטול התהליך שלח /cancel',
+            'מה הבוט צריך לענות כשמישהו יכתוב את זה?',
             { reply_markup: WIZARD_CANCEL_KB }
           );
         }
@@ -265,7 +304,7 @@ if (bot) {
           const uTag = ctx.from.username ? `@${ctx.from.username}` : 'ללא';
           await ctx.telegram.sendMessage(
             CREATOR_ID,
-            `📩 בקשה חדשה לפקודה:\n👤 מאת: ${uName} (${uTag})\n🆔 ID: ${uid}\n⌨️ פקודה: ${reqCmd}\n💬 תשובה:\n${text}`,
+            `📩 הצעה חדשה לשיפור / פקודה:\n👤 מאת: ${uName} (${uTag})\n🆔 ID: ${uid}\n⌨️ פקודה/נושא: ${reqCmd}\n💬 תוכן ההצעה:\n${text}`,
             {
               reply_markup: {
                 inline_keyboard: [[
@@ -275,7 +314,9 @@ if (bot) {
               }
             }
           );
-          return await ctx.reply('בקשתך נשלחה לאישור היוצר, נעדכן אותך בקרוב');
+          return await ctx.reply('בקשתך נשלחה לאישור היוצר, נעדכן אותך בקרוב', {
+            reply_markup: BACK_TO_MENU_KB
+          });
         }
       }
 
@@ -507,14 +548,15 @@ if (bot) {
     }
   });
 
-  // /request_command - פועל בצ'אט פרטי בלבד + כולל פקודת וכפתור ביטול (/cancel)
-  bot.command('request_command', async (ctx) => {
+  // כפתור "💡 הצעה לשיפור" מתוך התפריט (עורך את ההודעה הקיימת כדי שהצ'אט יישאר נקי!)
+  bot.action('reqcmd_start', async (ctx) => {
+    await ctx.answerCbQuery().catch(() => {});
     if (!ctx.chat || ctx.chat.type !== 'private') {
       const botUsername = ctx.botInfo?.username || (await ctx.telegram.getMe()).username;
-      return ctx.reply('⚠️ הוספת פקודה מתבצעת בצ׳אט פרטי מול הבוט בלבד:', {
+      return ctx.reply('⚠️ שליחת הצעה לשיפור מתבצעת בצ׳אט פרטי מול הבוט בלבד:', {
         reply_markup: {
           inline_keyboard: [[
-            { text: '💡 לחץ כאן להצעת פקודה בפרטי', url: `https://t.me/${botUsername}?start=request_command` }
+            { text: '💡 לחץ כאן לשליחת הצעה בפרטי', url: `https://t.me/${botUsername}?start=request_command` }
           ]]
         }
       });
@@ -522,17 +564,65 @@ if (bot) {
     const s = await getState();
     s.wizards[String(ctx.from.id)] = { step: 1 };
     await saveState(s);
-    await ctx.reply(WIZARD_STEP1_TEXT, { reply_markup: WIZARD_CANCEL_KB });
+    await ctx.editMessageText(WIZARD_STEP1_TEXT, {
+      parse_mode: 'Markdown',
+      reply_markup: WIZARD_CANCEL_KB
+    }).catch(() => ctx.reply(WIZARD_STEP1_TEXT, {
+      parse_mode: 'Markdown',
+      reply_markup: WIZARD_CANCEL_KB
+    }));
   });
 
-  // כפתור "❌ ביטול" של אשף בקשת הפקודה
+  // תמיכה גם בפקודה /request_command למי ששולח ידנית
+  bot.command('request_command', async (ctx) => {
+    if (!ctx.chat || ctx.chat.type !== 'private') {
+      const botUsername = ctx.botInfo?.username || (await ctx.telegram.getMe()).username;
+      return ctx.reply('⚠️ שליחת הצעה לשיפור מתבצעת בצ׳אט פרטי מול הבוט בלבד:', {
+        reply_markup: {
+          inline_keyboard: [[
+            { text: '💡 לחץ כאן לשליחת הצעה בפרטי', url: `https://t.me/${botUsername}?start=request_command` }
+          ]]
+        }
+      });
+    }
+    const s = await getState();
+    s.wizards[String(ctx.from.id)] = { step: 1 };
+    await saveState(s);
+    await ctx.reply(WIZARD_STEP1_TEXT, {
+      parse_mode: 'Markdown',
+      reply_markup: WIZARD_CANCEL_KB
+    });
+  });
+
+  // כפתור "❌ ביטול" – מציג שהתהליך התבטל ומוסיף מתחת להודעה לחצן "🔙 חזרה לתפריט"
   bot.action('reqcmd_cancel', async (ctx) => {
     const s = await getState();
     const uid = String(ctx.from.id);
     delete s.wizards[uid];
     await saveState(s);
-    await ctx.answerCbQuery('בוטל');
-    await ctx.editMessageText('❌ תהליך הוספת הפקודה בוטל.').catch(() => ctx.reply('❌ תהליך הוספת הפקודה בוטל.'));
+    await ctx.answerCbQuery('בוטל').catch(() => {});
+    await ctx.editMessageText('❌ תהליך שליחת ההצעה בוטל.', {
+      reply_markup: BACK_TO_MENU_KB
+    }).catch(() => ctx.reply('❌ תהליך שליחת ההצעה בוטל.', {
+      reply_markup: BACK_TO_MENU_KB
+    }));
+  });
+
+  // כפתור "🔙 חזרה לתפריט" – מחזיר מיד לתפריט הראשי באותה הודעה בלי ללכלך את הצ'אט
+  bot.action('help_main', async (ctx) => {
+    const s = await getState();
+    if (ctx.from) {
+      delete s.wizards[String(ctx.from.id)];
+      await saveState(s);
+    }
+    await ctx.answerCbQuery().catch(() => {});
+    await ctx.editMessageText(getMainMenuText(), {
+      parse_mode: 'Markdown',
+      reply_markup: getMainMenuKeyboard()
+    }).catch(() => ctx.reply(getMainMenuText(), {
+      parse_mode: 'Markdown',
+      reply_markup: getMainMenuKeyboard()
+    }));
   });
 
   bot.action(/^reqcmd_approve_(\d+)$/, async (ctx) => {
@@ -553,6 +643,7 @@ if (bot) {
     await ctx.telegram.sendMessage(uid, 'הפקודה נדחתה עקב החלטת היוצר').catch(() => {});
   });
 
+  // בכניסה לבוט (/start) מציג מיד את כל התפריט והכפתורים בלי צורך לשלוח /help!
   bot.start(async (ctx) => {
     const payload = ctx.startPayload || (ctx.message?.text || '').split(/\s+/)[1] || '';
     if (payload.startsWith('rules_')) {
@@ -565,13 +656,15 @@ if (bot) {
       const s = await getState();
       s.wizards[String(ctx.from.id)] = { step: 1 };
       await saveState(s);
-      return await ctx.reply(WIZARD_STEP1_TEXT, { reply_markup: WIZARD_CANCEL_KB });
+      return await ctx.reply(WIZARD_STEP1_TEXT, {
+        parse_mode: 'Markdown',
+        reply_markup: WIZARD_CANCEL_KB
+      });
     }
-    await ctx.reply(
-      'שלום!\n' +
-      'אני בוט מתקדם לניהול והגנה על קבוצות.\n' +
-      'שלח /help לתפריט הפקודות המלא, או /request_command להצעת פקודה חדשה.'
-    );
+    await ctx.reply(getMainMenuText(), {
+      parse_mode: 'Markdown',
+      reply_markup: getMainMenuKeyboard()
+    });
   });
 
   registerSystemCommands(bot);

@@ -5,7 +5,13 @@ const {
   requireAdmin
 } = require('./utils');
 
+const MAIN_MENU_TEXT =
+  'שלום! 👋\n' +
+  'אני בוט מתקדם לניהול והגנה על קבוצות.\n\n' +
+  '📚 *תפריט הפקודות – בחר קטגוריה מהכפתורים למטה:*';
+
 const HELP_CATEGORIES = {
+  main: MAIN_MENU_TEXT,
   users:
     '👮 *קטגוריה 1: ניהול משתמשים*\n' +
     '• `/ban [סיבה]` – חסימה לצמיתות (בהשבה)\n' +
@@ -46,8 +52,8 @@ const HELP_CATEGORIES = {
     '• `/stats` – סטטיסטיקות קבוצה',
   system:
     '⚙️ *קטגוריה 5: מערכת, עיצוב וכפתורים*\n' +
-    '• `/help` – תפריט עזרה אינטראקטיבי\n' +
-    '• `/request_command` – אשף בקשת הוספת פקודה מיוצר הבוט\n' +
+    '• `/help` – פתיחת תפריט הפקודות הראשי\n' +
+    '• כפתור *💡 הצעה לשיפור* – שליחת הצעה או בקשת פקודה ליוצר הבוט\n' +
     '• `/echo [טקסט]` – בדיקת עיצוב וכפתורים בצ׳אט פרטי\n' +
     '• `/format` – מדריך עיצוב הודעות, קישורים וכפתורים\n' +
     '• `/report` – דיווח לאדמינים (בהשבה)\n' +
@@ -68,18 +74,21 @@ function getHelpKeyboard() {
       [
         { text: '⚙️ מערכת ועיצוב', callback_data: 'help_system' },
         { text: '🎨 מדריך כפתורים ועיצוב', callback_data: 'help_format' }
+      ],
+      [
+        { text: '💡 הצעה לשיפור', callback_data: 'reqcmd_start' }
       ]
     ]
   };
 }
 
-module.exports = function registerSystemCommands(bot) {
+function registerSystemCommands(bot) {
   bot.command('help', async (ctx) => {
     try {
-      await ctx.reply(
-        '📚 *תפריט עזרה – ניהול קבוצה ועיצוב הודעות*\nבחר קטגוריה מהכפתורים למטה כדי לראות את כל הפקודות וההסברים:',
-        { parse_mode: 'Markdown', reply_markup: getHelpKeyboard() }
-      );
+      await ctx.reply(MAIN_MENU_TEXT, {
+        parse_mode: 'Markdown',
+        reply_markup: getHelpKeyboard()
+      });
     } catch (err) {
       await ctx.reply('❌ שגיאה בפתיחת תפריט העזרה.');
     }
@@ -88,12 +97,15 @@ module.exports = function registerSystemCommands(bot) {
   bot.action(/^help_(.+)$/, async (ctx) => {
     try {
       const cat = ctx.match[1];
-      const text = cat === 'format' ? FORMAT_GUIDE : (HELP_CATEGORIES[cat] || 'בחר קטגוריה:');
-      await ctx.answerCbQuery();
+      const text = cat === 'format' ? FORMAT_GUIDE : (HELP_CATEGORIES[cat] || MAIN_MENU_TEXT);
+      await ctx.answerCbQuery().catch(() => {});
       await ctx.editMessageText(text, {
         parse_mode: 'Markdown',
         reply_markup: getHelpKeyboard()
-      });
+      }).catch(() => ctx.reply(text, {
+        parse_mode: 'Markdown',
+        reply_markup: getHelpKeyboard()
+      }));
     } catch (e) {}
   });
 
@@ -160,4 +172,9 @@ module.exports = function registerSystemCommands(bot) {
       await ctx.reply('❌ שגיאה בטעינת פאנל ההגדרות. לעזרה: /help');
     }
   });
-};
+}
+
+registerSystemCommands.MAIN_MENU_TEXT = MAIN_MENU_TEXT;
+registerSystemCommands.getHelpKeyboard = getHelpKeyboard;
+
+module.exports = registerSystemCommands;
