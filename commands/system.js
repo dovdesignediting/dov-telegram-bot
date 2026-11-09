@@ -7,7 +7,7 @@ const {
 
 const HELP_CATEGORIES = {
   users:
-    '👮 *קטגוריה 1: ניהול משתמשים (10 פקודות)*\n' +
+    '👮 *קטגוריה 1: ניהול משתמשים*\n' +
     '• `/ban [סיבה]` – חסימה לצמיתות (בהשבה)\n' +
     '• `/unban [ID]` – הסרת חסימה\n' +
     '• `/kick` – הוצאה מהקבוצה (בהשבה)\n' +
@@ -29,7 +29,7 @@ const HELP_CATEGORIES = {
     '• `/lock [links/media/stickers/all]` – נעילת תוכן\n' +
     '• `/unlock [links/media/stickers/all]` – פתיחת נעילה',
   protection:
-    '🛡️ *קטגוריה 3: אוטומציה והגנה (6 פקודות)*\n' +
+    '🛡️ *קטגוריה 3: אוטומציה והגנה*\n' +
     '• `/antispam on/off` – אנטי ספאם אוטומטי\n' +
     '• `/antilink on/off` – חסימת לינקים\n' +
     '• `/antiflood [מספר]` – הגנה מהצפה\n' +
@@ -58,12 +58,12 @@ function getHelpKeyboard() {
   return {
     inline_keyboard: [
       [
-        { text: '👮 ניהול משתמשים (10)', callback_data: 'help_users' },
-        { text: '🧹 תוכן וניקוי (8)', callback_data: 'help_content' }
+        { text: '👮 ניהול משתמשים', callback_data: 'help_users' },
+        { text: '🧹 תוכן וניקוי', callback_data: 'help_content' }
       ],
       [
-        { text: '🛡️ אוטומציה והגנה (6)', callback_data: 'help_protection' },
-        { text: 'ℹ️ מידע ופקודות (4+)', callback_data: 'help_info' }
+        { text: '🛡️ אוטומציה והגנה', callback_data: 'help_protection' },
+        { text: 'ℹ️ מידע ופקודות', callback_data: 'help_info' }
       ],
       [
         { text: '⚙️ מערכת ועיצוב', callback_data: 'help_system' },
@@ -74,7 +74,6 @@ function getHelpKeyboard() {
 }
 
 module.exports = function registerSystemCommands(bot) {
-  // 28. /help - תפריט עזרה מסודר עם כפתורים (Inline Keyboard)
   bot.command('help', async (ctx) => {
     try {
       await ctx.reply(
@@ -98,12 +97,10 @@ module.exports = function registerSystemCommands(bot) {
     } catch (e) {}
   });
 
-  // /format - הצגת מדריך העיצוב והכפתורים של MonitorGroupbot
   bot.command('format', async (ctx) => {
     await ctx.reply(FORMAT_GUIDE, { parse_mode: 'Markdown' });
   });
 
-  // /echo - שליחת הודעה מעוצבת עם כפתורים (בצ'אט פרטי עם הבוט או בקבוצה לאדמין)
   bot.command('echo', async (ctx) => {
     if (ctx.chat && ctx.chat.type !== 'private') {
       if (!(await requireAdmin(ctx, '/echo [טקסט מעוצב + כפתורים]'))) return;
@@ -119,7 +116,6 @@ module.exports = function registerSystemCommands(bot) {
     await sendFormattedMessage(ctx, raw, { name: ctx.from?.first_name || 'חבר' });
   });
 
-  // 29. /report - דיווח לאדמינים על הודעה
   bot.command('report', async (ctx) => {
     if (!(await requireAdmin(ctx, '/report [בהשבה להודעה בעייתית]'))) return;
     try {
@@ -136,7 +132,6 @@ module.exports = function registerSystemCommands(bot) {
     }
   });
 
-  // 30. /settings - פאנל הגדרות קבוצה
   bot.command('settings', async (ctx) => {
     if (!(await requireAdmin(ctx, '/settings'))) return;
     try {
