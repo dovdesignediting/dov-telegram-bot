@@ -5,11 +5,12 @@ const {
   requireAdmin
 } = require('./utils');
 const registerAdvancedCommands = require('./advanced');
+const registerFoundersCommands = require('./founders');
 
-// מספר הגרסה הנוכחי של הבוט – עדכון ענק עם 20 פקודות ומערכות חדשות!
+// מספר הגרסה הכללי נשאר ללא שינוי כדי שהעדכון של צוות המייסדים יפורסם אך ורק בקבוצת המייסדים!
 const BOT_VERSION = '1.1.0.0v';
 
-// פירוט השיפורים הגלוי למשתמשים בלבד (ללא שום אזכור לפקודות היוצר!)
+// פירוט השיפורים הגלוי למשתמשים בלבד (ללא שום אזכור לפקודות היוצר או לפקודות צוות המייסדים!)
 const CHANGELOG_TEXT =
   `🚀 *עדכון ענק ${BOT_VERSION}*\n\n` +
   `✨ *מה חדש בעדכון זה (20 פקודות ומערכות חדשות!):*\n` +
@@ -128,7 +129,7 @@ function getHelpKeyboard() {
   };
 }
 
-// מקלדת קטגוריה – רק כפתור "🔙 חזרה" בתחתית (ללא "חזרה לתפריט הראשי")
+// מקלדת קטגוריה – רק כפתור "🔙 חזרה" בתחתית
 function getCategoryKeyboard(catKey) {
   const cat = MENU_DATA[catKey];
   const rows = [];
@@ -166,8 +167,9 @@ function getBackToMenuKeyboard() {
 }
 
 function registerSystemCommands(bot) {
-  // רישום אוטומטי של כל 20 הפקודות המתקדמות מקובץ commands/advanced.js
+  // רישום אוטומטי של הפקודות המתקדמות ופקודות צוות המייסדים
   registerAdvancedCommands(bot);
+  registerFoundersCommands(bot);
 
   bot.command('help', async (ctx) => {
     try {
