@@ -17,6 +17,42 @@ async function sendWelcomeWithRulesBtn(ctx, rawText, memberName) {
   return await sendFormattedMessage(ctx, fullText, { name: memberName || 'חבר' });
 }
 
+// בניית תצוגת פאנל המילים האסורות עם כפתורי עריכה ומחיקה לכל מילה
+function buildFiltersPanel(filters) {
+  if (!Array.isArray(filters) || !filters.length) {
+    return {
+      text: '📋 אין כרגע מילים חסומות בקבוצה.\nלהוספת מילה שלח: `/filter [מילה]`',
+      reply_markup: { inline_keyboard: [] }
+    };
+  }
+  const rows = [];
+  filters.slice(0, 20).forEach((w, i) => {
+    const shortW = w.length > 12 ? `${w.slice(0, 12)}…` : w;
+    rows.push([
+      { text: `✏️ ערוך: ${shortW}`, callback_data: `flt_edit_${i}` },
+      { text: `🗑️ מחק: ${shortW}`, callback_data: `flt_del_${i}` }
+    ]);
+  });
+  rows.push([{ text: '🧹 מחק את כל המילים האסורות', callback_data: 'flt_clear_all' }]);
+
+  const text =
+    `🚫 *ניהול מילים חסומות בקבוצה (${filters.length}):*\n` +
+    filters.map((w, i) => `${i + 1}. \`${w}\``).join('\n') +
+    `\n\n💡 *בחר מילה למטה לעריכה או מחיקה בלחיצה:*`;
+
+  return { text, reply_markup: { inline_keyboard: rows } };
+}
+
+async function isGroupAdminCallback(ctx) {
+  if (!ctx.chat || ctx.chat.type === 'private' || !ctx.from) return false;
+  try {
+    const m = await ctx.telegram.getChatMember(ctx.chat.id, ctx.from.id);
+    return m && ['creator', 'administrator'].includes(m.status);
+  } catch (e) {
+    return false;
+  }
+}
+
 module.exports = function registerProtectionCommands(bot) {
   // 18. /antispam on/off - אנטי ספאם אוטומטי
   bot.command('antispam', async (ctx) => {
@@ -69,13 +105,23 @@ module.exports = function registerProtectionCommands(bot) {
     }
   });
 
-  // 21. /filter [מילה] - הוספת מילת פילטר אסורה
+  // 21. /filter [מילה] - הוספת/הסרת מילת פילטר אסורה
   bot.command('filter', async (ctx) => {
     if (!(await requireAdmin(ctx, '/filter [מילה או ביטוי לחסימה]'))) return;
     try {
       const word = (ctx.message.text || '').trim().split(/\s+/).slice(1).join(' ').toLowerCase();
-      if (!word) return ctx.reply('⚠️ שימוש: `/filter [מילה אסורה]` להוספה/הסרה מרשימת החסימות.\nלעזרה: /help', { parse_mode: 'Markdown' });
+      if (!word) {
+        return ctx.reply(
+          '⚠️ *ניהול מילים אסורות:*\n' +
+          '• להוספת מילה: `/filter [מילה]`\n' +
+          '• לעריכה ומחיקה בכפתורים: `/filters`\n' +
+          '• לעריכה מהירה: `/editfilter [ישנה] [חדשה]`\n' +
+          '• למחיקה מהירה: `/unfilter [מילה]`',
+          { parse_mode: 'Markdown' }
+        );
+      }
       const data = await getGroupData(ctx.chat.id);
+      data.filters = Array.isArray(data.filters) ? data.filters : [];
       const idx = data.filters.indexOf(word);
       if (idx >= 0) {
         data.filters.splice(idx, 1);
@@ -84,22 +130,156 @@ module.exports = function registerProtectionCommands(bot) {
       }
       data.filters.push(word);
       await saveGroupData(ctx.chat.id, data);
-      await ctx.reply(`🚫 המילה "${word}" נוספה לרשימת הפילטרים ותימחק אוטומטית.`);
+      await ctx.reply(
+        `🚫 המילה "${word}" נוספה לרשימת הפילטרים ותימחק אוטומטית.\nלעריכה או מחיקה של מילים שלח \`/filters\``,
+        { parse_mode: 'Markdown' }
+      );
     } catch (err) {
       await ctx.reply('❌ שגיאה בעדכון פילטר. לעזרה: /help');
     }
   });
 
-  // 22. /filters - רשימת כל הפילטרים בקבוצה
+  // מחיקת מילה אסורה ספציפית בפקודה: /unfilter או /delfilter
+  bot.command(['unfilter', 'delfilter'], async (ctx) => {
+    if (!(await requireAdmin(ctx, '/unfilter [מילה להסרה]'))) return;
+    try {
+      const word = (ctx.message.text || '').trim().split(/\s+/).slice(1).join(' ').toLowerCase();
+      if (!word) return ctx.reply('⚠️ שימוש: `/unfilter [מילה]` למחיקת מילה מהפילטר (או שלח `/filters` למחיקה בכפתורים).', { parse_mode: 'Markdown' });
+      const data = await getGroupData(ctx.chat.id);
+      data.filters = Array.isArray(data.filters) ? data.filters : [];
+      const idx = data.filters.indexOf(word);
+      if (idx === -1) return ctx.reply(`⚠️ המילה "${word}" לא נמצאה ברשימת הפילטרים.`);
+      data.filters.splice(idx, 1);
+      await saveGroupData(ctx.chat.id, data);
+      await ctx.reply(`🗑️ המילה "${word}" נמחקה מרשימת הפילטרים.`);
+    } catch (err) {
+      await ctx.reply('❌ שגיאה במחיקת מילה מהפילטר.');
+    }
+  });
+
+  // עריכת מילה אסורה בפקודה: /editfilter [מילה ישנה] [מילה חדשה]
+  bot.command('editfilter', async (ctx) => {
+    if (!(await requireAdmin(ctx, '/editfilter [מילה ישנה] [מילה חדשה]'))) return;
+    try {
+      const args = (ctx.message.text || '').trim().split(/\s+/).slice(1);
+      if (args.length < 2) {
+        return ctx.reply('⚠️ שימוש: `/editfilter [מילה ישנה] [מילה חדשה]`\n(או שלח `/filters` ולחץ על כפתור *✏️ ערוך* ליד המילה).', { parse_mode: 'Markdown' });
+      }
+      const oldWord = args[0].toLowerCase();
+      const newWord = args.slice(1).join(' ').toLowerCase();
+      const data = await getGroupData(ctx.chat.id);
+      data.filters = Array.isArray(data.filters) ? data.filters : [];
+      const idx = data.filters.indexOf(oldWord);
+      if (idx === -1) return ctx.reply(`⚠️ המילה "${oldWord}" לא נמצאה ברשימת הפילטרים.`);
+      data.filters[idx] = newWord;
+      await saveGroupData(ctx.chat.id, data);
+      await ctx.reply(`✏️ הפילטר עודכן בהצלחה מ-"${oldWord}" ל-"${newWord}"!`);
+    } catch (err) {
+      await ctx.reply('❌ שגיאה בעריכת הפילטר.');
+    }
+  });
+
+  // מחיקת כל המילים האסורות בבת אחת: /clearfilters
+  bot.command('clearfilters', async (ctx) => {
+    if (!(await requireAdmin(ctx, '/clearfilters'))) return;
+    try {
+      const data = await getGroupData(ctx.chat.id);
+      data.filters = [];
+      delete data.editingFilter;
+      await saveGroupData(ctx.chat.id, data);
+      await ctx.reply('🧹 כל המילים החסומות בקבוצה נמחקו.');
+    } catch (err) {
+      await ctx.reply('❌ שגיאה באיפוס הפילטרים.');
+    }
+  });
+
+  // 22. /filters - פאנל אינטראקטיבי לעריכה ומחיקה של מילים חסומות
   bot.command('filters', async (ctx) => {
     if (!(await requireAdmin(ctx, '/filters'))) return;
     try {
       const data = await getGroupData(ctx.chat.id);
-      if (!data.filters.length) return ctx.reply('📋 אין כרגע מילים חסומות בקבוצה. להוספה: `/filter [מילה]`', { parse_mode: 'Markdown' });
-      await ctx.reply(`🚫 *מילים חסומות בקבוצה (${data.filters.length}):*\n• ${data.filters.join('\n• ')}`, { parse_mode: 'Markdown' });
+      data.filters = Array.isArray(data.filters) ? data.filters : [];
+      const panel = buildFiltersPanel(data.filters);
+      await ctx.reply(panel.text, {
+        parse_mode: 'Markdown',
+        reply_markup: panel.reply_markup
+      });
     } catch (err) {
       await ctx.reply('❌ שגיאה בשליפת הפילטרים. לעזרה: /help');
     }
+  });
+  // כפתורי מחיקה ועריכה מתוך פאנל /filters
+  bot.action(/^flt_del_(\d+)$/, async (ctx) => {
+    if (!(await isGroupAdminCallback(ctx))) {
+      return ctx.answerCbQuery('⛔ פעולה זו מיועדת לאדמינים בלבד.', { show_alert: true }).catch(() => {});
+    }
+    const idx = parseInt(ctx.match[1], 10);
+    const data = await getGroupData(ctx.chat.id);
+    data.filters = Array.isArray(data.filters) ? data.filters : [];
+    if (idx < 0 || idx >= data.filters.length) {
+      return ctx.answerCbQuery('המילה כבר הוסרה').catch(() => {});
+    }
+    const removed = data.filters.splice(idx, 1)[0];
+    delete data.editingFilter;
+    await saveGroupData(ctx.chat.id, data);
+    await ctx.answerCbQuery(`🗑️ "${removed}" נמחקה`).catch(() => {});
+    const panel = buildFiltersPanel(data.filters);
+    await ctx.editMessageText(panel.text, {
+      parse_mode: 'Markdown',
+      reply_markup: panel.reply_markup
+    }).catch(() => {});
+  });
+
+  bot.action(/^flt_edit_(\d+)$/, async (ctx) => {
+    if (!(await isGroupAdminCallback(ctx))) {
+      return ctx.answerCbQuery('⛔ פעולה זו מיועדת לאדמינים בלבד.', { show_alert: true }).catch(() => {});
+    }
+    const idx = parseInt(ctx.match[1], 10);
+    const data = await getGroupData(ctx.chat.id);
+    data.filters = Array.isArray(data.filters) ? data.filters : [];
+    if (idx < 0 || idx >= data.filters.length) {
+      return ctx.answerCbQuery('המילה לא נמצאה').catch(() => {});
+    }
+    const oldWord = data.filters[idx];
+    data.editingFilter = { adminId: ctx.from.id, index: idx, oldWord };
+    await saveGroupData(ctx.chat.id, data);
+    await ctx.answerCbQuery().catch(() => {});
+    await ctx.editMessageText(
+      `✏️ *עריכת מילה אסורה:* \`${oldWord}\`\n\nכתוב עכשיו בצ׳אט את המילה החדשה שתחליף אותה:`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [[{ text: '❌ ביטול וחזרה לרשימה', callback_data: 'flt_cancel_edit' }]]
+        }
+      }
+    ).catch(() => {});
+  });
+
+  bot.action('flt_cancel_edit', async (ctx) => {
+    if (!(await isGroupAdminCallback(ctx))) {
+      return ctx.answerCbQuery('⛔ פעולה זו מיועדת לאדמינים בלבד.', { show_alert: true }).catch(() => {});
+    }
+    const data = await getGroupData(ctx.chat.id);
+    delete data.editingFilter;
+    await saveGroupData(ctx.chat.id, data);
+    await ctx.answerCbQuery('בוטל').catch(() => {});
+    const panel = buildFiltersPanel(data.filters || []);
+    await ctx.editMessageText(panel.text, {
+      parse_mode: 'Markdown',
+      reply_markup: panel.reply_markup
+    }).catch(() => {});
+  });
+
+  bot.action('flt_clear_all', async (ctx) => {
+    if (!(await isGroupAdminCallback(ctx))) {
+      return ctx.answerCbQuery('⛔ פעולה זו מיועדת לאדמינים בלבד.', { show_alert: true }).catch(() => {});
+    }
+    const data = await getGroupData(ctx.chat.id);
+    data.filters = [];
+    delete data.editingFilter;
+    await saveGroupData(ctx.chat.id, data);
+    await ctx.answerCbQuery('🧹 כל המילים נמחקו').catch(() => {});
+    await ctx.editMessageText('🧹 כל המילים החסומות בקבוצה נמחקו בהצלחה.').catch(() => {});
   });
 
   // 23. /welcome on/off + /setwelcome [טקסט עשיר עם כפתור מובנה לחוקי הקבוצה]
@@ -174,10 +354,32 @@ module.exports = function registerProtectionCommands(bot) {
         return;
       }
 
+      const rawText = (msg.text || '').trim();
+
+      // אם אדמין לחץ על "✏️ ערוך" בפאנל /filters וכותב עכשיו את המילה החדשה
+      if (data.editingFilter && Number(data.editingFilter.adminId) === Number(ctx.from.id) && rawText && !rawText.startsWith('/')) {
+        const { index, oldWord } = data.editingFilter;
+        const newWord = rawText.toLowerCase();
+        data.filters = Array.isArray(data.filters) ? data.filters : [];
+        if (index >= 0 && index < data.filters.length) {
+          data.filters[index] = newWord;
+        } else {
+          const fallbackIdx = data.filters.indexOf(oldWord);
+          if (fallbackIdx >= 0) data.filters[fallbackIdx] = newWord;
+          else data.filters.push(newWord);
+        }
+        delete data.editingFilter;
+        await saveGroupData(ctx.chat.id, data);
+        const panel = buildFiltersPanel(data.filters);
+        return await ctx.reply(`✅ המילה האסורה עודכנה מ-"${oldWord}" ל-"${newWord}"!\n\n${panel.text}`, {
+          parse_mode: 'Markdown',
+          reply_markup: panel.reply_markup
+        });
+      }
+
       data.stats.messages = (data.stats.messages || 0) + 1;
       await saveGroupData(ctx.chat.id, data);
 
-      const rawText = (msg.text || '').trim();
       if (rawText.startsWith('/')) {
         const cmdName = rawText.split(/\s+/)[0].slice(1).split('@')[0].toLowerCase();
         if (data.customCommands && data.customCommands[cmdName]) {
@@ -200,7 +402,9 @@ module.exports = function registerProtectionCommands(bot) {
       if (data.locks.media && hasMedia) return ctx.deleteMessage().catch(() => {});
       if (data.locks.stickers && msg.sticker) return ctx.deleteMessage().catch(() => {});
       if (data.antispam && (text.length > 800 || msg.forward_date)) return ctx.deleteMessage().catch(() => {});
-      if (data.filters.some((w) => w && text.includes(w))) return ctx.deleteMessage().catch(() => {});
+      if (Array.isArray(data.filters) && data.filters.some((w) => w && text.includes(w.toLowerCase()))) {
+        return ctx.deleteMessage().catch(() => {});
+      }
 
       if (data.antiflood > 0) {
         const key = `${ctx.chat.id}:${ctx.from.id}`;
