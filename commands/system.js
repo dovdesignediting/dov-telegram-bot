@@ -6,75 +6,89 @@ const {
 } = require('./utils');
 
 // מספר הגרסה הנוכחי של הבוט – מתעדכן בכל שדרוג/תיקון/פיתוח
-const BOT_VERSION = '1.0.4.0v';
+const BOT_VERSION = '1.0.5.0v';
 
-// פירוט השיפורים, השדרוגים והעריכות של הגרסה הנוכחית
+// פירוט השיפורים הגלוי למשתמשים בלבד (ללא שום אזכור לפקודות היוצר!)
 const CHANGELOG_TEXT =
   `🚀 *עדכון ${BOT_VERSION}*\n\n` +
-  `✨ *מה חדש בעדכון זה (שיפורים, שדרוגים ועריכות):*\n` +
-  `• הצגת תפריט הפקודות המלא אוטומטית בכניסה לבוט ללא צורך בפקודת /help.\n` +
-  `• הוספת לחצן "💡 הצעה לשיפור" בתוך התפריט כדי שהצ׳אט יישאר נקי לעין.\n` +
-  `• הוספת הודעת ביטול עם לחצן "🔙 חזרה לתפריט" מתחת להודעה.\n` +
-  `• תיקון מערכת "כתיבה חיה" כך שתתמוך בפקודות ותיוגים עם קו תחתון.\n` +
-  `• הוספת מערכת גרסאות המציגה למשתמשים את מספר העדכון (${BOT_VERSION}) ופירוט השדרוגים.`;
+  `✨ *מה חדש בעדכון זה:*\n` +
+  `• שדרוג כל תפריטי העזרה לכפתורים אינטראקטיביים לכל פקודה.\n` +
+  `• לחיצה על כל פקודה בתפריט פותחת תת-תפריט עם הסבר מפורט ודוגמה מוכנה להעתקה בלחיצה.\n` +
+  `• הוספת כפתורי ניווט "🔙 חזרה" ו-"🏠 חזרה לתפריט הראשי" בכל הקטגוריות ותתי-התפריטים.`;
 
 const MAIN_MENU_TEXT =
   `שלום! 👋\n` +
   `אני בוט מתקדם לניהול והגנה על קבוצות.\n` +
   `🔖 *גרסה נוכחית:* עדכון ${BOT_VERSION}\n\n` +
-  `📚 *תפריט הפקודות – בחר קטגוריה מהכפתורים למטה:*`;
+  `📚 *תפריט הפקודות הראשי – בחר קטגוריה מהכפתורים למטה:*`;
 
-const HELP_CATEGORIES = {
-  main: MAIN_MENU_TEXT,
-  changelog: CHANGELOG_TEXT,
-  users:
-    `👮 *קטגוריה 1: ניהול משתמשים* (עדכון ${BOT_VERSION})\n` +
-    '• `/ban [סיבה]` – חסימה לצמיתות (בהשבה)\n' +
-    '• `/unban [ID]` – הסרת חסימה\n' +
-    '• `/kick` – הוצאה מהקבוצה (בהשבה)\n' +
-    '• `/mute [10m/1h/1d]` – השתקה זמנית\n' +
-    '• `/unmute` – הסרת השתקה\n' +
-    '• `/warn [סיבה]` – אזהרה (3 = חסימה)\n' +
-    '• `/warnings` – בדיקת אזהרות משתמש\n' +
-    '• `/clearwarns` – איפוס אזהרות\n' +
-    '• `/promote` – קידום לאדמין\n' +
-    '• `/demote` – הורדה מניהול',
-  content:
-    `🧹 *קטגוריה 2: ניהול תוכן וניקוי* (עדכון ${BOT_VERSION})\n` +
-    '• `/del` או `/purge [מספר]` – מחיקת הודעות\n' +
-    '• `/cleanservice on/off` – מחיקה אוטומטית של הודעות שירות (הצטרפות/עזיבה/נעיצה)\n' +
-    '• `/pin` – נעיצת הודעה (בהשבה)\n' +
-    '• `/unpin` – הסרת נעיצה\n' +
-    '• `/unpinall` – הסרת כל הנעוצים\n' +
-    '• `/slowmode [שניות]` – מצב איטי\n' +
-    '• `/lock [links/media/stickers/all]` – נעילת תוכן\n' +
-    '• `/unlock [links/media/stickers/all]` – פתיחת נעילה',
-  protection:
-    `🛡️ *קטגוריה 3: אוטומציה והגנה* (עדכון ${BOT_VERSION})\n` +
-    '• `/antispam on/off` – אנטי ספאם אוטומטי\n' +
-    '• `/antilink on/off` – חסימת לינקים\n' +
-    '• `/antiflood [מספר]` – הגנה מהצפה\n' +
-    '• `/filter [מילה]` – הוספת/הסרת מילה אסורה\n' +
-    '• `/filters` – רשימת כל הפילטרים\n' +
-    '• `/welcome on/off` + `/setwelcome` – הודעת פתיחה',
-  info:
-    `ℹ️ *קטגוריה 4: מידע, חוקים ופקודות מותאמות* (עדכון ${BOT_VERSION})\n` +
-    '• `/rules` + `/setrules [טקסט]` – חוקי הקבוצה\n' +
-    '• `/addcmd [שם] [תוכן]` – יצירת פקודה מותאמת\n' +
-    '• `/delcmd [שם]` ו-`/cmds` – ניהול פקודות מותאמות\n' +
-    '• `/admins` – תיוג כל האדמינים\n' +
-    '• `/id` או `/userinfo` – מידע על משתמש\n' +
-    '• `/stats` – סטטיסטיקות קבוצה',
-  system:
-    `⚙️ *קטגוריה 5: מערכת, עיצוב וכפתורים* (עדכון ${BOT_VERSION})\n` +
-    '• `/help` – פתיחת תפריט הפקודות הראשי\n' +
-    '• כפתור *💡 הצעה לשיפור* – שליחת הצעה או בקשת פקודה ליוצר הבוט\n' +
-    '• `/echo [טקסט]` – בדיקת עיצוב וכפתורים בצ׳אט פרטי\n' +
-    '• `/format` – מדריך עיצוב הודעות, קישורים וכפתורים\n' +
-    '• `/report` – דיווח לאדמינים (בהשבה)\n' +
-    '• `/settings` – פאנל הגדרות קבוצה'
+// הגדרת הקטגוריות וכל הפקודות בתוכן ככפתורים (תתי-תפריטים)
+const MENU_DATA = {
+  users: {
+    title: `👮 *קטגוריה 1: ניהול משתמשים* (עדכון ${BOT_VERSION})\nבחר פקודה מהכפתורים למטה לצפייה בהסבר ובדוגמת שימוש:`,
+    items: [
+      { id: 'ban', label: '🚫 חסימה (/ban)', info: '🚫 *חסימת משתמש לצמיתות*\n• *שימוש:* השב להודעת המשתמש וכתוב:\n`/ban`\nאו עם סיבה:\n`/ban פרסום ספאם`' },
+      { id: 'unban', label: '✅ הסרת חסימה (/unban)', info: '✅ *הסרת חסימה ממשתמש*\n• *שימוש:* השב להודעה שלו או שלח עם ה-ID שלו:\n`/unban 123456789`' },
+      { id: 'kick', label: '👢 הוצאה (/kick)', info: '👢 *הוצאת משתמש מהקבוצה (ללא חסימה)*\n• *שימוש:* השב להודעת המשתמש וכתוב:\n`/kick`' },
+      { id: 'mute', label: '🔇 השתקה (/mute)', info: '🔇 *השתקת משתמש זמנית*\n• *שימוש:* השב להודעת המשתמש וכתוב זמן (`m`=דקות, `h`=שעות, `d`=ימים):\n`/mute 10m`\n`/mute 2h`\n`/mute 1d`' },
+      { id: 'unmute', label: '🔊 ביטול השתקה (/unmute)', info: '🔊 *הסרת השתקה ממשתמש*\n• *שימוש:* השב להודעת המשתמש וכתוב:\n`/unmute`' },
+      { id: 'warn', label: '⚠️ אזהרה (/warn)', info: '⚠️ *מתן אזהרה למשתמש (ב-3 אזהרות נחסם אוטומטית)*\n• *שימוש:* השב להודעת המשתמש וכתוב:\n`/warn שפה לא נאותה`' },
+      { id: 'warnings', label: '📋 בדיקת אזהרות (/warnings)', info: '📋 *בדיקת כמות אזהרות של משתמש*\n• *שימוש:* השב להודעת המשתמש וכתוב:\n`/warnings`' },
+      { id: 'clearwarns', label: '🧼 איפוס אזהרות (/clearwarns)', info: '🧼 *מחיקת כל האזהרות של משתמש*\n• *שימוש:* השב להודעת המשתמש וכתוב:\n`/clearwarns`' },
+      { id: 'promote', label: '⭐ קידום לאדמין (/promote)', info: '⭐ *קידום חבר קבוצה לניהול*\n• *שימוש:* השב להודעת המשתמש וכתוב:\n`/promote`' },
+      { id: 'demote', label: '⬇️ הורדה מניהול (/demote)', info: '⬇️ *הסרת הרשאות ניהול מאדמין*\n• *שימוש:* השב להודעת המשתמש וכתוב:\n`/demote`' }
+    ]
+  },
+  content: {
+    title: `🧹 *קטגוריה 2: תוכן וניקוי* (עדכון ${BOT_VERSION})\nבחר פקודה מהכפתורים למטה לצפייה בהסבר ובדוגמת שימוש:`,
+    items: [
+      { id: 'del', label: '🗑️ מחיקת הודעה (/del)', info: '🗑️ *מחיקת הודעה בודדת*\n• *שימוש:* השב להודעה שתרצה למחוק וכתוב:\n`/del`' },
+      { id: 'purge', label: '🧹 מחיקה מרובה (/purge)', info: '🧹 *מחיקת מספר הודעות אחרונות בבת אחת*\n• *שימוש:* כתוב מספר הודעות למחיקה (עד 100):\n`/purge 20`' },
+      { id: 'cleanservice', label: '🧼 ניקוי הודעות שירות', info: '🧼 *מחיקה אוטומטית של הודעות "הצטרף/עזב את הקבוצה"*\n• *להפעלה:* `/cleanservice on`\n• *לכיבוי:* `/cleanservice off`' },
+      { id: 'pin', label: '📌 נעיצת הודעה (/pin)', info: '📌 *נעיצת הודעה בראש הקבוצה*\n• *שימוש:* השב להודעה שתרצה לנעוץ וכתוב:\n`/pin`' },
+      { id: 'unpin', label: '📍 הסרת נעיצה (/unpin)', info: '📍 *הסרת נעיצה מהודעה*\n• *שימוש:* השב להודעה נעוצה או שלח:\n`/unpin`' },
+      { id: 'unpinall', label: '🗃️ הסרת כל הנעוצים', info: '🗃️ *ביטול נעיצה של כל ההודעות הנעוצות בקבוצה*\n• *שימוש:* שלח בקבוצה:\n`/unpinall`' },
+      { id: 'slowmode', label: '🐢 מצב איטי (/slowmode)', info: '🐢 *הגבלת קצב שליחת הודעות בקבוצה*\n• *שימוש:* ציין שניות (או `0` לביטול):\n`/slowmode 30`\n`/slowmode 0`' },
+      { id: 'lock', label: '🔒 נעילת תוכן (/lock)', info: '🔒 *חסימת שליחת סוגי תוכן בקבוצה*\n• *אפשרויות:*\n`/lock links` – נעילת קישורים\n`/lock media` – נעילת תמונות וסרטונים\n`/lock stickers` – נעילת סטיקרים\n`/lock all` – נעילת כל הקבוצה' },
+      { id: 'unlock', label: '🔓 פתיחת נעילה (/unlock)', info: '🔓 *שחרור נעילת תוכן בקבוצה*\n• *אפשרויות:*\n`/unlock links`\n`/unlock media`\n`/unlock stickers`\n`/unlock all`' }
+    ]
+  },
+  protection: {
+    title: `🛡️ *קטגוריה 3: אוטומציה והגנה* (עדכון ${BOT_VERSION})\nבחר פקודה מהכפתורים למטה לצפייה בהסבר ובדוגמת שימוש:`,
+    items: [
+      { id: 'antispam', label: '🛡️ אנטי-ספאם (/antispam)', info: '🛡️ *סינון אוטומטי של הודעות ספאם והצפות*\n• *להפעלה:* `/antispam on`\n• *לכיבוי:* `/antispam off`' },
+      { id: 'antilink', label: '🔗 חסימת לינקים (/antilink)', info: '🔗 *מחיקה אוטומטית של קישורים ממשתמשים רגילים*\n• *להפעלה:* `/antilink on`\n• *לכיבוי:* `/antilink off`' },
+      { id: 'antiflood', label: '🌊 הגנת הצפה (/antiflood)', info: '🌊 *חסימת משתמשים שמציפים הודעות ברצף*\n• *שימוש:* ציין מקסימום הודעות ב-10 שניות (או `off` לכיבוי):\n`/antiflood 5`\n`/antiflood off`' },
+      { id: 'filter', label: '🚫 מילים אסורות (/filter)', info: '🚫 *הוספה או הסרה של מילה אסורה למחיקה אוטומטית*\n• *שימוש:*\n`/filter מילה`' },
+      { id: 'filters', label: '📜 רשימת פילטרים (/filters)', info: '📜 *הצגת כל המילים החסומות כרגע בקבוצה*\n• *שימוש:*\n`/filters`' },
+      { id: 'welcome', label: '👋 הפעלת ברוכים הבאים', info: '👋 *הפעלה או כיבוי של הודעת הצטרפות לחברים חדשים*\n• *להפעלה:* `/welcome on`\n• *לכיבוי:* `/welcome off`' },
+      { id: 'setwelcome', label: '✏️ עריכת ברוכים הבאים', info: '✏️ *קביעת נוסח הודעת הפתיחה (כולל כפתור חוקים אוטומטי)*\n• *שימוש:*\n`/setwelcome ברוך הבא {name} לקבוצה שלנו!`' }
+    ]
+  },
+  info: {
+    title: `ℹ️ *קטגוריה 4: מידע, חוקים ופקודות* (עדכון ${BOT_VERSION})\nבחר פקודה מהכפתורים למטה לצפייה בהסבר ובדוגמת שימוש:`,
+    items: [
+      { id: 'rules', label: '📖 צפייה בחוקים (/rules)', info: '📖 *הצגת כפתור לצפייה בחוקי הקבוצה בצ׳אט פרטי*\n• *שימוש:*\n`/rules`' },
+      { id: 'setrules', label: '📝 הגדרת חוקים (/setrules)', info: '📝 *עדכון חוקי הקבוצה (לאדמינים)*\n• *שימוש:*\n`/setrules 1. לשמור על כבוד הדדי\n2. אין לשלוח ספאם`' },
+      { id: 'addcmd', label: '➕ הוספת פקודה (/addcmd)', info: '➕ *יצירת פקודה מותאמת אישית לקבוצה*\n• *שימוש:*\n`/addcmd שעות הפעילות שלנו היא 09:00-18:00`' },
+      { id: 'delcmd', label: '➖ מחיקת פקודה (/delcmd)', info: '➖ *מחיקת פקודה מותאמת אישית*\n• *שימוש:*\n`/delcmd שעות`' },
+      { id: 'cmds', label: '📂 רשימת פקודות (/cmds)', info: '📂 *הצגת כל הפקודות המותאמות של הקבוצה*\n• *שימוש:*\n`/cmds`' },
+      { id: 'admins', label: '👑 רשימת אדמינים (/admins)', info: '👑 *הצגת ותיוג מנהלי הקבוצה*\n• *שימוש:*\n`/admins`' },
+      { id: 'userinfo', label: '🆔 מידע על משתמש (/id)', info: '🆔 *הצגת מזהה (ID) ופרטים על משתמש או קבוצה*\n• *שימוש:* שלח `/id` או השב להודעה עם `/userinfo`' },
+      { id: 'stats', label: '📊 סטטיסטיקות (/stats)', info: '📊 *הצגת נתוני הקבוצה ומספר החברים*\n• *שימוש:*\n`/stats`' }
+    ]
+  },
+  system: {
+    title: `⚙️ *קטגוריה 5: מערכת ועיצוב* (עדכון ${BOT_VERSION})\nבחר פקודה מהכפתורים למטה לצפייה בהסבר ובדוגמת שימוש:`,
+    items: [
+      { id: 'settings', label: '⚙️ הגדרות קבוצה (/settings)', info: '⚙️ *פאנל מצב כל ההגנות והנעילות בקבוצה*\n• *שימוש:*\n`/settings`' },
+      { id: 'echo', label: '📢 בדיקת עיצוב (/echo)', info: '📢 *בדיקת הודעה מעוצבת עם כפתורים*\n• *שימוש:*\n`/echo *כותרת מודגשת*\n{{כפתור לדוגמה}{https://t.me/telegram}}`' },
+      { id: 'format', label: '🎨 מדריך עיצוב (/format)', info: '🎨 *מדריך מלא להדגשה, קישורים ויצירת כפתורים*\n• *שימוש:*\n`/format`' },
+      { id: 'report', label: '🚨 דיווח לאדמינים (/report)', info: '🚨 *דיווח מהיר לכל מנהלי הקבוצה על הודעה בעייתית*\n• *שימוש:* השב להודעה וכתוב:\n`/report`' },
+      { id: 'suggest', label: '💡 הצעה לשיפור', info: '💡 *שליחת הצעה לשיפור או בקשת פקודה חדשה*\n• לחץ על הכפתור *"💡 הצעה לשיפור"* בתפריט הראשי כדי לשלוח הצעה ישירות!' }
+    ]
+  }
 };
-
 function getHelpKeyboard() {
   return {
     inline_keyboard: [
@@ -98,9 +112,48 @@ function getHelpKeyboard() {
   };
 }
 
+// בניית מקלדת כפתורים לכל הפקודות בתוך קטגוריה + כפתור "חזרה" ו-"חזרה לתפריט הראשי"
+function getCategoryKeyboard(catKey) {
+  const cat = MENU_DATA[catKey];
+  const rows = [];
+  if (cat && Array.isArray(cat.items)) {
+    for (let i = 0; i < cat.items.length; i += 2) {
+      const row = [
+        { text: cat.items[i].label, callback_data: `hcmd_${catKey}_${cat.items[i].id}` }
+      ];
+      if (cat.items[i + 1]) {
+        row.push({ text: cat.items[i + 1].label, callback_data: `hcmd_${catKey}_${cat.items[i + 1].id}` });
+      }
+      rows.push(row);
+    }
+  }
+  rows.push([
+    { text: '🔙 חזרה', callback_data: 'help_main' },
+    { text: '🏠 חזרה לתפריט הראשי', callback_data: 'help_main' }
+  ]);
+  return { inline_keyboard: rows };
+}
+
+// בניית מקלדת לתת-תפריט של פקודה ספציפית: "🔙 חזרה" מחזיר לקטגוריה, ו-"🏠 חזרה לתפריט הראשי" מחזיר לראשי!
+function getCommandSubMenuKeyboard(catKey) {
+  return {
+    inline_keyboard: [
+      [
+        { text: '🔙 חזרה', callback_data: `help_${catKey}` },
+        { text: '🏠 חזרה לתפריט הראשי', callback_data: 'help_main' }
+      ]
+    ]
+  };
+}
+
 function getBackToMenuKeyboard() {
   return {
-    inline_keyboard: [[{ text: '🔙 חזרה לתפריט', callback_data: 'help_main' }]]
+    inline_keyboard: [
+      [
+        { text: '🔙 חזרה', callback_data: 'help_main' },
+        { text: '🏠 חזרה לתפריט הראשי', callback_data: 'help_main' }
+      ]
+    ]
   };
 }
 
@@ -116,16 +169,72 @@ function registerSystemCommands(bot) {
     }
   });
 
+  // מעבר בין קטגוריות התפריט הראשי
   bot.action(/^help_(.+)$/, async (ctx) => {
     try {
       const cat = ctx.match[1];
-      const text = cat === 'format' ? FORMAT_GUIDE : (HELP_CATEGORIES[cat] || MAIN_MENU_TEXT);
-      const kb = cat === 'changelog' ? getBackToMenuKeyboard() : getHelpKeyboard();
       await ctx.answerCbQuery().catch(() => {});
-      await ctx.editMessageText(text, {
+
+      if (cat === 'main') {
+        return await ctx.editMessageText(MAIN_MENU_TEXT, {
+          parse_mode: 'Markdown',
+          reply_markup: getHelpKeyboard()
+        }).catch(() => ctx.reply(MAIN_MENU_TEXT, {
+          parse_mode: 'Markdown',
+          reply_markup: getHelpKeyboard()
+        }));
+      }
+
+      if (cat === 'format') {
+        return await ctx.editMessageText(FORMAT_GUIDE, {
+          parse_mode: 'Markdown',
+          reply_markup: getBackToMenuKeyboard()
+        }).catch(() => ctx.reply(FORMAT_GUIDE, {
+          parse_mode: 'Markdown',
+          reply_markup: getBackToMenuKeyboard()
+        }));
+      }
+
+      if (cat === 'changelog') {
+        return await ctx.editMessageText(CHANGELOG_TEXT, {
+          parse_mode: 'Markdown',
+          reply_markup: getBackToMenuKeyboard()
+        }).catch(() => ctx.reply(CHANGELOG_TEXT, {
+          parse_mode: 'Markdown',
+          reply_markup: getBackToMenuKeyboard()
+        }));
+      }
+
+      if (MENU_DATA[cat]) {
+        const text = MENU_DATA[cat].title;
+        const kb = getCategoryKeyboard(cat);
+        return await ctx.editMessageText(text, {
+          parse_mode: 'Markdown',
+          reply_markup: kb
+        }).catch(() => ctx.reply(text, {
+          parse_mode: 'Markdown',
+          reply_markup: kb
+        }));
+      }
+    } catch (e) {}
+  });
+
+  // לחיצה על כפתור של פקודה בתוך קטגוריה (פותח תת-תפריט עם הסבר + כפתור "חזרה" לקטגוריה וכפתור "חזרה לתפריט הראשי")
+  bot.action(/^hcmd_([a-z]+)_([a-z]+)$/, async (ctx) => {
+    try {
+      const catKey = ctx.match[1];
+      const cmdId = ctx.match[2];
+      const cat = MENU_DATA[catKey];
+      if (!cat) return;
+      const item = cat.items.find((x) => x.id === cmdId);
+      if (!item) return;
+
+      await ctx.answerCbQuery().catch(() => {});
+      const kb = getCommandSubMenuKeyboard(catKey);
+      await ctx.editMessageText(item.info, {
         parse_mode: 'Markdown',
         reply_markup: kb
-      }).catch(() => ctx.reply(text, {
+      }).catch(() => ctx.reply(item.info, {
         parse_mode: 'Markdown',
         reply_markup: kb
       }));
@@ -133,7 +242,7 @@ function registerSystemCommands(bot) {
   });
 
   bot.command('format', async (ctx) => {
-    await ctx.reply(FORMAT_GUIDE, { parse_mode: 'Markdown' });
+    await ctx.reply(FORMAT_GUIDE, { parse_mode: 'Markdown', reply_markup: getBackToMenuKeyboard() });
   });
 
   bot.command('echo', async (ctx) => {
@@ -188,7 +297,7 @@ function registerSystemCommands(bot) {
         {
           parse_mode: 'Markdown',
           reply_markup: {
-            inline_keyboard: [[{ text: '📚 מדריך פקודות ועיצוב (/help)', callback_data: 'help_format' }]]
+            inline_keyboard: [[{ text: '📚 פתיחת תפריט הפקודות (/help)', callback_data: 'help_main' }]]
           }
         }
       );

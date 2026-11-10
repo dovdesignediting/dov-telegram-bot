@@ -17,7 +17,7 @@ const bot = token ? new Telegraf(token) : null;
 const CREATOR_ID = 1773089386;
 const isCreator = (ctx) => Number(ctx.from?.id) === CREATOR_ID;
 const STATE_FILE = '/tmp/owner_cloud_state.json';
-const BOT_VERSION = registerSystemCommands.BOT_VERSION || '1.0.4.0v';
+const BOT_VERSION = registerSystemCommands.BOT_VERSION || '1.0.5.0v';
 let memState = null;
 
 function defaultState() {
@@ -32,7 +32,7 @@ function defaultState() {
   };
 }
 
-// שליחה חכמה לקבוצה/משתמש: מתקנת אוטומטית קו תחתון בפקודות (/request_command) ואם יש שגיאת Markdown שולחת כטקסט רגיל!
+// שליחה חכמה לקבוצה/משתמש: מתקנת אוטומטית קו תחתון בפקודות ואם יש שגיאת Markdown שולחת כטקסט רגיל
 async function safeSendRich(telegram, chatId, rawText) {
   const fixedText = String(rawText || '').replace(/([/@][a-zA-Z0-9_]+)/g, (m) => m.replace(/\\?_/g, '\\_'));
   const p = parseRichMessage(fixedText);
@@ -46,7 +46,6 @@ async function safeSendRich(telegram, chatId, rawText) {
   }
 }
 
-// טעינת מצב הבוט מ-Upstash Redis (דרך getGroupData) + גיבוי משרתי טלגרם
 async function getState() {
   try {
     const redisData = await getGroupData('owner_global');
@@ -92,15 +91,10 @@ async function getState() {
   return memState;
 }
 
-// שמירת מצב הבוט ב-Upstash Redis + גיבוי בשרתי טלגרם
 async function saveState(state) {
   memState = state;
-  try {
-    await saveGroupData('owner_global', state);
-  } catch (e) {}
-  try {
-    fs.writeFileSync(STATE_FILE, JSON.stringify(state), 'utf8');
-  } catch (e) {}
+  try { await saveGroupData('owner_global', state); } catch (e) {}
+  try { fs.writeFileSync(STATE_FILE, JSON.stringify(state), 'utf8'); } catch (e) {}
 
   if (bot) {
     try {
@@ -156,9 +150,7 @@ async function getLink(tg, cid) {
     const r = await tg.createChatInviteLink(cid, { name: 'Owner' });
     if (r?.invite_link) return r.invite_link;
   } catch (e) {}
-  try {
-    return await tg.exportChatInviteLink(cid);
-  } catch (e) { return null; }
+  try { return await tg.exportChatInviteLink(cid); } catch (e) { return null; }
 }
 
 function buildOwnerPanel(s) {
@@ -178,6 +170,8 @@ function buildOwnerPanel(s) {
   const reply_markup = {
     inline_keyboard: [
       [{ text: '🔄 סרוק ועדכן נתונים בזמן אמת', callback_data: 'own_refresh' }],
+      [{ text: '📣 שליחת הודעה לכולם (כולל קבוצות)', callback_data: 'own_bcast_all' }],
+      [{ text: '✉️ שליחת הודעה לכל משתמשי הבוט (בפרטי)', callback_data: 'own_bcast_users' }],
       [{ text: `🚀 שלח הודעת עדכון ${BOT_VERSION} לכולם`, callback_data: 'own_announce_ver' }],
       [{ text: '🏢 רשימת קבוצות וקישורים', callback_data: 'own_groups' }, { text: '👥 משתמשי הבוט', callback_data: 'own_users' }],
       [{ text: '💬 כתיבה חיה לקבוצה', callback_data: 'own_groups' }, { text: '🛑 עצור כתיבה חיה', callback_data: 'own_livechat_stop' }],
@@ -195,52 +189,30 @@ const WIZARD_CANCEL_KB = {
   inline_keyboard: [[{ text: '❌ ביטול', callback_data: 'reqcmd_cancel' }]]
 };
 
+const OWNER_BCAST_CANCEL_KB = {
+  inline_keyboard: [[{ text: '❌ ביטול וחזרה לפאנל היוצר', callback_data: 'own_bcast_cancel' }]]
+};
+
 const BACK_TO_MENU_KB = {
-  inline_keyboard: [[{ text: '🔙 חזרה לתפריט', callback_data: 'help_main' }]]
+  inline_keyboard: [[
+    { text: '🔙 חזרה', callback_data: 'help_main' },
+    { text: '🏠 חזרה לתפריט הראשי', callback_data: 'help_main' }
+  ]]
 };
 
 function getMainMenuText() {
-  return (
-    registerSystemCommands.MAIN_MENU_TEXT ||
-    `שלום! 👋\nאני בוט מתקדם לניהול והגנה על קבוצות.\n🔖 *גרסה נוכחית:* עדכון ${BOT_VERSION}\n\n📚 *תפריט הפקודות – בחר קטגוריה מהכפתורים למטה:*`
-  );
+  return registerSystemCommands.MAIN_MENU_TEXT || `שלום! 👋\nאני בוט מתקדם לניהול והגנה על קבוצות.\n🔖 *גרסה נוכחית:* עדכון ${BOT_VERSION}`;
 }
 
 function getMainMenuKeyboard() {
-  if (typeof registerSystemCommands.getHelpKeyboard === 'function') {
-    return registerSystemCommands.getHelpKeyboard();
-  }
-  return {
-    inline_keyboard: [
-      [
-        { text: '👮 ניהול משתמשים', callback_data: 'help_users' },
-        { text: '🧹 תוכן וניקוי', callback_data: 'help_content' }
-      ],
-      [
-        { text: '🛡️ אוטומציה והגנה', callback_data: 'help_protection' },
-        { text: 'ℹ️ מידע ופקודות', callback_data: 'help_info' }
-      ],
-      [
-        { text: '⚙️ מערכת ועיצוב', callback_data: 'help_system' },
-        { text: '🎨 מדריך כפתורים ועיצוב', callback_data: 'help_format' }
-      ],
-      [
-        { text: '💡 הצעה לשיפור', callback_data: 'reqcmd_start' },
-        { text: `🆕 עדכון ${BOT_VERSION}`, callback_data: 'help_changelog' }
-      ]
-    ]
-  };
+  return registerSystemCommands.getHelpKeyboard();
 }
 
 async function broadcastVersionUpdate(telegram, state) {
   const msg = registerSystemCommands.CHANGELOG_TEXT || `🚀 *עדכון ${BOT_VERSION}* עלה לאוויר!`;
   let gc = 0, uc = 0;
-  for (const gid of Object.keys(state.groups)) {
-    try { await safeSendRich(telegram, gid, msg); gc++; } catch (e) {}
-  }
-  for (const uid of Object.keys(state.users)) {
-    try { await safeSendRich(telegram, uid, msg); uc++; } catch (e) {}
-  }
+  for (const gid of Object.keys(state.groups)) { try { await safeSendRich(telegram, gid, msg); gc++; } catch (e) {} }
+  for (const uid of Object.keys(state.users)) { try { await safeSendRich(telegram, uid, msg); uc++; } catch (e) {} }
   return { gc, uc };
 }
 
@@ -270,15 +242,10 @@ if (bot) {
 
       if (ctx.chat && ['group', 'supergroup'].includes(ctx.chat.type)) {
         const gid = String(ctx.chat.id);
-        s.groups[gid] = {
-          ...(s.groups[gid] || {}),
-          id: ctx.chat.id,
-          title: ctx.chat.title || 'קבוצה'
-        };
+        s.groups[gid] = { ...(s.groups[gid] || {}), id: ctx.chat.id, title: ctx.chat.title || 'קבוצה' };
         chg = true;
       }
 
-      // אם עלה עדכון גרסה חדש – מציג אוטומטית למשתמשים ולקבוצות את מספר העדכון ופירוט השדרוגים
       if (s.lastVersion !== BOT_VERSION) {
         s.lastVersion = BOT_VERSION;
         await saveState(s);
@@ -295,32 +262,43 @@ if (bot) {
       const wiz = isPrivate && uid ? s.wizards[uid] : null;
       const cmd = text ? text.split(/\s+/)[0].split('@')[0].toLowerCase() : '';
 
-      // פקודת /cancel מבטלת את האשף ומציגה כפתור חזרה לתפריט
       if (isPrivate && cmd === '/cancel') {
         if (wiz) {
           delete s.wizards[uid];
           await saveState(s);
-          return await ctx.reply('❌ תהליך שליחת ההצעה בוטל.', { reply_markup: BACK_TO_MENU_KB });
+          return await ctx.reply('❌ התהליך בוטל.', { reply_markup: BACK_TO_MENU_KB });
         }
         return await ctx.reply('אין תהליך פעיל לביטול.', { reply_markup: BACK_TO_MENU_KB });
       }
 
-      // אם המשתמש באמצע האשף ושלח פקודת מערכת – יוצאים מהאשף ומריצים אותה
-      if (wiz && (cmd.startsWith('/owner') || ['/god', '/start', '/help', '/broadcast', '/request_command'].includes(cmd))) {
+      if (wiz && (cmd.startsWith('/owner') || ['/god', '/start', '/help', '/broadcast', '/broadcast_users', '/request_command'].includes(cmd))) {
         delete s.wizards[uid];
         await saveState(s);
         return next();
       }
 
-      // טיפול בשלבי אשף "הצעה לשיפור" בצ'אט פרטי
       if (isPrivate && wiz && text) {
+        if (isCreator(ctx) && wiz.step === 'owner_bcast_all') {
+          delete s.wizards[uid];
+          await saveState(s);
+          let gc = 0, uc = 0;
+          for (const gid of Object.keys(s.groups)) { try { await safeSendRich(ctx.telegram, gid, text); gc++; } catch (e) {} }
+          for (const u of Object.keys(s.users)) { try { await safeSendRich(ctx.telegram, u, text); uc++; } catch (e) {} }
+          return await ctx.reply(`📣 ההודעה נשלחה בהצלחה ל-${gc} קבוצות ו-${uc} משתמשים!`);
+        }
+
+        if (isCreator(ctx) && wiz.step === 'owner_bcast_users') {
+          delete s.wizards[uid];
+          await saveState(s);
+          let uc = 0;
+          for (const u of Object.keys(s.users)) { try { await safeSendRich(ctx.telegram, u, text); uc++; } catch (e) {} }
+          return await ctx.reply(`✉️ ההודעה נשלחה בפרטי ל-${uc} משתמשי הבוט!`);
+        }
+
         if (wiz.step === 1) {
           s.wizards[uid] = { step: 2, cmd: text };
           await saveState(s);
-          return await ctx.reply(
-            'מה הבוט צריך לענות כשמישהו יכתוב את זה?',
-            { reply_markup: WIZARD_CANCEL_KB }
-          );
+          return await ctx.reply('מה הבוט צריך לענות כשמישהו יכתוב את זה?', { reply_markup: WIZARD_CANCEL_KB });
         }
         if (wiz.step === 2) {
           const reqCmd = wiz.cmd;
@@ -340,14 +318,11 @@ if (bot) {
               }
             }
           );
-          return await ctx.reply('בקשתך נשלחה לאישור היוצר, נעדכן אותך בקרוב', {
-            reply_markup: BACK_TO_MENU_KB
-          });
+          return await ctx.reply('בקשתך נשלחה לאישור היוצר, נעדכן אותך בקרוב', { reply_markup: BACK_TO_MENU_KB });
         }
       }
 
-      // כתיבה חיה לקבוצה (תומך גם בהודעות עם /פקודות או @שמות עם קו תחתון!)
-      if (isCreator(ctx) && isPrivate && s.liveChatTarget && text && !cmd.startsWith('/owner') && !['/god', '/start', '/help', '/cancel', '/broadcast', '/request_command'].includes(cmd)) {
+      if (isCreator(ctx) && isPrivate && s.liveChatTarget && text && !cmd.startsWith('/owner') && !['/god', '/start', '/help', '/cancel', '/broadcast', '/broadcast_users', '/request_command'].includes(cmd)) {
         try {
           await safeSendRich(ctx.telegram, s.liveChatTarget, text);
           return await ctx.reply(`✅ נשלח לקבוצה (${s.liveChatTarget}). לעצירה: /owner_stop`);
@@ -446,15 +421,25 @@ if (bot) {
     } catch (e) { await ctx.reply(`❌ ${e.message}`); }
   });
 
-  bot.command('broadcast', async (ctx) => {
+  bot.command(['broadcast', 'owner_sendall'], async (ctx) => {
     if (!isCreator(ctx)) return;
-    const msg = (ctx.message.text || '').replace(/^\/broadcast(@\S+)?\s*/i, '');
-    if (!msg) return ctx.reply('שימוש: /broadcast [הודעה]');
+    const msg = (ctx.message.text || '').replace(/^\/(broadcast|owner_sendall)(@\S+)?\s*/i, '');
+    if (!msg) return ctx.reply('שימוש: /broadcast [הודעה לכולם כולל קבוצות]');
     const s = await getState();
     let gc = 0, uc = 0;
     for (const gid of Object.keys(s.groups)) { try { await safeSendRich(ctx.telegram, gid, msg); gc++; } catch (e) {} }
     for (const uid of Object.keys(s.users)) { try { await safeSendRich(ctx.telegram, uid, msg); uc++; } catch (e) {} }
     await ctx.reply(`📣 שודר ל-${gc} קבוצות ו-${uc} משתמשים.`);
+  });
+
+  bot.command(['broadcast_users', 'owner_sendusers'], async (ctx) => {
+    if (!isCreator(ctx)) return;
+    const msg = (ctx.message.text || '').replace(/^\/(broadcast_users|owner_sendusers)(@\S+)?\s*/i, '');
+    if (!msg) return ctx.reply('שימוש: /broadcast_users [הודעה לכל המשתמשים בפרטי]');
+    const s = await getState();
+    let uc = 0;
+    for (const uid of Object.keys(s.users)) { try { await safeSendRich(ctx.telegram, uid, msg); uc++; } catch (e) {} }
+    await ctx.reply(`✉️ נשלח בפרטי ל-${uc} משתמשי הבוט.`);
   });
 
   bot.command('owner_dm', async (ctx) => {
@@ -507,10 +492,31 @@ if (bot) {
   bot.action(/^own_(.+)$/, async (ctx) => {
     if (!isCreator(ctx)) return;
     const act = ctx.match[1];
-    await ctx.answerCbQuery('מעדכן...').catch(() => {});
+    await ctx.answerCbQuery().catch(() => {});
     if (act === 'refresh') {
       const s = await getState();
       await scanRealtime(ctx.telegram, s);
+      const panel = buildOwnerPanel(s);
+      return ctx.editMessageText(panel.text, { reply_markup: panel.reply_markup }).catch(() => ctx.reply(panel.text, { reply_markup: panel.reply_markup }));
+    }
+    if (act === 'bcast_all') {
+      const s = await getState();
+      s.wizards[String(ctx.from.id)] = { step: 'owner_bcast_all' };
+      await saveState(s);
+      const txt = '📣 *שליחת הודעה לכולם (כולל קבוצות ומשתמשים)*\n\nכתוב עכשיו את ההודעה שתרצה לשלוח לכולם:';
+      return ctx.editMessageText(txt, { parse_mode: 'Markdown', reply_markup: OWNER_BCAST_CANCEL_KB }).catch(() => ctx.reply(txt, { parse_mode: 'Markdown', reply_markup: OWNER_BCAST_CANCEL_KB }));
+    }
+    if (act === 'bcast_users') {
+      const s = await getState();
+      s.wizards[String(ctx.from.id)] = { step: 'owner_bcast_users' };
+      await saveState(s);
+      const txt = '✉️ *שליחת הודעה לכל משתמשי הבוט (בפרטי בלבד)*\n\nכתוב עכשיו את ההודעה שתרצה לשלוח לכל המשתמשים בפרטי:';
+      return ctx.editMessageText(txt, { parse_mode: 'Markdown', reply_markup: OWNER_BCAST_CANCEL_KB }).catch(() => ctx.reply(txt, { parse_mode: 'Markdown', reply_markup: OWNER_BCAST_CANCEL_KB }));
+    }
+    if (act === 'bcast_cancel') {
+      const s = await getState();
+      delete s.wizards[String(ctx.from.id)];
+      await saveState(s);
       const panel = buildOwnerPanel(s);
       return ctx.editMessageText(panel.text, { reply_markup: panel.reply_markup }).catch(() => ctx.reply(panel.text, { reply_markup: panel.reply_markup }));
     }
@@ -543,6 +549,8 @@ if (bot) {
       return ctx.reply(
         '👑 פקודות היוצר:\n' +
         '• /owner או /god – פאנל שליטה\n' +
+        '• /broadcast [טקסט] – שליחת הודעה לכולם (כולל קבוצות)\n' +
+        '• /broadcast_users [טקסט] – שליחת הודעה לכל משתמשי הבוט בפרטי\n' +
         '• /owner_groups – רשימת קבוצות וקישורים\n' +
         '• /owner_link [ChatID] – קישור לקבוצה\n' +
         '• /owner_users – משתמשים וסטטיסטיקות\n' +
@@ -550,7 +558,6 @@ if (bot) {
         '• /owner_stop – עצירת כתיבה חיה\n' +
         '• /owner_say [ChatID] [טקסט] – שליחה לקבוצה\n' +
         '• /owner_pin [ChatID] [טקסט] – שליחה ונעיצה\n' +
-        '• /broadcast [טקסט] – שידור גלובלי\n' +
         '• /owner_dm [UserID] [טקסט] – הודעה למשתמש\n' +
         '• /owner_leave [ChatID] – עזיבת קבוצה\n' +
         '• /owner_globalban / /owner_unglobalban [UserID]'
@@ -581,7 +588,6 @@ if (bot) {
     }
   });
 
-  // כפתור "💡 הצעה לשיפור" מתוך התפריט (עורך את ההודעה הקיימת כדי שהצ'אט יישאר נקי!)
   bot.action('reqcmd_start', async (ctx) => {
     await ctx.answerCbQuery().catch(() => {});
     if (!ctx.chat || ctx.chat.type !== 'private') {
@@ -606,7 +612,6 @@ if (bot) {
     }));
   });
 
-  // תמיכה גם בפקודה /request_command למי ששולח ידנית
   bot.command('request_command', async (ctx) => {
     if (!ctx.chat || ctx.chat.type !== 'private') {
       const botUsername = ctx.botInfo?.username || (await ctx.telegram.getMe()).username;
@@ -621,41 +626,16 @@ if (bot) {
     const s = await getState();
     s.wizards[String(ctx.from.id)] = { step: 1 };
     await saveState(s);
-    await ctx.reply(WIZARD_STEP1_TEXT, {
-      parse_mode: 'Markdown',
-      reply_markup: WIZARD_CANCEL_KB
-    });
+    await ctx.reply(WIZARD_STEP1_TEXT, { parse_mode: 'Markdown', reply_markup: WIZARD_CANCEL_KB });
   });
 
-  // כפתור "❌ ביטול" – מציג שהתהליך התבטל ומוסיף מתחת להודעה לחצן "🔙 חזרה לתפריט"
   bot.action('reqcmd_cancel', async (ctx) => {
     const s = await getState();
     const uid = String(ctx.from.id);
     delete s.wizards[uid];
     await saveState(s);
     await ctx.answerCbQuery('בוטל').catch(() => {});
-    await ctx.editMessageText('❌ תהליך שליחת ההצעה בוטל.', {
-      reply_markup: BACK_TO_MENU_KB
-    }).catch(() => ctx.reply('❌ תהליך שליחת ההצעה בוטל.', {
-      reply_markup: BACK_TO_MENU_KB
-    }));
-  });
-
-  // כפתור "🔙 חזרה לתפריט" – מחזיר מיד לתפריט הראשי באותה הודעה בלי ללכלך את הצ'אט
-  bot.action('help_main', async (ctx) => {
-    const s = await getState();
-    if (ctx.from) {
-      delete s.wizards[String(ctx.from.id)];
-      await saveState(s);
-    }
-    await ctx.answerCbQuery().catch(() => {});
-    await ctx.editMessageText(getMainMenuText(), {
-      parse_mode: 'Markdown',
-      reply_markup: getMainMenuKeyboard()
-    }).catch(() => ctx.reply(getMainMenuText(), {
-      parse_mode: 'Markdown',
-      reply_markup: getMainMenuKeyboard()
-    }));
+    await ctx.editMessageText('❌ תהליך שליחת ההצעה בוטל.', { reply_markup: BACK_TO_MENU_KB }).catch(() => ctx.reply('❌ תהליך שליחת ההצעה בוטל.', { reply_markup: BACK_TO_MENU_KB }));
   });
 
   bot.action(/^reqcmd_approve_(\d+)$/, async (ctx) => {
@@ -676,7 +656,6 @@ if (bot) {
     await ctx.telegram.sendMessage(uid, 'הפקודה נדחתה עקב החלטת היוצר').catch(() => {});
   });
 
-  // בכניסה לבוט (/start) מציג מיד את כל התפריט והכפתורים בלי צורך לשלוח /help!
   bot.start(async (ctx) => {
     const payload = ctx.startPayload || (ctx.message?.text || '').split(/\s+/)[1] || '';
     if (payload.startsWith('rules_')) {
@@ -689,15 +668,9 @@ if (bot) {
       const s = await getState();
       s.wizards[String(ctx.from.id)] = { step: 1 };
       await saveState(s);
-      return await ctx.reply(WIZARD_STEP1_TEXT, {
-        parse_mode: 'Markdown',
-        reply_markup: WIZARD_CANCEL_KB
-      });
+      return await ctx.reply(WIZARD_STEP1_TEXT, { parse_mode: 'Markdown', reply_markup: WIZARD_CANCEL_KB });
     }
-    await ctx.reply(getMainMenuText(), {
-      parse_mode: 'Markdown',
-      reply_markup: getMainMenuKeyboard()
-    });
+    await ctx.reply(getMainMenuText(), { parse_mode: 'Markdown', reply_markup: getMainMenuKeyboard() });
   });
 
   registerSystemCommands(bot);
