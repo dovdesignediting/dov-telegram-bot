@@ -128,6 +128,7 @@ function getHelpKeyboard() {
   };
 }
 
+// מקלדת קטגוריה – רק כפתור "🔙 חזרה" בתחתית (ללא "חזרה לתפריט הראשי")
 function getCategoryKeyboard(catKey) {
   const cat = MENU_DATA[catKey];
   const rows = [];
@@ -142,31 +143,24 @@ function getCategoryKeyboard(catKey) {
       rows.push(row);
     }
   }
-  rows.push([
-    { text: '🔙 חזרה', callback_data: 'help_main' },
-    { text: '🏠 חזרה לתפריט הראשי', callback_data: 'help_main' }
-  ]);
+  rows.push([{ text: '🔙 חזרה', callback_data: 'help_main' }]);
   return { inline_keyboard: rows };
 }
 
+// מקלדת תת-תפריט של פקודה – רק כפתור "🔙 חזרה"
 function getCommandSubMenuKeyboard(catKey) {
   return {
     inline_keyboard: [
-      [
-        { text: '🔙 חזרה', callback_data: `help_${catKey}` },
-        { text: '🏠 חזרה לתפריט הראשי', callback_data: 'help_main' }
-      ]
+      [{ text: '🔙 חזרה', callback_data: `help_${catKey}` }]
     ]
   };
 }
 
+// מקלדת חזרה רגילה – רק כפתור "🔙 חזרה"
 function getBackToMenuKeyboard() {
   return {
     inline_keyboard: [
-      [
-        { text: '🔙 חזרה', callback_data: 'help_main' },
-        { text: '🏠 חזרה לתפריט הראשי', callback_data: 'help_main' }
-      ]
+      [{ text: '🔙 חזרה', callback_data: 'help_main' }]
     ]
   };
 }
