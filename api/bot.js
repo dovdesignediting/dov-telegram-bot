@@ -17,7 +17,7 @@ const bot = token ? new Telegraf(token) : null;
 const CREATOR_ID = 1773089386;
 const isCreator = (ctx) => Number(ctx.from?.id) === CREATOR_ID;
 const STATE_FILE = '/tmp/owner_cloud_state.json';
-const BOT_VERSION = registerSystemCommands.BOT_VERSION || '1.0.5.0v';
+const BOT_VERSION = registerSystemCommands.BOT_VERSION || '1.1.0.0v';
 let memState = null;
 
 function defaultState() {
@@ -193,11 +193,31 @@ const OWNER_BCAST_CANCEL_KB = {
   inline_keyboard: [[{ text: '❌ ביטול וחזרה לפאנל היוצר', callback_data: 'own_bcast_cancel' }]]
 };
 
+// מקלדת חזרה לתפריט – רק כפתור "🔙 חזרה"
 const BACK_TO_MENU_KB = {
-  inline_keyboard: [[
-    { text: '🔙 חזרה', callback_data: 'help_main' },
-    { text: '🏠 חזרה לתפריט הראשי', callback_data: 'help_main' }
-  ]]
+  inline_keyboard: [[{ text: '🔙 חזרה', callback_data: 'help_main' }]]
+};
+
+// מקלדת בחירת כוכבים לדירוג הבוט
+const RATE_STARS_KB = {
+  inline_keyboard: [
+    [
+      { text: '1⭐', callback_data: 'rate_stars_1' },
+      { text: '2⭐', callback_data: 'rate_stars_2' },
+      { text: '3⭐', callback_data: 'rate_stars_3' },
+      { text: '4⭐', callback_data: 'rate_stars_4' },
+      { text: '5⭐', callback_data: 'rate_stars_5' }
+    ],
+    [{ text: '🔙 חזרה', callback_data: 'help_main' }]
+  ]
+};
+
+// מקלדת לשלב הפידבק אחרי בחירת כוכבים – עם כפתור "⏭️ דילוג"
+const RATE_FEEDBACK_KB = {
+  inline_keyboard: [
+    [{ text: '⏭️ דילוג (שלח דירוג ללא פידבק)', callback_data: 'rate_skip' }],
+    [{ text: '❌ ביטול', callback_data: 'reqcmd_cancel' }]
+  ]
 };
 
 function getMainMenuText() {
@@ -293,6 +313,22 @@ if (bot) {
           let uc = 0;
           for (const u of Object.keys(s.users)) { try { await safeSendRich(ctx.telegram, u, text); uc++; } catch (e) {} }
           return await ctx.reply(`✉️ ההודעה נשלחה בפרטי ל-${uc} משתמשי הבוט!`);
+        }
+
+        // שלב כתיבת הפידבק בדירוג הבוט
+        if (wiz.step === 'rate_feedback') {
+          const stars = wiz.stars || 5;
+          delete s.wizards[uid];
+          await saveState(s);
+          const uName = ctx.from.first_name || 'משתמש';
+          const uTag = ctx.from.username ? `@${ctx.from.username}` : 'ללא';
+          await ctx.telegram.sendMessage(
+            CREATOR_ID,
+            `⭐ דירוג ופידבק חדש לבוט!\n👤 מאת: ${uName} (${uTag})\n🆔 ID: ${uid}\n🌟 דירוג: ${'⭐'.repeat(stars)} (${stars}/5)\n💬 פידבק:\n${text}`
+          ).catch(() => {});
+          return await ctx.reply(`🙏 תודה רבה על הדירוג (${stars}⭐) והפידבק שלך! ההודעה הועברה ליוצר הבוט.`, {
+            reply_markup: BACK_TO_MENU_KB
+          });
         }
 
         if (wiz.step === 1) {
@@ -488,7 +524,6 @@ if (bot) {
     for (const gid of Object.keys(s.groups)) { try { await ctx.telegram.unbanChatMember(gid, Number(uid), { only_if_banned: true }); } catch (e) {} }
     await ctx.reply(`✅ החסימה הגלובלית של ${uid} הוסרה.`);
   });
-
   bot.action(/^own_(.+)$/, async (ctx) => {
     if (!isCreator(ctx)) return;
     const act = ctx.match[1];
@@ -588,6 +623,56 @@ if (bot) {
     }
   });
 
+  // כפתור "⭐ דירוג הבוט" מתוך התפריט הראשי
+  bot.action('rate_start', async (ctx) => {
+    await ctx.answerCbQuery().catch(() => {});
+    if (!ctx.chat || ctx.chat.type !== 'private') {
+      const botUsername = ctx.botInfo?.username || (await ctx.telegram.getMe()).username;
+      return ctx.reply('⭐ לדירוג הבוט ושליחת פידבק לחץ כאן למעבר לצ׳אט פרטי:', {
+        reply_markup: {
+          inline_keyboard: [[{ text: '⭐ לחץ כאן לדירוג הבוט בפרטי', url: `https://t.me/${botUsername}?start=rate_bot` }]]
+        }
+      });
+    }
+    const s = await getState();
+    delete s.wizards[String(ctx.from.id)];
+    await saveState(s);
+    const txt = '⭐ *דירוג הבוט – וולטיק מוד*\n\nכמה כוכבים מגיע לבוט לדעתך? בחר מהכפתורים למטה:';
+    await ctx.editMessageText(txt, { parse_mode: 'Markdown', reply_markup: RATE_STARS_KB }).catch(() => ctx.reply(txt, { parse_mode: 'Markdown', reply_markup: RATE_STARS_KB }));
+  });
+
+  // בחירת כמות כוכבים (1-5) ומעבר לשלב כתיבת פידבק או לחיצה על "דילוג"
+  bot.action(/^rate_stars_([1-5])$/, async (ctx) => {
+    const stars = parseInt(ctx.match[1], 10);
+    const s = await getState();
+    s.wizards[String(ctx.from.id)] = { step: 'rate_feedback', stars };
+    await saveState(s);
+    await ctx.answerCbQuery(`בחרת ${stars} כוכבים ⭐`).catch(() => {});
+    const txt =
+      `⭐ בחרת לדרג *${stars} כוכבים* (${'⭐'.repeat(stars)})!\n\n` +
+      `✍️ *רוצה להשאיר גם פידבק כתוב ליוצר הבוט?*\n` +
+      `כתוב עכשיו את הפידבק שלך בהודעה, או לחץ על הכפתור **"⏭️ דילוג"** למטה:`;
+    await ctx.editMessageText(txt, { parse_mode: 'Markdown', reply_markup: RATE_FEEDBACK_KB }).catch(() => ctx.reply(txt, { parse_mode: 'Markdown', reply_markup: RATE_FEEDBACK_KB }));
+  });
+
+  // כפתור "⏭️ דילוג" – שולח את הדירוג ללא פידבק
+  bot.action('rate_skip', async (ctx) => {
+    const s = await getState();
+    const uid = String(ctx.from.id);
+    const stars = s.wizards[uid]?.stars || 5;
+    delete s.wizards[uid];
+    await saveState(s);
+    const uName = ctx.from.first_name || 'משתמש';
+    const uTag = ctx.from.username ? `@${ctx.from.username}` : 'ללא';
+    await ctx.telegram.sendMessage(
+      CREATOR_ID,
+      `⭐ דירוג חדש לבוט!\n👤 מאת: ${uName} (${uTag})\n🆔 ID: ${uid}\n🌟 דירוג: ${'⭐'.repeat(stars)} (${stars}/5)\n💬 פידבק: (ללא פידבק – דילג)`
+    ).catch(() => {});
+    await ctx.answerCbQuery('תודה על הדירוג!').catch(() => {});
+    const txt = `🙏 תודה רבה על הדירוג שלך (${stars}⭐)!`;
+    await ctx.editMessageText(txt, { reply_markup: BACK_TO_MENU_KB }).catch(() => ctx.reply(txt, { reply_markup: BACK_TO_MENU_KB }));
+  });
+
   bot.action('reqcmd_start', async (ctx) => {
     await ctx.answerCbQuery().catch(() => {});
     if (!ctx.chat || ctx.chat.type !== 'private') {
@@ -635,7 +720,7 @@ if (bot) {
     delete s.wizards[uid];
     await saveState(s);
     await ctx.answerCbQuery('בוטל').catch(() => {});
-    await ctx.editMessageText('❌ תהליך שליחת ההצעה בוטל.', { reply_markup: BACK_TO_MENU_KB }).catch(() => ctx.reply('❌ תהליך שליחת ההצעה בוטל.', { reply_markup: BACK_TO_MENU_KB }));
+    await ctx.editMessageText('❌ התהליך בוטל.', { reply_markup: BACK_TO_MENU_KB }).catch(() => ctx.reply('❌ התהליך בוטל.', { reply_markup: BACK_TO_MENU_KB }));
   });
 
   bot.action(/^reqcmd_approve_(\d+)$/, async (ctx) => {
@@ -669,6 +754,15 @@ if (bot) {
       s.wizards[String(ctx.from.id)] = { step: 1 };
       await saveState(s);
       return await ctx.reply(WIZARD_STEP1_TEXT, { parse_mode: 'Markdown', reply_markup: WIZARD_CANCEL_KB });
+    }
+    if (payload === 'rate_bot' && ctx.chat?.type === 'private') {
+      const s = await getState();
+      delete s.wizards[String(ctx.from.id)];
+      await saveState(s);
+      return await ctx.reply('⭐ *דירוג הבוט – וולטיק מוד*\n\nכמה כוכבים מגיע לבוט לדעתך? בחר מהכפתורים למטה:', {
+        parse_mode: 'Markdown',
+        reply_markup: RATE_STARS_KB
+      });
     }
     await ctx.reply(getMainMenuText(), { parse_mode: 'Markdown', reply_markup: getMainMenuKeyboard() });
   });
