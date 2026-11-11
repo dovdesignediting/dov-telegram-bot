@@ -1,4 +1,4 @@
-const { getGroupData, saveGroupData, requireAdmin, getTarget, parseDurationSeconds } = require('./utils');
+const { getGroupData, saveGroupData, parseRichMessage, requireAdmin, getTarget, parseDurationSeconds } = require('./utils');
 
 const joinTracker = {};
 const recentUserMsgs = {};
@@ -165,6 +165,7 @@ module.exports = function registerAdvancedCommands(bot) {
     await ctx.editMessageText(`✅ הגדרות האימות עודכנו:\n• מצב: *${a.verifyEnabled ? 'פעיל' : 'כבוי'}*\n• זמן: *${a.verifySeconds ? `${a.verifySeconds} שניות` : 'ללא הגבלת זמן'}*`, { parse_mode: 'Markdown' }).catch(() => {});
   });
 
+  // איחוד הודעת האימות והודעת הברוכים הבאים להודעה אחת יחידה עם כפתור חוקי הקבוצה!
   bot.action(/^ver_ok_(\d+)_(\d+)$/, async (ctx) => {
     const targetId = Number(ctx.match[1]);
     const isCorrect = ctx.match[2] === '1';
@@ -176,7 +177,28 @@ module.exports = function registerAdvancedCommands(bot) {
       permissions: { can_send_messages: true, can_send_audios: true, can_send_documents: true, can_send_photos: true, can_send_videos: true, can_send_other_messages: true, can_add_web_page_previews: true }
     }).catch(() => {});
     await ctx.answerCbQuery('✅ אומתת בהצלחה! ברוך הבא!').catch(() => {});
-    await ctx.editMessageText(`✅ תודה *${ctx.from.first_name}*! אומתת בהצלחה וכעת באפשרותך לכתוב בקבוצה.`, { parse_mode: 'Markdown' }).catch(() => {});
+
+    const memberName = ctx.from.first_name || 'חבר';
+    const data = await getGroupData(ctx.chat.id);
+    if (data.welcomeEnabled !== false) {
+      const botUsername = ctx.botInfo?.username || (await ctx.telegram.getMe()).username;
+      const rulesUrl = `https://t.me/${botUsername}?start=rules_${ctx.chat.id}`;
+      const cleanWelcome = String(data.welcomeText || 'ברוך הבא לקבוצה, *{name}*! נשמח שתקרא את חוקי הקבוצה.').replace(/\s*\(\/rules\)/g, '');
+      const unifiedRaw =
+        `✅ תודה *${memberName}*! אומתת בהצלחה וכעת באפשרותך לכתוב בקבוצה.\n\n` +
+        (cleanWelcome.includes('start=rules_')
+          ? cleanWelcome
+          : `${cleanWelcome}\n{{📖 לחץ כאן לצפייה בחוקי הקבוצה}{${rulesUrl}}}`);
+      const parsed = parseRichMessage(unifiedRaw, { name: memberName });
+      await ctx.editMessageText(parsed.text, parsed.extra).catch(async () => {
+        await ctx.editMessageText(parsed.text, {
+          disable_web_page_preview: true,
+          ...(parsed.extra.reply_markup ? { reply_markup: parsed.extra.reply_markup } : {})
+        }).catch(() => {});
+      });
+    } else {
+      await ctx.editMessageText(`✅ תודה *${memberName}*! אומתת בהצלחה וכעת באפשרותך לכתוב בקבוצה.`, { parse_mode: 'Markdown' }).catch(() => {});
+    }
   });
 
   // 3. /antiforward - חסימת הודעות מועברות (כבוי ברירת מחדל)
@@ -205,7 +227,6 @@ module.exports = function registerAdvancedCommands(bot) {
     await ctx.answerCbQuery('עודכן!').catch(() => {});
     await ctx.editMessageText(`🔄 חסימת הודעות מועברות כעת: *${a.antiforward ? 'פעילה ✅' : 'כבויה ❌'}*`, { parse_mode: 'Markdown' }).catch(() => {});
   });
-
   // 4. /antiforeign - בחירת שפות זרות לחסימה
   bot.command('antiforeign', async (ctx) => {
     if (!(await requireAdmin(ctx, '/antiforeign'))) return;
@@ -224,6 +245,7 @@ module.exports = function registerAdvancedCommands(bot) {
     await ctx.answerCbQuery('עודכן!').catch(() => {});
     await ctx.editMessageReplyMarkup(buildForeignLangsKb(a.foreignLangs)).catch(() => {});
   });
+
   // 5. /secret - לחישה סודית בקבוצה + כפתור ביטול שנשלח ישירות לפרטי של השולח!
   bot.command(['secret', 'whisper'], async (ctx) => {
     if (!ctx.chat || ctx.chat.type === 'private') {

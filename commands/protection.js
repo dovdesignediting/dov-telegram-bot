@@ -10,7 +10,7 @@ const {
 async function sendWelcomeWithRulesBtn(ctx, rawText, memberName) {
   const botUsername = ctx.botInfo?.username || (await ctx.telegram.getMe()).username;
   const rulesUrl = `https://t.me/${botUsername}?start=rules_${ctx.chat.id}`;
-  const cleanText = String(rawText || 'ברוך הבא לקבוצה, *{name}*! נשמח שתקרא את חוקי הקבוצה:').replace(/\s*\(\/rules\)/g, '');
+  const cleanText = String(rawText || 'ברוך הבא לקבוצה, *{name}*! נשמח שתקרא את חוקי הקבוצה.').replace(/\s*\(\/rules\)/g, '');
   const fullText = cleanText.includes('start=rules_')
     ? cleanText
     : `${cleanText}\n{{📖 לחץ כאן לצפייה בחוקי הקבוצה}{${rulesUrl}}}`;
@@ -208,6 +208,7 @@ module.exports = function registerProtectionCommands(bot) {
       await ctx.reply('❌ שגיאה בשליפת הפילטרים. לעזרה: /help');
     }
   });
+
   // כפתורי מחיקה ועריכה מתוך פאנל /filters
   bot.action(/^flt_del_(\d+)$/, async (ctx) => {
     if (!(await isGroupAdminCallback(ctx))) {
@@ -229,7 +230,6 @@ module.exports = function registerProtectionCommands(bot) {
       reply_markup: panel.reply_markup
     }).catch(() => {});
   });
-
   bot.action(/^flt_edit_(\d+)$/, async (ctx) => {
     if (!(await isGroupAdminCallback(ctx))) {
       return ctx.answerCbQuery('⛔ פעולה זו מיועדת לאדמינים בלבד.', { show_alert: true }).catch(() => {});
@@ -340,7 +340,9 @@ module.exports = function registerProtectionCommands(bot) {
         msg.video_chat_started || msg.video_chat_ended || msg.video_chat_participants_invited
       );
 
-      if (msg.new_chat_members && data.welcomeEnabled) {
+      // אם מופעל אימות מצטרפים (/verify) או מצב חירום (/raidmode) – לא שולחים הודעה שנייה נפרדת (הודעת הברוכים הבאים מאוחדת להודעת האימות!)
+      const verifyOrRaidActive = Boolean(data.adv && (data.adv.verifyEnabled || data.adv.raidUntil > Date.now()));
+      if (msg.new_chat_members && data.welcomeEnabled && !verifyOrRaidActive) {
         for (const member of msg.new_chat_members) {
           if (!member.is_bot) {
             await sendWelcomeWithRulesBtn(ctx, data.welcomeText, member.first_name || 'חבר');
