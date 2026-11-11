@@ -3,6 +3,7 @@ const { getGroupData, saveGroupData, parseRichMessage, requireAdmin, getTarget, 
 const joinTracker = {};
 const recentUserMsgs = {};
 const verifyTimers = {};
+const pendingPhoneVerify = {};
 
 // קבלת השעה הנוכחית לפי שעון ישראל (Asia/Jerusalem) במדויק (כולל שעון קיץ/חורף)
 function getIsraelTimeMinutes() {
@@ -33,6 +34,17 @@ async function isGroupAdminCb(ctx) {
   } catch (e) { return false; }
 }
 
+const COUNTRY_PREFIX_PRESETS = [
+  { code: '+98', label: '🇮🇷 איראן (+98)', langs: ['fa'], script: /[\u0600-\u06FF]/ },
+  { code: '+92', label: '🇵🇰 פקיסטן (+92)', langs: ['ur'], script: /[\u0600-\u06FF]/ },
+  { code: '+62', label: '🇮🇩 אינדונזיה (+62)', langs: ['id'], script: null },
+  { code: '+91', label: '🇮🇳 הודו (+91)', langs: ['hi'], script: /[\u0900-\u097F]/ },
+  { code: '+234', label: '🇳🇬 ניגריה (+234)', langs: [], script: null },
+  { code: '+7', label: '🇷🇺 רוסיה (+7)', langs: ['ru'], script: /[\u0400-\u04FF]/ },
+  { code: '+90', label: '🇹🇷 טורקיה (+90)', langs: ['tr'], script: null },
+  { code: '+20', label: '🇪🇬 מצרים (+20)', langs: ['ar'], script: /[\u0600-\u06FF]/ }
+];
+
 function ensureAdv(data) {
   data.adv = data.adv || {};
   const a = data.adv;
@@ -42,6 +54,13 @@ function ensureAdv(data) {
   if (typeof a.verifySeconds !== 'number') a.verifySeconds = 0;
   if (typeof a.antiforward !== 'boolean') a.antiforward = false;
   a.foreignLangs = a.foreignLangs || { ar: false, ru: false, zh: false, hi: false };
+  a.foreignCountries = a.foreignCountries || {
+    enabled: false,
+    prefixes: ['+98', '+92', '+62'],
+    blockOnJoin: true,
+    requirePhoneVerify: false
+  };
+  if (!Array.isArray(a.foreignCountries.prefixes)) a.foreignCountries.prefixes = ['+98', '+92', '+62'];
   a.autoReplies = a.autoReplies || {};
   if (typeof a.votebanLimit !== 'number') a.votebanLimit = 0;
   a.votebans = a.votebans || {};
@@ -60,6 +79,63 @@ function ensureAdv(data) {
   if (typeof a.tagallEnabled !== 'boolean') a.tagallEnabled = false;
   a.secrets = a.secrets || {};
   return a;
+}
+
+function buildForeignCountriesPanel(fc) {
+  const rows = [
+    [{ text: fc.enabled ? '🟢 מצב חסימת קידומות: פעיל (לחץ לכיבוי)' : '🔴 מצב חסימת קידומות: כבוי (לחץ להפעלה)', callback_data: 'fcnt_toggle_main' }],
+    [{ text: `🚪 חסימת חשבונות זרים בכניסה: ${fc.blockOnJoin ? '✅ פעיל' : '❌ כבוי'}`, callback_data: 'fcnt_toggle_join' }],
+    [{ text: `📱 דרוש אימות מספר אמיתי בכניסה: ${fc.requirePhoneVerify ? '✅ פעיל' : '❌ כבוי'}`, callback_data: 'fcnt_toggle_pver' }]
+  ];
+
+  for (let i = 0; i < COUNTRY_PREFIX_PRESETS.length; i += 2) {
+    const p1 = COUNTRY_PREFIX_PRESETS[i];
+    const p2 = COUNTRY_PREFIX_PRESETS[i + 1];
+    const has1 = fc.prefixes.includes(p1.code);
+    const r = [{ text: `${has1 ? '🚫' : '⚪'} ${p1.label}`, callback_data: `fcnt_pfx_${p1.code}` }];
+    if (p2) {
+      const has2 = fc.prefixes.includes(p2.code);
+      r.push({ text: `${has2 ? '🚫' : '⚪'} ${p2.label}`, callback_data: `fcnt_pfx_${p2.code}` });
+    }
+    rows.push(r);
+  }
+
+  const listStr = fc.prefixes.length ? fc.prefixes.join(', ') : 'ללא קידומות חסומות';
+  const text =
+    `📵 *חסימת קידומות טלפון ומדינות זרות (/foreign_countries)*\n\n` +
+    `• *מצב מערכת:* ${fc.enabled ? 'פעיל ✅' : 'כבוי ❌'}\n` +
+    `• *קידומות חסומות כרגע:* \`${listStr}\`\n` +
+    `• *חסימת חשבונות זרים בכניסה:* ${fc.blockOnJoin ? 'פעיל ✅' : 'כבוי ❌'}\n` +
+    `• *אימות קידומת טלפון בפרטי בכניסה:* ${fc.requirePhoneVerify ? 'פעיל ✅' : 'כבוי ❌'}\n\n` +
+    `💡 *להוספה/הסרה של קידומת מותאמת אישית שלח:*\n` +
+    `\`/foreign_countries +212\``;
+
+  return { text, reply_markup: { inline_keyboard: rows } };
+}
+
+function matchesBlockedPrefix(phoneOrText, prefixes) {
+  if (!phoneOrText || !Array.isArray(prefixes) || !prefixes.length) return null;
+  const normalized = String(phoneOrText).replace(/[\s\-()]/g, '');
+  for (const pfx of prefixes) {
+    const cleanPfx = pfx.startsWith('+') ? pfx : `+${pfx}`;
+    const digitsOnly = cleanPfx.slice(1);
+    if (normalized.includes(cleanPfx) || new RegExp(`(?:^|\\D)(?:\\+|00)?${digitsOnly}\\d{6,11}`).test(normalized)) {
+      return cleanPfx;
+    }
+  }
+  return null;
+}
+
+function isMemberFromBlockedCountry(member, prefixes) {
+  const fullName = `${member.first_name || ''} ${member.last_name || ''}`;
+  const lang = (member.language_code || '').toLowerCase();
+  for (const preset of COUNTRY_PREFIX_PRESETS) {
+    if (prefixes.includes(preset.code)) {
+      if (lang && preset.langs.includes(lang)) return preset.label;
+      if (preset.script && preset.script.test(fullName)) return preset.label;
+    }
+  }
+  return null;
 }
 
 const PRESET_AUTOREPLIES = [
@@ -164,7 +240,6 @@ module.exports = function registerAdvancedCommands(bot) {
     await ctx.answerCbQuery('עודכן!').catch(() => {});
     await ctx.editMessageText(`✅ הגדרות האימות עודכנו:\n• מצב: *${a.verifyEnabled ? 'פעיל' : 'כבוי'}*\n• זמן: *${a.verifySeconds ? `${a.verifySeconds} שניות` : 'ללא הגבלת זמן'}*`, { parse_mode: 'Markdown' }).catch(() => {});
   });
-
   // איחוד הודעת האימות והודעת הברוכים הבאים להודעה אחת יחידה עם כפתור חוקי הקבוצה!
   bot.action(/^ver_ok_(\d+)_(\d+)$/, async (ctx) => {
     const targetId = Number(ctx.match[1]);
@@ -227,6 +302,7 @@ module.exports = function registerAdvancedCommands(bot) {
     await ctx.answerCbQuery('עודכן!').catch(() => {});
     await ctx.editMessageText(`🔄 חסימת הודעות מועברות כעת: *${a.antiforward ? 'פעילה ✅' : 'כבויה ❌'}*`, { parse_mode: 'Markdown' }).catch(() => {});
   });
+
   // 4. /antiforeign - בחירת שפות זרות לחסימה
   bot.command('antiforeign', async (ctx) => {
     if (!(await requireAdmin(ctx, '/antiforeign'))) return;
@@ -244,6 +320,86 @@ module.exports = function registerAdvancedCommands(bot) {
     await saveGroupData(ctx.chat.id, data);
     await ctx.answerCbQuery('עודכן!').catch(() => {});
     await ctx.editMessageReplyMarkup(buildForeignLangsKb(a.foreignLangs)).catch(() => {});
+  });
+
+  // 4B. /foreign_countries (/Foreign_countries) - חסימת קידומות מספרי טלפון ומדינות זרות (הצעת @zachYsimon)
+  bot.command(['foreign_countries', 'Foreign_countries', 'foreigncountries', 'blockprefix'], async (ctx) => {
+    if (!(await requireAdmin(ctx, '/foreign_countries [on | off | +קידומת]'))) return;
+    const arg = ((ctx.message.text || '').trim().split(/\s+/)[1] || '').toLowerCase();
+    const data = await getGroupData(ctx.chat.id);
+    const a = ensureAdv(data);
+    const fc = a.foreignCountries;
+
+    if (arg === 'on' || arg === 'off') {
+      fc.enabled = arg === 'on';
+      await saveGroupData(ctx.chat.id, data);
+    } else if (/^\+?\d{1,4}$/.test(arg)) {
+      const code = arg.startsWith('+') ? arg : `+${arg}`;
+      const idx = fc.prefixes.indexOf(code);
+      if (idx >= 0) fc.prefixes.splice(idx, 1);
+      else fc.prefixes.push(code);
+      fc.enabled = true;
+      await saveGroupData(ctx.chat.id, data);
+    }
+
+    const panel = buildForeignCountriesPanel(fc);
+    await ctx.reply(panel.text, { parse_mode: 'Markdown', reply_markup: panel.reply_markup });
+  });
+
+  bot.action(/^fcnt_(.+)$/, async (ctx) => {
+    const act = ctx.match[1];
+
+    // אם מצטרף חדש לחץ על כפתור אימות קידומת טלפון בקבוצה
+    if (act.startsWith('verifyme_')) {
+      const targetId = Number(act.replace('verifyme_', ''));
+      if (ctx.from.id !== targetId) {
+        return ctx.answerCbQuery('⚠️ כפתור אימות זה מיועד למצטרף החדש בלבד!', { show_alert: true }).catch(() => {});
+      }
+      pendingPhoneVerify[String(ctx.from.id)] = {
+        chatId: ctx.chat.id,
+        messageId: ctx.callbackQuery?.message?.message_id,
+        name: ctx.from.first_name || 'חבר'
+      };
+      try {
+        await ctx.telegram.sendMessage(
+          ctx.from.id,
+          `📱 *אימות קידומת טלפון לקבוצה "${ctx.chat.title || ''}"*\n\n` +
+          `לחץ על הכפתור למטה לשיתוף חד-פעמי של הקידומת שלך מול הבוט.\n` +
+          `אם הקידומת שלך אינה חסומה בקבוצה – תקבל מיד אישור כתיבה!`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: {
+              keyboard: [[{ text: '📱 לחץ כאן לאימות קידומת הטלפון שלי', request_contact: true }]],
+              resize_keyboard: true,
+              one_time_keyboard: true
+            }
+          }
+        );
+        return ctx.answerCbQuery('📩 שלחתי לך כפתור אימות בפרטי של הבוט! כנס לפרטי ולחץ עליו.', { show_alert: true }).catch(() => {});
+      } catch (e) {
+        return ctx.answerCbQuery('⚠️ פתח קודם שיחה בפרטי עם הבוט (@VolticMod_bot), שלח /start ואז לחץ כאן שוב!', { show_alert: true }).catch(() => {});
+      }
+    }
+
+    if (!(await isGroupAdminCb(ctx))) return ctx.answerCbQuery('⛔ לאדמינים בלבד', { show_alert: true }).catch(() => {});
+    const data = await getGroupData(ctx.chat.id);
+    const a = ensureAdv(data);
+    const fc = a.foreignCountries;
+
+    if (act === 'toggle_main') fc.enabled = !fc.enabled;
+    else if (act === 'toggle_join') fc.blockOnJoin = !fc.blockOnJoin;
+    else if (act === 'toggle_pver') fc.requirePhoneVerify = !fc.requirePhoneVerify;
+    else if (act.startsWith('pfx_')) {
+      const code = act.replace('pfx_', '');
+      const idx = fc.prefixes.indexOf(code);
+      if (idx >= 0) fc.prefixes.splice(idx, 1);
+      else fc.prefixes.push(code);
+    }
+
+    await saveGroupData(ctx.chat.id, data);
+    await ctx.answerCbQuery('עודכן!').catch(() => {});
+    const panel = buildForeignCountriesPanel(fc);
+    await ctx.editMessageText(panel.text, { parse_mode: 'Markdown', reply_markup: panel.reply_markup }).catch(() => {});
   });
 
   // 5. /secret - לחישה סודית בקבוצה + כפתור ביטול שנשלח ישירות לפרטי של השולח!
@@ -318,7 +474,6 @@ module.exports = function registerAdvancedCommands(bot) {
     await ctx.answerCbQuery('✅ ההודעה הסודית נמחקה מהקבוצה!').catch(() => {});
     await ctx.editMessageText('✅ ההודעה הסודית בוטלה ונמחקה מהקבוצה בהצלחה!').catch(() => {});
   });
-
   // 6. /autoreply - מענה אוטומטי מתוך רשימת אפשרויות + הוספה חופשית + מחיקה
   bot.command('autoreply', async (ctx) => {
     if (!(await requireAdmin(ctx, '/autoreply [מילה | תשובה]'))) return;
@@ -445,6 +600,7 @@ module.exports = function registerAdvancedCommands(bot) {
       await ctx.editMessageText(`❌ הערעור נדחה ע"י ${ctx.from.first_name}.`).catch(() => {});
     }
   });
+
   // 9. /msgquota - הגבלת מכסת הודעות יומית למשתמש (כבוי ברירת מחדל)
   bot.command('msgquota', async (ctx) => {
     if (!(await requireAdmin(ctx, '/msgquota [מספר הודעות ליום או off] (בהשבה למשתמש)'))) return;
@@ -559,7 +715,6 @@ module.exports = function registerAdvancedCommands(bot) {
     const rows = list.map((u, i) => `${medals[i] || `${i + 1}.`} *${u.name}* – ${u.count} הודעות`).join('\n');
     await ctx.reply(`🏆 *טבלת 10 הפעילים ביותר בקבוצה:*\n\n${rows}`, { parse_mode: 'Markdown' });
   });
-
   // 13. /fastclick - אתגר הראשון שלוחץ (מנהל מפעיל ובוחר מתי להפסיק)
   bot.command('fastclick', async (ctx) => {
     if (!(await requireAdmin(ctx, '/fastclick [start | stop]'))) return;
@@ -664,6 +819,7 @@ module.exports = function registerAdvancedCommands(bot) {
     await saveGroupData(ctx.chat.id, data);
     await ctx.editMessageText('🛑 הדו-קרב בוטל.').catch(() => {});
   });
+
   // 15. /nightmode - נעילת לילה אוטומטית לפי שעון ישראל (Asia/Jerusalem)
   bot.command('nightmode', async (ctx) => {
     if (!(await requireAdmin(ctx, '/nightmode [HH:MM HH:MM | off]'))) return;
@@ -787,9 +943,47 @@ module.exports = function registerAdvancedCommands(bot) {
       await ctx.reply('✅ כל הגדרות הקבוצה, החוקים, הפילטרים והפקודות המותאמות שוחזרו בהצלחה!');
     } catch (e) { await ctx.reply('❌ קוד הגיבוי אינו תקין.'); }
   });
-
-  // ניטור אוטומטי של כל 20 הפיצ'רים החדשים בקבוצה
+  // ניטור אוטומטי של כל הפיצ'רים בקבוצה + אימות קידומת טלפון בפרטי
   bot.use(async (ctx, next) => {
+    // בדיקת שיתוף איש קשר בפרטי לצורך אימות קידומת טלפון (/foreign_countries)
+    if (ctx.chat?.type === 'private' && ctx.message?.contact && ctx.from) {
+      const pending = pendingPhoneVerify[String(ctx.from.id)];
+      if (pending) {
+        if (ctx.message.contact.user_id && Number(ctx.message.contact.user_id) !== Number(ctx.from.id)) {
+          return ctx.reply('❌ יש לשתף את מספר הטלפון האישי שלך בלבד באמצעות הכפתור למטה.');
+        }
+        const phone = `+${String(ctx.message.contact.phone_number || '').replace(/^\+/, '')}`;
+        const gData = await getGroupData(pending.chatId);
+        const fc = ensureAdv(gData).foreignCountries;
+        const matchedPfx = matchesBlockedPrefix(phone, fc.prefixes);
+        delete pendingPhoneVerify[String(ctx.from.id)];
+
+        if (matchedPfx) {
+          await ctx.telegram.banChatMember(pending.chatId, ctx.from.id).catch(() => {});
+          if (pending.messageId) await ctx.telegram.deleteMessage(pending.chatId, pending.messageId).catch(() => {});
+          return ctx.reply(`⛔ קידומת הטלפון שלך (${matchedPfx}) חסומה בקבוצה זו.`, { reply_markup: { remove_keyboard: true } });
+        }
+
+        await ctx.telegram.restrictChatMember(pending.chatId, ctx.from.id, {
+          permissions: { can_send_messages: true, can_send_audios: true, can_send_documents: true, can_send_photos: true, can_send_videos: true, can_send_other_messages: true, can_add_web_page_previews: true }
+        }).catch(() => {});
+
+        if (pending.messageId) {
+          const botUsername = ctx.botInfo?.username || (await ctx.telegram.getMe()).username;
+          const rulesUrl = `https://t.me/${botUsername}?start=rules_${pending.chatId}`;
+          const cleanWelcome = String(gData.welcomeText || 'ברוך הבא לקבוצה, *{name}*! נשמח שתקרא את חוקי הקבוצה.').replace(/\s*\(\/rules\)/g, '');
+          const unifiedRaw =
+            `✅ תודה *${pending.name}*! קידומת הטלפון שלך אומתה בהצלחה וכעת באפשרותך לכתוב בקבוצה.\n\n` +
+            (cleanWelcome.includes('start=rules_')
+              ? cleanWelcome
+              : `${cleanWelcome}\n{{📖 לחץ כאן לצפייה בחוקי הקבוצה}{${rulesUrl}}}`);
+          const parsed = parseRichMessage(unifiedRaw, { name: pending.name });
+          await ctx.telegram.editMessageText(pending.chatId, pending.messageId, undefined, parsed.text, parsed.extra).catch(() => {});
+        }
+        return ctx.reply('✅ קידומת הטלפון שלך אומתה בהצלחה! כעת באפשרותך לחזור לקבוצה ולכתוב בה.', { reply_markup: { remove_keyboard: true } });
+      }
+    }
+
     if (!ctx.chat || ctx.chat.type === 'private' || !ctx.message || !ctx.from) return next();
     try {
       const chatId = ctx.chat.id;
@@ -797,6 +991,7 @@ module.exports = function registerAdvancedCommands(bot) {
       const msg = ctx.message;
       const data = await getGroupData(chatId);
       const a = ensureAdv(data);
+      const fc = a.foreignCountries;
       let changed = false;
 
       if (!ctx.from.is_bot) {
@@ -833,6 +1028,30 @@ module.exports = function registerAdvancedCommands(bot) {
             await ctx.telegram.banChatMember(chatId, member.id).catch(() => {});
             continue;
           }
+
+          // בדיקת חסימת מדינות וקידומות זרות בכניסה לקבוצה (/foreign_countries)
+          if (fc && fc.enabled) {
+            if (fc.blockOnJoin) {
+              const blockedCountry = isMemberFromBlockedCountry(member, fc.prefixes);
+              if (blockedCountry) {
+                await ctx.telegram.banChatMember(chatId, member.id).catch(() => {});
+                await ctx.reply(`📵 המשתמש *${member.first_name}* נחסם אוטומטית בכניסה (זוהתה מדינה/קידומת חסומה: ${blockedCountry}).`, { parse_mode: 'Markdown' }).catch(() => {});
+                continue;
+              }
+            }
+            if (fc.requirePhoneVerify) {
+              await ctx.telegram.restrictChatMember(chatId, member.id, { permissions: { can_send_messages: false } }).catch(() => {});
+              await ctx.reply(
+                `📱 שלום *${member.first_name}*! בקבוצה זו מופעל סינון קידומות טלפון זרות.\nלחץ על הכפתור למטה לאימות קידומת הטלפון שלך בפרטי כדי לקבל הרשאת כתיבה:`,
+                {
+                  parse_mode: 'Markdown',
+                  reply_markup: { inline_keyboard: [[{ text: '📱 לחץ כאן לאימות קידומת טלפון', callback_data: `fcnt_verifyme_${member.id}` }]] }
+                }
+              );
+              continue;
+            }
+          }
+
           if (a.verifyEnabled) {
             await ctx.telegram.restrictChatMember(chatId, member.id, { permissions: { can_send_messages: false } }).catch(() => {});
             const vMsg = await ctx.reply(
@@ -869,6 +1088,18 @@ module.exports = function registerAdvancedCommands(bot) {
 
       const member = await ctx.telegram.getChatMember(chatId, userId).catch(() => null);
       if (member && ['creator', 'administrator'].includes(member.status)) return next();
+
+      // חסימת מספרי טלפון ואנשי קשר עם קידומות חסומות בהודעות בקבוצה (/foreign_countries)
+      if (fc && fc.enabled && fc.prefixes.length) {
+        const contactPhone = msg.contact?.phone_number ? `+${String(msg.contact.phone_number).replace(/^\+/, '')}` : '';
+        const matched = matchesBlockedPrefix(contactPhone || rawText, fc.prefixes);
+        if (matched) {
+          await ctx.deleteMessage().catch(() => {});
+          await ctx.telegram.banChatMember(chatId, userId).catch(() => {});
+          await ctx.reply(`📵 המשתמש *${ctx.from.first_name}* נחסם אוטומטית עקב שימוש במספר בעל קידומת חסומה (\`${matched}\`).`, { parse_mode: 'Markdown' }).catch(() => {});
+          return;
+        }
+      }
 
       if (a.nightmode && a.nightmode.enabled) {
         const { totalMinutes } = getIsraelTimeMinutes();
