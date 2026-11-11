@@ -10,15 +10,20 @@ function isFoundersGroup(ctx) {
   return cid === FOUNDERS_CHAT_ID || cid === '-4417781995' || cid.endsWith('4417781995');
 }
 
+function isCreatorId(id) {
+  return Number(id) === CREATOR_ID;
+}
+
 function isCreator(ctx) {
-  return Number(ctx.from?.id) === CREATOR_ID;
+  return isCreatorId(ctx.from?.id);
 }
 
 function getIsraelDateKey() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
 }
 
-function getFounderRankName(pts) {
+function getFounderRankName(pts, userId) {
+  if (isCreatorId(userId)) return '👑 היוצר של וולטיק מוד';
   if (pts >= 150) return '👑 מייסד על';
   if (pts >= 80) return '🧠 אדריכל פקודות';
   if (pts >= 30) return '⚡ מייסד פעיל';
@@ -43,23 +48,27 @@ function ensureFoundersData(data) {
 
 function ensureMember(f, user) {
   const uid = String(user.id);
+  const creatorUser = isCreatorId(user.id);
   if (!f.members[uid]) {
-    const nextNum = Object.keys(f.members).length + 1;
+    const nonCreatorCount = Object.values(f.members).filter((m) => !isCreatorId(m.id)).length;
     f.members[uid] = {
       id: user.id,
-      name: user.first_name || 'מייסד',
+      name: user.first_name || (creatorUser ? 'דוב' : 'מייסד'),
       username: user.username ? `@${user.username}` : '',
-      number: nextNum,
-      points: 10,
+      number: creatorUser ? 0 : nonCreatorCount + 1,
+      points: creatorUser ? 0 : 10,
       ideasApproved: 0,
       bugsFixed: 0,
-      title: 'חבר צוות המייסדים',
+      title: creatorUser ? 'היוצר של וולטיק מוד' : 'חבר צוות המייסדים',
       streak: 0,
       lastCheckin: ''
     };
   } else {
     f.members[uid].name = user.first_name || f.members[uid].name;
     if (user.username) f.members[uid].username = `@${user.username}`;
+    if (creatorUser) {
+      f.members[uid].title = f.members[uid].title || 'היוצר של וולטיק מוד';
+    }
   }
   return f.members[uid];
 }
@@ -73,7 +82,7 @@ const CREATOR_CMD_DICTIONARY = {
   bug: '🐛 */bug [תיאור תקלה]*\n• *מה היא עושה:* פותחת כרטיס דיווח באג ממוספר בקבוצת המייסדים. מתחתיו יש כפתור "סמן כטופל" שעובד רק לך ומעניק למדווח +20 נקודות.\n• *איפה עובדת:* רק בקבוצת המייסדים.',
   credits: '🏅 */credits*\n• *מה היא עושה:* מציגה את רשימת הכבוד של חברי צוות המייסדים שהרעיונות שלהם אושרו.\n• *איפה עובדת:* רק בקבוצת המייסדים.',
   addcredit: '🏅 */addcredit [שם | פקודה]*\n• *מה היא עושה:* פקודה סודית שלך להוסיף ידנית חבר להיכל הקרדיטים.\n• *דוגמה:* `/addcredit דוד | פקודת הגרלה`',
-  founder: '🪪 */founder*\n• *מה היא עושה:* מציגה תעודת מייסד רשמית (מספר מייסד, תואר, דרגה, נקודות, רעיונות ובאגים).\n• *איפה עובדת:* רק בקבוצת המייסדים.',
+  founder: '🪪 */founder*\n• *מה היא עושה:* מציגה תעודת מייסד רשמית (ועל היוצר מציגה כרטיס רשמי של "היוצר של וולטיק מוד" ללא נקודות מייסד).\n• *איפה עובדת:* רק בקבוצת המייסדים.',
   rank: '📈 */rank*\n• *מה היא עושה:* מציגה את סולם הדרגות של צוות המייסדים ואת הניקוד הנוכחי של המשתמש.\n• *איפה עובדת:* רק בקבוצת המייסדים.',
   halloffame: '🏆 */halloffame*\n• *מה היא עושה:* מציגה את 5 המייסדים המובילים בנקודות בקבוצת המייסדים.\n• *איפה עובדת:* רק בקבוצת המייסדים.',
   title: '🏷️ */title [כינוי]*\n• *מה היא עושה:* מאפשרת לחבר בקבוצת המייסדים לבחור לעצמו תואר אישי שיופיע בתעודת המייסד שלו.\n• *דוגמה:* `/title אדריכל האבטחה`',
@@ -87,7 +96,7 @@ const CREATOR_CMD_DICTIONARY = {
   setmission: '📋 */setmission [טקסט המשימה]*\n• *מה היא עושה:* פקודה שלך בלבד להגדרת משימה חדשה לצוות המייסדים.\n• *דוגמה:* `/setmission להציע היום 3 רעיונות לפקודות הגנה`',
   checkin: '🔥 */checkin*\n• *מה היא עושה:* התפקדות יומית של חברי צוות המייסדים שנותנת +5 נקודות ושומרת רצף ימים.\n• *איפה עובדת:* רק בקבוצת המייסדים.',
   ask: '❓ */ask [שאלה]*\n• *מה היא עושה:* ממסגרת שאלה של מייסד בקבוצה וגם שולחת אותה ישירות אליך לפרטי כדי שלא תפספס.\n• *איפה עובדת:* רק בקבוצת המייסדים.',
-  gold: '🪙 */gold*\n• *מה היא עושה:* אם משיבים להודעה בקבוצת המייסדים עם `/gold` – היא נשמרת בלוח רעיונות הזהב (ונותנת לכותב +10 נק׳). אם שולחים `/gold` רגיל – רואים את כל רעיונות הזהב.',
+  gold: '🪙 */gold*\n• *מה היא עושה:* אם משיבים להודעה בקבוצת המייסדים עם `/gold` – היא נשמרת בלוח רעיונות הזהב. אם שולחים `/gold` רגיל – רואים את כל רעיונות הזהב.',
   feedback_bot: '⭐ */feedback_bot*\n• *מה היא עושה:* פותחת בקבוצת המייסדים הצבעת דירוג (1-5 כוכבים) ומחשבת ממוצע.\n• *איפה עובדת:* רק בקבוצת המייסדים.',
 
   // 20 הפקודות המתקדמות
@@ -370,14 +379,20 @@ module.exports = function registerFoundersCommands(bot) {
     const data = await getGroupData(FOUNDERS_CHAT_ID);
     const f = ensureFoundersData(data);
     const m = ensureMember(f, ctx.from);
-    m.points += 5;
+    if (!isCreator(ctx)) {
+      m.points += 5;
+    }
     const iid = Date.now().toString(36);
     f.ideas[iid] = { authorId: ctx.from.id, authorName: m.name, text, up: [ctx.from.id], down: [], approved: false };
     await saveGroupData(FOUNDERS_CHAT_ID, data);
 
+    const authorLine = isCreator(ctx)
+      ? `היוצר של וולטיק מוד: *${m.name}*`
+      : `👤 *מאת:* ${m.name} (מייסד #${m.number})`;
+
     await ctx.reply(
       `💡 *הצעת פיתוח חדשה מצוות המייסדים!*\n` +
-      `👤 *מאת:* ${m.name} (מייסד #${m.number})\n` +
+      `${authorLine}\n` +
       `📝 *הרעיון:* ${text}\n\n` +
       `הצביעו למטה מה דעתכם:`,
       {
@@ -408,16 +423,20 @@ module.exports = function registerFoundersCommands(bot) {
       if (!isCreator(ctx)) return ctx.answerCbQuery('⛔ רק יוצר הבוט יכול לאשר רעיון לפיתוח!', { show_alert: true }).catch(() => {});
       if (idea.approved) return ctx.answerCbQuery('כבר אושר!').catch(() => {});
       idea.approved = true;
+      const authorIsCreator = isCreatorId(idea.authorId);
       const author = f.members[String(idea.authorId)];
-      if (author) {
+      if (author && !authorIsCreator) {
         author.points = (author.points || 0) + 25;
         author.ideasApproved = (author.ideasApproved || 0) + 1;
       }
-      f.credits.push({ name: idea.authorName, cmd: idea.text.slice(0, 50) });
+      f.credits.push({ name: idea.authorName, cmd: idea.text.slice(0, 50), isCreator: authorIsCreator });
       await saveGroupData(FOUNDERS_CHAT_ID, data);
       await ctx.answerCbQuery('✅ הרעיון אושר!').catch(() => {});
+      const creditLine = authorIsCreator
+        ? `היוצר של וולטיק מוד: *${idea.authorName}*`
+        : `👤 *מאת:* ${idea.authorName} (קיבל +25 נקודות מייסד ונכנס להיכל הקרדיטים!)`;
       return ctx.editMessageText(
-        `✅ *רעיון אושר לפיתוח ע"י יוצר הבוט!*\n👤 *מאת:* ${idea.authorName} (קיבל +25 נקודות מייסד ונכנס להיכל הקרדיטים!)\n📝 *הרעיון:* ${idea.text}\n👍 תומכים: ${idea.up.length}`,
+        `✅ *רעיון אושר לפיתוח ע"י יוצר הבוט!*\n${creditLine}\n📝 *הרעיון:* ${idea.text}\n👍 תומכים: ${idea.up.length}`,
         { parse_mode: 'Markdown' }
       ).catch(() => {});
     }
@@ -453,8 +472,12 @@ module.exports = function registerFoundersCommands(bot) {
     f.bugs[bid] = { num: f.bugCounter, authorId: ctx.from.id, authorName: m.name, text, fixed: false };
     await saveGroupData(FOUNDERS_CHAT_ID, data);
 
+    const reporterLine = isCreator(ctx)
+      ? `היוצר של וולטיק מוד: *${m.name}*`
+      : `👤 *מדווח:* ${m.name}`;
+
     await ctx.reply(
-      `🐛 *דיווח באג #${bid} – צוות המייסדים*\n👤 *מדווח:* ${m.name}\n🔍 *תיאור:* ${text}`,
+      `🐛 *דיווח באג #${bid} – צוות המייסדים*\n${reporterLine}\n🔍 *תיאור:* ${text}`,
       {
         parse_mode: 'Markdown',
         reply_markup: { inline_keyboard: [[{ text: '🔧 סמן כטופל (+20 נק׳ למדווח - ליוצר)', callback_data: `fnd_bug_fix_${bid}` }]] }
@@ -471,15 +494,19 @@ module.exports = function registerFoundersCommands(bot) {
     const bug = f.bugs[bid];
     if (!bug || bug.fixed) return ctx.answerCbQuery('כבר טופל!').catch(() => {});
     bug.fixed = true;
+    const reporterIsCreator = isCreatorId(bug.authorId);
     const author = f.members[String(bug.authorId)];
-    if (author) {
+    if (author && !reporterIsCreator) {
       author.points = (author.points || 0) + 20;
       author.bugsFixed = (author.bugsFixed || 0) + 1;
     }
     await saveGroupData(FOUNDERS_CHAT_ID, data);
     await ctx.answerCbQuery('🔧 סומן כטופל!').catch(() => {});
+    const reporterLine = reporterIsCreator
+      ? `היוצר של וולטיק מוד: *${bug.authorName}*`
+      : `👤 *מדווח:* ${bug.authorName} (זוכה ב-+20 נקודות מייסד!)`;
     await ctx.editMessageText(
-      `✅ *באג #${bid} תוקן ע"י יוצר הבוט!*\n👤 *מדווח:* ${bug.authorName} (זוכה ב-+20 נקודות מייסד!)\n🔍 *תיאור:* ${bug.text}`,
+      `✅ *באג #${bid} תוקן ע"י יוצר הבוט!*\n${reporterLine}\n🔍 *תיאור:* ${bug.text}`,
       { parse_mode: 'Markdown' }
     ).catch(() => {});
   });
@@ -508,7 +535,7 @@ module.exports = function registerFoundersCommands(bot) {
     await ctx.reply(`🏅 נוסף להיכל הקרדיטים: *${name.trim()}*!`, { parse_mode: 'Markdown' });
   });
 
-  // 4. /founder - תעודת מייסד אישית
+  // 4. /founder - תעודת מייסד אישית (ועל היוצר כותב "היוצר של וולטיק מוד" ללא נקודות!)
   bot.command('founder', async (ctx) => {
     if (!isFoundersGroup(ctx)) return;
     const targetUser = ctx.message.reply_to_message?.from || ctx.from;
@@ -517,11 +544,21 @@ module.exports = function registerFoundersCommands(bot) {
     const m = ensureMember(f, targetUser);
     await saveGroupData(FOUNDERS_CHAT_ID, data);
 
+    if (isCreatorId(targetUser.id)) {
+      return ctx.reply(
+        `👑 *תעודת יוצר רשמית – וולטיק מוד*\n\n` +
+        `היוצר של וולטיק מוד: *${m.name}*\n` +
+        `🏷️ *תואר:* ${m.title || 'היוצר והמפתח הראשי של וולטיק מוד'}\n` +
+        `⚡ *מעמד:* מייסד ויוצר המערכת`,
+        { parse_mode: 'Markdown' }
+      );
+    }
+
     await ctx.reply(
       `🪪 *תעודת מייסד רשמית – וולטיק מוד*\n\n` +
       `👤 *שם:* ${m.name} (מייסד #${m.number})\n` +
       `🏷️ *תואר אישי:* ${m.title}\n` +
-      `🎖️ *דרגה:* ${getFounderRankName(m.points)}\n` +
+      `🎖️ *דרגה:* ${getFounderRankName(m.points, targetUser.id)}\n` +
       `⭐ *נקודות מייסד:* ${m.points}\n` +
       `💡 *רעיונות שאושרו:* ${m.ideasApproved || 0}\n` +
       `🐛 *באגים שתיקן:* ${m.bugsFixed || 0}\n` +
@@ -538,29 +575,37 @@ module.exports = function registerFoundersCommands(bot) {
     const m = ensureMember(f, ctx.from);
     await saveGroupData(FOUNDERS_CHAT_ID, data);
 
+    const statusLine = isCreator(ctx)
+      ? `👑 *היוצר של וולטיק מוד: ${m.name}*`
+      : `🔹 *המצב שלך:* ${m.points} נקודות (${getFounderRankName(m.points, ctx.from.id)})`;
+
     await ctx.reply(
       `📈 *סולם הדרגות של צוות המייסדים:*\n\n` +
       `• 🌱 *מייסד מתלמד:* 0 – 29 נקודות\n` +
       `• ⚡ *מייסד פעיל:* 30 – 79 נקודות\n` +
       `• 🧠 *אדריכל פקודות:* 80 – 149 נקודות\n` +
       `• 👑 *מייסד על:* 150+ נקודות\n\n` +
-      `🔹 *המצב שלך:* ${m.points} נקודות (${getFounderRankName(m.points)})\n` +
+      `${statusLine}\n` +
       `💡 *איך צוברים נקודות?* הצעת רעיונות (\`/idea\`), מציאת באגים (\`/bug\`), התפקדות יומית (\`/checkin\`) וביצוע משימות (\`/mission\`)!`,
       { parse_mode: 'Markdown' }
     );
   });
 
-  // 6. /halloffame - היכל התהילה של 5 המייסדים המובילים
+  // 6. /halloffame - היכל התהילה של 5 המייסדים המובילים (ללא דירוג נקודות על היוצר)
   bot.command('halloffame', async (ctx) => {
     if (!isFoundersGroup(ctx)) return;
     const data = await getGroupData(FOUNDERS_CHAT_ID);
     const f = ensureFoundersData(data);
-    const top = Object.values(f.members).sort((a, b) => (b.points || 0) - (a.points || 0)).slice(0, 5);
+    const creatorMember = f.members[String(CREATOR_ID)];
+    const creatorHeader = creatorMember ? `👑 *היוצר של וולטיק מוד:* ${creatorMember.name}\n\n` : '';
+    const top = Object.values(f.members)
+      .filter((m) => !isCreatorId(m.id))
+      .sort((a, b) => (b.points || 0) - (a.points || 0))
+      .slice(0, 5);
     const medals = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
-    const rows = top.map((m, i) => `${medals[i]} *${m.name}* (${m.title}) – *${m.points} נק׳* | ${getFounderRankName(m.points)}`).join('\n');
-    await ctx.reply(`🏆 *היכל התהילה – צוות המייסדים של וולטיק מוד:*\n\n${rows || 'עדיין אין נתונים.'}`, { parse_mode: 'Markdown' });
+    const rows = top.map((m, i) => `${medals[i]} *${m.name}* (${m.title}) – *${m.points} נק׳* | ${getFounderRankName(m.points, m.id)}`).join('\n');
+    await ctx.reply(`🏆 *היכל התהילה – צוות המייסדים של וולטיק מוד:*\n\n${creatorHeader}${rows || 'עדיין אין מייסדים מדורגים.'}`, { parse_mode: 'Markdown' });
   });
-
   // 7. /title [כינוי] - בחירת תואר מייסד אישי
   bot.command('title', async (ctx) => {
     if (!isFoundersGroup(ctx)) return;
@@ -573,20 +618,24 @@ module.exports = function registerFoundersCommands(bot) {
     const m = ensureMember(f, ctx.from);
     m.title = newTitle;
     await saveGroupData(FOUNDERS_CHAT_ID, data);
-    await ctx.reply(`🏷️ התואר האישי שלך בתעודת המייסד עודכן ל: *"${newTitle}"*!`, { parse_mode: 'Markdown' });
+    await ctx.reply(`🏷️ התואר האישי שלך עודכן ל: *"${newTitle}"*!`, { parse_mode: 'Markdown' });
   });
+
   // 8. /award [נקודות] - הענקת נקודות ומדליה ע"י היוצר
   bot.command('award', async (ctx) => {
     if (!isFoundersGroup(ctx) || !isCreator(ctx)) return;
     const replyUser = ctx.message.reply_to_message?.from;
     if (!replyUser) return ctx.reply('👑 השב להודעה של המייסד שתרצה לצ׳פר וכתוב `/award 30`', { parse_mode: 'Markdown' });
+    if (isCreatorId(replyUser.id)) {
+      return ctx.reply(`👑 היוצר של וולטיק מוד: *${replyUser.first_name}*`, { parse_mode: 'Markdown' });
+    }
     const pts = parseInt((ctx.message.text || '').trim().split(/\s+/)[1] || '25', 10) || 25;
     const data = await getGroupData(FOUNDERS_CHAT_ID);
     const f = ensureFoundersData(data);
     const m = ensureMember(f, replyUser);
     m.points = (m.points || 0) + pts;
     await saveGroupData(FOUNDERS_CHAT_ID, data);
-    await ctx.reply(`🎖️ *אות הצטיינות מיוצר הבוט!*\nהמייסד *${m.name}* קיבל בונוס של *+${pts} נקודות מייסד*! (סה"כ: ${m.points} נק׳ – ${getFounderRankName(m.points)})`, { parse_mode: 'Markdown' });
+    await ctx.reply(`🎖️ *אות הצטיינות מיוצר הבוט!*\nהמייסד *${m.name}* קיבל בונוס של *+${pts} נקודות מייסד*! (סה"כ: ${m.points} נק׳ – ${getFounderRankName(m.points, replyUser.id)})`, { parse_mode: 'Markdown' });
   });
 
   // 9. /preview [כפתור/הודעה] - הדמיית פקודה חיה בקבוצת המייסדים
@@ -652,19 +701,21 @@ module.exports = function registerFoundersCommands(bot) {
     );
   });
 
-  // 12. /mvp - מייסד השבוע
+  // 12. /mvp - מייסד השבוע (בוחר מבין המייסדים ללא היוצר)
   bot.command('mvp', async (ctx) => {
     if (!isFoundersGroup(ctx)) return;
     const data = await getGroupData(FOUNDERS_CHAT_ID);
     const f = ensureFoundersData(data);
-    const list = Object.values(f.members).sort((a, b) => (b.points || 0) - (a.points || 0));
+    const list = Object.values(f.members)
+      .filter((m) => !isCreatorId(m.id))
+      .sort((a, b) => (b.points || 0) - (a.points || 0));
     if (!list.length) return ctx.reply('⭐ עדיין אין מספיק נתונים לבחירת מייסד השבוע.');
     const winner = list[0];
     await ctx.reply(
       `⭐ *מייסד השבוע של וולטיק מוד!* ⭐\n\n` +
       `👑 *המייסד המוביל:* ${winner.name} (מייסד #${winner.number})\n` +
       `🏷️ *תואר:* ${winner.title}\n` +
-      `🎖️ *דרגה:* ${getFounderRankName(winner.points)}\n` +
+      `🎖️ *דרגה:* ${getFounderRankName(winner.points, winner.id)}\n` +
       `🔥 *ניקוד מצטבר:* ${winner.points} נקודות!\n\n` +
       `כל הכבוד על התרומה האדירה לפיתוח הבוט! 👏`,
       { parse_mode: 'Markdown' }
@@ -712,9 +763,11 @@ module.exports = function registerFoundersCommands(bot) {
     f.mission.doneBy = f.mission.doneBy || {};
     f.mission.doneBy[uid] = true;
     const m = ensureMember(f, ctx.from);
-    m.points = (m.points || 0) + 10;
+    if (!isCreator(ctx)) {
+      m.points = (m.points || 0) + 10;
+    }
     await saveGroupData(FOUNDERS_CHAT_ID, data);
-    await ctx.answerCbQuery('🎉 כל הכבוד! קיבלת +10 נקודות מייסד!').catch(() => {});
+    await ctx.answerCbQuery(isCreator(ctx) ? `👑 היוצר של וולטיק מוד: ${m.name}` : '🎉 כל הכבוד! קיבלת +10 נקודות מייסד!').catch(() => {});
     const doneCount = Object.keys(f.mission.doneBy).length;
     await ctx.editMessageText(
       `📋 *המשימה הנוכחית של צוות המייסדים:*\n\n🎯 *${f.mission.text}*\n\n✅ השלימו את המשימה עד כה: *${doneCount} מייסדים*`,
@@ -734,12 +787,27 @@ module.exports = function registerFoundersCommands(bot) {
     const m = ensureMember(f, ctx.from);
 
     if (m.lastCheckin === today) {
+      if (isCreator(ctx)) {
+        return ctx.reply(`🔥 כבר התפקדת היום!\nהיוצר של וולטיק מוד: *${m.name}* (רצף של *${m.streak || 1} ימים*)`, { parse_mode: 'Markdown' });
+      }
       return ctx.reply(`🔥 *${m.name}*, כבר התפקדת היום! רצף ההתפקדות שלך: *${m.streak || 1} ימים* (${m.points} נק׳).`, { parse_mode: 'Markdown' });
     }
     m.lastCheckin = today;
     m.streak = (m.streak || 0) + 1;
-    m.points = (m.points || 0) + 5;
+    if (!isCreator(ctx)) {
+      m.points = (m.points || 0) + 5;
+    }
     await saveGroupData(FOUNDERS_CHAT_ID, data);
+
+    if (isCreator(ctx)) {
+      return ctx.reply(
+        `🔥 *התפקדות יומית הושלמה!*\n` +
+        `היוצר של וולטיק מוד: *${m.name}*\n` +
+        `📅 רצף התפקדות: *${m.streak} ימים*!`,
+        { parse_mode: 'Markdown' }
+      );
+    }
+
     await ctx.reply(
       `🔥 *התפקדות יומית הושלמה – ${m.name}!*\n` +
       `➕ קיבלת *+5 נקודות מייסד* (סה"כ: ${m.points} נק׳)\n` +
@@ -760,7 +828,7 @@ module.exports = function registerFoundersCommands(bot) {
     ).catch(() => {});
   });
 
-  // 16. /gold - שמירה וצפייה ב"רעיונות הזהב" מהצ'אט
+  // 16. /gold - שמירה וצפייה ב"רעיונות הזהב" מהצ'אט (ללא נקודות על היוצר!)
   bot.command('gold', async (ctx) => {
     if (!isFoundersGroup(ctx)) return;
     const data = await getGroupData(FOUNDERS_CHAT_ID);
@@ -770,20 +838,27 @@ module.exports = function registerFoundersCommands(bot) {
     if (reply && (reply.text || reply.caption)) {
       const txt = (reply.text || reply.caption).slice(0, 200);
       const author = reply.from?.first_name || 'מייסד';
-      f.gold.push({ author, text: txt, savedBy: ctx.from.first_name || 'מייסד' });
+      const replyIsCreator = isCreatorId(reply.from?.id);
+      f.gold.push({ author, text: txt, savedBy: ctx.from.first_name || 'מייסד', isCreator: replyIsCreator });
       if (f.gold.length > 25) f.gold.shift();
-      if (reply.from && !reply.from.is_bot) {
+      if (reply.from && !reply.from.is_bot && !replyIsCreator) {
         const m = ensureMember(f, reply.from);
         m.points = (m.points || 0) + 10;
       }
       await saveGroupData(FOUNDERS_CHAT_ID, data);
-      return ctx.reply(`🪙 *נשמר בלוח רעיונות הזהב!* (+10 נקודות מייסד ל-${author})`);
+      if (replyIsCreator) {
+        return ctx.reply(`🪙 *נשמר בלוח רעיונות הזהב!*\nהיוצר של וולטיק מוד: ${author}`, { parse_mode: 'Markdown' });
+      }
+      return ctx.reply(`🪙 *נשמר בלוח רעיונות הזהב!* (+10 נקודות מייסד ל-${author})`, { parse_mode: 'Markdown' });
     }
 
     if (!f.gold.length) {
       return ctx.reply('🪙 *לוח רעיונות הזהב ריק כרגע.*\nהשב להודעה מבריקה בצ׳אט עם הפקודה `/gold` כדי לשמור אותה כאן!', { parse_mode: 'Markdown' });
     }
-    const list = f.gold.slice(-10).map((g, i) => `${i + 1}. 💡 *${g.author}:* "${g.text}"`).join('\n\n');
+    const list = f.gold.slice(-10).map((g, i) => {
+      const prefix = g.isCreator ? `👑 *היוצר של וולטיק מוד (${g.author}):*` : `💡 *${g.author}:*`;
+      return `${i + 1}. ${prefix} "${g.text}"`;
+    }).join('\n\n');
     await ctx.reply(`🪙 *לוח רעיונות הזהב של צוות המייסדים:*\n\n${list}`, { parse_mode: 'Markdown' });
   });
 
