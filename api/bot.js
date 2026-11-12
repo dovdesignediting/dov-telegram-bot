@@ -169,6 +169,7 @@ function buildOwnerPanel(s) {
 
   const reply_markup = {
     inline_keyboard: [
+      [{ text: '📋 כל הפקודות של הבוט (מה לכתוב ומה ישיב)', callback_data: 'cexp_page_0' }],
       [{ text: '🔄 סרוק ועדכן נתונים בזמן אמת', callback_data: 'own_refresh' }],
       [{ text: '📣 שליחת הודעה לכולם (כולל קבוצות)', callback_data: 'own_bcast_all' }],
       [{ text: '✉️ שליחת הודעה לכל משתמשי הבוט (בפרטי)', callback_data: 'own_bcast_users' }],
@@ -369,6 +370,7 @@ if (bot) {
     } catch (e) {}
     return next();
   });
+
   bot.command(['owner', 'god'], async (ctx) => {
     if (!isCreator(ctx)) return;
     const s = await getState();
@@ -376,7 +378,6 @@ if (bot) {
     const panel = buildOwnerPanel(s);
     await ctx.reply(panel.text, { reply_markup: panel.reply_markup });
   });
-
   async function showGroups(ctx) {
     const s = await getState();
     await scanRealtime(ctx.telegram, s);
@@ -524,10 +525,16 @@ if (bot) {
     for (const gid of Object.keys(s.groups)) { try { await ctx.telegram.unbanChatMember(gid, Number(uid), { only_if_banned: true }); } catch (e) {} }
     await ctx.reply(`✅ החסימה הגלובלית של ${uid} הוסרה.`);
   });
+
   bot.action(/^own_(.+)$/, async (ctx) => {
     if (!isCreator(ctx)) return;
     const act = ctx.match[1];
     await ctx.answerCbQuery().catch(() => {});
+    if (act === 'panel') {
+      const s = await getState();
+      const panel = buildOwnerPanel(s);
+      return ctx.editMessageText(panel.text, { reply_markup: panel.reply_markup }).catch(() => ctx.reply(panel.text, { reply_markup: panel.reply_markup }));
+    }
     if (act === 'refresh') {
       const s = await getState();
       await scanRealtime(ctx.telegram, s);
@@ -654,7 +661,6 @@ if (bot) {
       `כתוב עכשיו את הפידבק שלך בהודעה, או לחץ על הכפתור **"⏭️ דילוג"** למטה:`;
     await ctx.editMessageText(txt, { parse_mode: 'Markdown', reply_markup: RATE_FEEDBACK_KB }).catch(() => ctx.reply(txt, { parse_mode: 'Markdown', reply_markup: RATE_FEEDBACK_KB }));
   });
-
   // כפתור "⏭️ דילוג" – שולח את הדירוג ללא פידבק
   bot.action('rate_skip', async (ctx) => {
     const s = await getState();
