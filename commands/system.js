@@ -29,7 +29,7 @@ const replyKb = (ctx, text, inline_keyboard) => ctx.reply(text, { parse_mode: 'M
 const editMd = (ctx, text, reply_markup) => editOrReply(ctx, text, reply_markup ? { parse_mode: 'Markdown', reply_markup } : { parse_mode: 'Markdown' });
 const arg1 = (ctx) => ((ctx.message?.text || '').trim().split(/\s+/)[1] || '').trim();
 const cItem = (label, write, reply) => ({ label, info: `${label}\n\n⌨️ *מה לכתוב:*\n\`${write}\`\n\n🤖 *מה הבוט ישיב:*\n${reply}` });
-const mItem = (id, label, write, reply) => { const cmd = (write.match(/\/[a-zA-Z_]+/) || [`/${id}`])[0]; return { id, cmd, label, ...cItem(`${label} (\`${cmd}\`)`, write, reply) }; };
+const mItem = (id, label, write, reply) => { const cmd = (write.match(/\/[a-zA-Z_]+/) || [`/${id}`])[0]; return { id, cmd, ...cItem(`${label} (\`${cmd}\`)`, write, reply), label }; };
 const fItem = mItem;
 const MENU_DATA = {
   users: {
