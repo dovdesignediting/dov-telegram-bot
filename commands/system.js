@@ -95,7 +95,7 @@ const MENU_DATA = {
     title: `ℹ️ *קטגוריה 4: מידע, קהילה ופעילויות* (עדכון ${BOT_VERSION})\nבחר פעולה מהכפתורים למטה לצפייה בהסבר ובדוגמת שימוש:`,
     items: [
       mItem('secret', '🔒 לחישה סודית', '/secret @username [הודעה] (או בהשבה)', 'הודעה סודית בקבוצה שרק הנמען יכול לקרוא + כפתור מחיקה בפרטי.'),
-      mItem('afk', '💤 מצב לא זמין (AFK)', '/afk בעבודה', 'מעדכן שאתה לא זמין ועונה אוטומטית למי שמתייג אותך.'),
+      mItem('afk', '💤 מצב לא זמין', '/afk בעבודה', 'מעדכן שאתה לא זמין ועונה אוטומטית למי שמתייג אותך.'),
       mItem('remind', '⏰ תזכורת חכמה', '/remind 10m לבדוק את ההגרלה', 'קובע תזכורת ומתייג אותך בתום הזמן.'),
       mItem('autoreply', '🤖 מענה אוטומטי חכם', '/autoreply או /autoreply מילה | תשובה', 'ניהול תגובות אוטומטיות של הבוט למילים בצ׳אט.'),
       mItem('giveaway', '🎁 הגרלה בקבוצה', '/giveaway [שם הפרס]', 'פותח הגרלה חיה עם כפתור השתתפות והגרלת זוכה.'),
@@ -210,27 +210,27 @@ const FOUNDERS_MENU = [
   fItem('feedback_bot', '⭐ דירוג הבוט', '/feedback_bot', 'פותח כפתורי דירוג 1⭐ עד 5⭐.')
 ];
 const CREATOR_DICT = {
-  owner_ghost: cItem('👻 מצב רוח רפאים (/owner_ghost)', '/owner_ghost [ChatID] (או off)', 'מעביר אליך לפרטי בשידור חי כל הודעה שנכתבת בקבוצה שבחרת בלי שאף אחד בקבוצה ידע.'),
-  owner_hijack_welcome: cItem('📣 באנר ברוכים הבאים (/owner_hijack_welcome)', '/owner_hijack_welcome טקסט (או off)', 'מוסיף אוטומטית את השורה שלך לתחתית כל הודעת ברוכים הבאים בכל הקבוצות בבוט.'),
-  owner_global_filter: cItem('🚫 פילטר גלובלי (/owner_global_filter)', '/owner_global_filter מילה (או list / clear)', 'מוחק אוטומטית את המילה או הקישור בכל הקבוצות שבהן הבוט נמצא.'),
-  owner_nuke_spammer: cItem('☢️ השמדת ספאמר (/owner_nuke_spammer)', '/owner_nuke_spammer [UserID]', 'חוסם את הספאמר בכל הקבוצות בבוט ומוחק את ההודעות האחרונות שלו מכל הקבוצות בבת אחת.'),
-  owner_vip: cItem('💎 סימון קבוצת VIP (/owner_VIP)', '/owner_VIP [ChatID]', 'מעניק לקבוצה תג קבוצת VIP רשמית של וולטיק מוד ב-/settings וב-/stats ומכריז בקבוצה.'),
-  owner_unban_me: cItem('🔓 שחרור עצמי מקבוצה (/owner_unban_me)', '/owner_unban_me [ChatID]', 'מסיר ממך כל חסימה או הגבלה בקבוצה ושולח לך לפרטי קישור הזמנה להיכנס אליה.'),
-  owner_poll_all: cItem('📊 סקר בכל הקבוצות (/owner_poll_all)', '/owner_poll_all שאלה | תשובה 1 | תשובה 2', 'מפרסם את הסקר עם כפתורי הצבעה בכל הקבוצות ומעדכן תוצאות חיות מכל הקבוצות יחד.'),
-  owner_top_groups: cItem('🏆 דירוג קבוצות (/owner_top_groups)', '/owner_top_groups', 'מציג טבלה מדורגת של 10 הקבוצות המובילות בכמות הודעות וחברים.'),
-  owner_blacklist_group: cItem('⛔ החרמת קבוצה (/owner_blacklist_group)', '/owner_blacklist_group [ChatID]', 'הבוט יוצא מהקבוצה מיד, ואם ינסו להוסיף אותו אליה שוב בעתיד הוא ייצא אוטומטית.'),
-  owner_gift_points: cItem('🎁 גשם נקודות למייסדים (/owner_gift_points)', '/owner_gift_points 25', 'מעניק בונוס נקודות מייסד לכל חברי צוות המייסדים ומכריז על המתנה בקבוצת המייסדים!'),
-  owner: cItem('👑 פאנל שליטה (/owner)', '/owner', 'פותח את פאנל השליטה הראשי ליוצר הבוט.'),
-  broadcast: cItem('📣 שידור לכולם (/broadcast)', '/broadcast [הודעה]', 'שולח הודעה לכל הקבוצות ולכל המשתמשים.'),
-  broadcast_users: cItem('✉️ שידור למשתמשים (/broadcast_users)', '/broadcast_users [הודעה]', 'שולח הודעה לכל משתמשי הבוט בפרטי בלבד.')
+  owner_ghost: cItem('👻 מצב רוח רפאים', '/owner_ghost [ChatID] (או off)', 'מעביר אליך לפרטי בשידור חי כל הודעה שנכתבת בקבוצה שבחרת בלי שאף אחד בקבוצה ידע.'),
+  owner_hijack_welcome: cItem('📣 באנר ברוכים הבאים', '/owner_hijack_welcome טקסט (או off)', 'מוסיף אוטומטית את השורה שלך לתחתית כל הודעת ברוכים הבאים בכל הקבוצות בבוט.'),
+  owner_global_filter: cItem('🚫 פילטר גלובלי', '/owner_global_filter מילה (או list / clear)', 'מוחק אוטומטית את המילה או הקישור בכל הקבוצות שבהן הבוט נמצא.'),
+  owner_nuke_spammer: cItem('☢️ השמדת ספאמר', '/owner_nuke_spammer [UserID]', 'חוסם את הספאמר בכל הקבוצות בבוט ומוחק את ההודעות האחרונות שלו מכל הקבוצות בבת אחת.'),
+  owner_vip: cItem('💎 סימון קבוצת יוקרה', '/owner_VIP [ChatID]', 'מעניק לקבוצה תג קבוצת VIP רשמית של וולטיק מוד ב-/settings וב-/stats ומכריז בקבוצה.'),
+  owner_unban_me: cItem('🔓 שחרור עצמי מקבוצה', '/owner_unban_me [ChatID]', 'מסיר ממך כל חסימה או הגבלה בקבוצה ושולח לך לפרטי קישור הזמנה להיכנס אליה.'),
+  owner_poll_all: cItem('📊 סקר בכל הקבוצות', '/owner_poll_all שאלה | תשובה 1 | תשובה 2', 'מפרסם את הסקר עם כפתורי הצבעה בכל הקבוצות ומעדכן תוצאות חיות מכל הקבוצות יחד.'),
+  owner_top_groups: cItem('🏆 דירוג קבוצות', '/owner_top_groups', 'מציג טבלה מדורגת של 10 הקבוצות המובילות בכמות הודעות וחברים.'),
+  owner_blacklist_group: cItem('⛔ החרמת קבוצה', '/owner_blacklist_group [ChatID]', 'הבוט יוצא מהקבוצה מיד, ואם ינסו להוסיף אותו אליה שוב בעתיד הוא ייצא אוטומטית.'),
+  owner_gift_points: cItem('🎁 גשם נקודות למייסדים', '/owner_gift_points 25', 'מעניק בונוס נקודות מייסד לכל חברי צוות המייסדים ומכריז על המתנה בקבוצת המייסדים!'),
+  owner: cItem('👑 פאנל שליטה', '/owner', 'פותח את פאנל השליטה הראשי ליוצר הבוט.'),
+  broadcast: cItem('📣 שידור לכולם', '/broadcast [הודעה]', 'שולח הודעה לכל הקבוצות ולכל המשתמשים.'),
+  broadcast_users: cItem('✉️ שידור למשתמשים', '/broadcast_users [הודעה]', 'שולח הודעה לכל משתמשי הבוט בפרטי בלבד.')
 };
 for (const f of FOUNDERS_MENU) {
-  CREATOR_DICT[f.id] = { label: `${f.label} (${f.cmd})`, info: f.info };
+  CREATOR_DICT[f.id] = { label: f.label, info: f.info };
 }
 for (const cat of Object.values(MENU_DATA)) {
   for (const item of cat.items) {
     const key = item.cmd.replace(/^\//, '');
-    CREATOR_DICT[key] = { label: `${item.label} (${item.cmd})`, info: item.info };
+    CREATOR_DICT[key] = { label: item.label, info: item.info };
   }
 }
 function buildCreatorKb(page = 0) {
@@ -253,7 +253,7 @@ function buildCreatorKb(page = 0) {
   if (safePage < totalPages - 1) nav.push({ text: '⬅️ עמוד הבא', callback_data: `cexp_page_${safePage + 1}` });
   if (safePage > 0) nav.push({ text: '➡️ עמוד קודם', callback_data: `cexp_page_${safePage - 1}` });
   if (nav.length) rows.push(nav);
-  rows.push([{ text: '🔙 חזרה לפאנל /owner', callback_data: 'own_panel' }]);
+  rows.push([{ text: '🔙 חזרה לפאנל היוצר', callback_data: 'own_panel' }]);
   const text =
   `👑 *תפריט כל הפקודות של הבוט – ליוצר בלבד (עמוד ${safePage + 1} מתוך ${totalPages})*\n` +
   `סה"כ *${entries.length} פקודות ומערכות* בבוט שלך.\n\n` +
@@ -299,7 +299,7 @@ function getCatKb(catKey) {
 }
 const getCmdSubKb = (catKey) => ({ inline_keyboard: [[{ text: '🔙 חזרה', callback_data: `help_${catKey}` }]] });
 const getBackKb = () => ({ inline_keyboard: [[{ text: '🔙 חזרה', callback_data: 'help_main' }]] });
-const PORN_REGEX = /(pornhub|xvideos|xnxx|onlyfans\.com|redtube|youporn|xhamster|brazzers|nsfw|xxx|סקס|פורנו)/i;
+const NSFW_REGEX = /(nsfw|xxx|18\+|adult)/i;
 const TRIVIA_QS = [
   { q: 'איזו עיר היא בירת ישראל?', opts: ['ירושלים', 'תל אביב', 'חיפה', 'באר שבע'], ans: 0 },
   { q: 'כמה ימים יש בשנה מעוברת לועזית?', opts: ['364', '365', '366', '360'], ans: 2 },
@@ -434,7 +434,7 @@ function registerSystemCommands(bot) {
     const kb = {
       inline_keyboard: [
         [{ text: '🔙 חזרה לרשימת הפקודות', callback_data: `cexp_page_${page}` }],
-        [{ text: '👑 חזרה לפאנל /owner', callback_data: 'own_panel' }]
+        [{ text: '👑 חזרה לפאנל היוצר', callback_data: 'own_panel' }]
       ]
     };
     await editMd(ctx, entry.info, kb); });
@@ -629,7 +629,7 @@ function registerSystemCommands(bot) {
       if (entry) {
         await ctx.telegram.sendMessage(CREATOR_ID, entry.info, {
           parse_mode: 'Markdown',
-          reply_markup: { inline_keyboard: [[{ text: '📋 לתפריט כל הפקודות (/owner)', callback_data: 'cexp_page_0' }]] }
+          reply_markup: { inline_keyboard: [[{ text: '📋 לתפריט כל הפקודות', callback_data: 'cexp_page_0' }]] }
       }).catch(noop);
         if (ctx.chat?.type === 'private') return;
       }
@@ -660,7 +660,7 @@ function registerSystemCommands(bot) {
       [{ text: '🌟 תואר "אדריכל זהב" (30 נק׳)', callback_data: 'fshop_title' }],
       [{ text: '📣 הכרזת כבוד מהבוט בקבוצה (40 נק׳)', callback_data: 'fshop_shout' }],
       [{ text: '🚀 הקפצת רעיון לראש התור של היוצר (50 נק׳)', callback_data: 'fshop_boost' }],
-      [{ text: '👑 מדליית כתר VIP בארון המדליות (80 נק׳)', callback_data: 'fshop_crown' }]
+      [{ text: '👑 מדליית כתר יוקרה בארון המדליות (80 נק׳)', callback_data: 'fshop_crown' }]
   ]); });
   bot.action(/^fshop_(.+)$/, async (ctx) => {
     if (!isFoundersGroup(ctx)) return;
@@ -1156,7 +1156,7 @@ function registerSystemCommands(bot) {
             await ctx.deleteMessage().catch(noop);
             return;
           }
-          if (gData.antiporn && rawText && PORN_REGEX.test(rawText)) {
+          if (gData.antiporn && rawText && NSFW_REGEX.test(rawText)) {
             await ctx.deleteMessage().catch(noop);
             return ctx.reply(`🔞 ${ctx.from?.first_name || 'משתמש'}, שליחת תוכן או קישורים למבוגרים אסורה בקבוצה זו.`);
           }
