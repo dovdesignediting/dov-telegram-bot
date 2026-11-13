@@ -12,7 +12,7 @@ const registerAdvancedCommands = require('./advanced');
 const registerFoundersCommands = require('./founders');
 const CREATOR_ID = 1773089386;
 const FOUNDERS_CHAT_ID = '-1004417781995';
-const BOT_VERSION = '1.1.0.0v';
+const BOT_VERSION = '1.2.1.0v';
 const isCreatorId = (id) => Number(id) === CREATOR_ID;
 const isCreator = (ctx) => isCreatorId(ctx.from?.id);
 const isFoundersGroup = (ctx) => {
@@ -128,22 +128,52 @@ const MENU_DATA = {
 };
 const CHANGELOG_TEXT =
 `🚀 *עדכון ענק ${BOT_VERSION} – וולטיק מוד*\n\n` +
-`✨ *מה חדש בעדכון זה:*\n` +
+`✨ *מערכות חדשות מרכזיות:*\n` +
 `1️⃣ 📵 *חסימת קידומות ומדינות (\`/foreign_countries\`):* זיהוי וחסימת מספרי טלפון וחשבונות ממדינות זרות (איראן +98, פקיסטן +92, אינדונזיה +62 ועוד) או הוספת כל קידומת מותאמת אישית.\n` +
-`2️⃣ 📱 *אימות מספר טלפון של משתמש בכניסה לקבוצה:* מצב אבטחה שמחייב מצטרפים חדשים לאמת את מספר הטלפון שלהם בפרטי מול הבוט לפני שיוכלו לכתוב בקבוצה, וחוסם אוטומטית קידומות אסורות.\n` +
-`3️⃣ ⭐ *דירוג הבוט בכוכבים ופידבק:* כפתור דירוג מהיר (1⭐ עד 5⭐) בתפריט הראשי עם אפשרות להשארת פידבק כתוב או דילוג בלחיצה.\n\n` +
-`🛡️ *הגנות וניהול חדשים לקבוצות:*\n` +
-`• 🔞 \`/antiporn\` ו-\`/antinsfw\` – חסימת קישורים ותוכן למבוגרים\n` +
+`2️⃣ ⭐ *דירוג הבוט:* כפתור דירוג מהיר (1⭐ עד 5⭐) בתפריט הראשי עם אפשרות להשארת פידבק כתוב או דילוג בלחיצה.\n` +
+`3️⃣ 📱 *אימות מספר טלפון של משתמש בכניסה לקבוצה:* מצב אבטחה שמחייב מצטרפים חדשים לאמת את מספר הטלפון שלהם בפרטי מול הבוט לפני שיוכלו לכתוב בקבוצה.\n\n` +
+`🛡️ *15 פקודות חדשות לקבוצות ומשתמשים:*\n` +
+`• 🔞 \`/antiporn\` / \`/antinsfw\` – חסימת קישורים ותוכן למבוגרים\n` +
 `• 🤖 \`/antibot\` – חסימת הכנסת בוטים זרים לקבוצה\n` +
 `• 📢 \`/antichannels\` – חסימת כתיבה בשם ערוץ בקבוצה\n` +
-`• 📏 \`/maxlength\` – הגבלת אורך הודעה מקסימלי נגד מגילות ספאם\n` +
-`• ⏳ \`/tempban\` ו-\`/tmute\` – חסימה זמנית והשתקה עם כפתור ערעור מהיר\n` +
-`• 🔘 \`/rules_button\` – שינוי הטקסט שעל כפתור חוקי הקבוצה\n` +
-`• 👮 \`/staff\` ו-\`/inactive\` – כרטיס הנהלת הקבוצה ובדיקת פעילות חברים\n\n` +
-`🎮 *קהילה, עזר ומשחקים חדשים:*\n` +
-`• 💤 \`/afk\` – מצב "לא זמין כרגע" שעונה אוטומטית כשמתייגים אותך\n` +
-`• ⏰ \`/remind\` – תזכורת חכמה בקבוצה או בפרטי\n` +
-`• 🧠 \`/trivia\`, ✂️ \`/rps\`, 🪙 \`/coin\`, 🎲 \`/roll\` ו-🚪 \`/kickme\``;
+`• 📏 \`/maxlength [תווים]\` – מחיקת הודעות שעוברות את מכסת התווים\n` +
+`• ⏳ \`/tempban [זמן]\` – חסימת משתמש זמנית מהקבוצה\n` +
+`• 🔇 \`/tmute [זמן] [סיבה]\` – השתקה זמנית עם כפתור ערעור למנהלים\n` +
+`• 💤 \`/afk [סיבה]\` – מצב "לא זמין" שעונה אוטומטית למי שמתייג אותך\n` +
+`• ⏰ \`/remind [זמן] [טקסט]\` – תזכורת חכמה שמתייגת אותך בתום הזמן\n` +
+`• 🧠 \`/trivia\` – משחק טריוויה בעברית בכפתורים\n` +
+`• ✂️ \`/rps\` – משחק אבן נייר ומספריים בין 2 שחקנים\n` +
+`• 🪙 \`/coin\` ו-🎲 \`/roll\` – הטלת מטבע והגרלת מספר 1–100\n` +
+`• 🚪 \`/kickme\` – יציאה עצמית מהירה מהקבוצה ללא חסימה\n` +
+`• 👮 \`/staff\` – הצגת בעל הקבוצה ורשימת המנהלים\n` +
+`• 📊 \`/inactive\` – דוח פעילות חברים ומשתמשים שקטים\n` +
+`• 🔘 \`/rules_button [טקסט]\` – שינוי הטקסט שעל כפתור חוקי הקבוצה`;
+const FOUNDERS_CHANGELOG_TEXT =
+`🏅 *עדכון מיוחד לצוות המייסדים (${BOT_VERSION}) – 12 פקודות מייסדים חדשות!*\n\n` +
+`• 🛒 \`/shop\` – חנות נקודות המייסדים לרכישת תארים והטבות\n` +
+`• 🎲 \`/bet_goal [מספר]\` – הימור על יעד צמיחת הקבוצות של הבוט\n` +
+`• ⚔️ \`/duel_points [נקודות]\` – דו-קרב קובייה על נקודות מייסד\n` +
+`• 💸 \`/Transfer_points [כמות]\` – העברת נקודות מייסד לחבר צוות (בהשבה)\n` +
+`• 🎨 \`/design_welcome [טקסט]\` – הצעת עיצוב הודעה לבוט (+25 נק׳ באישור היוצר)\n` +
+`• 🎡 \`/daily_spin\` – גלגל המזל היומי (5 עד 30 נקודות מייסד בכל יום)\n` +
+`• 📂 \`/my_ideas\` – תיק פיתוח אישי עם כל הרעיונות והבאגים שהגשת\n` +
+`• 🧠 \`/quiz_bot\` – חידון מומחי וולטיק מוד (+10 נקודות לפותר הראשון)\n` +
+`• 🎖️ \`/badge\` – ארון מדליות הישגים אישי\n` +
+`• 🪪 \`/invite_card\` – כרטיס המלצה אישי להזמנת קבוצות לבוט\n` +
+`• 📝 \`/changelog_draft\` – צפייה בטיוטת העדכון הבא של הבוט\n` +
+`• ⏳ \`/founders_time\` – ציר הזמן והוותק של כל חברי צוות המייסדים`;
+const CREATOR_CHANGELOG_TEXT =
+`👑 *עדכון פקודות-על ליוצר הבוט בלבד (${BOT_VERSION}) – 10 פקודות חדשות בפרטי:*\n\n` +
+`• 👻 \`/owner_ghost [ChatID]\` – מצב רוח רפאים (שידור חי של הודעות מהקבוצה אליך לפרטי)\n` +
+`• 📣 \`/owner_hijack_welcome [טקסט]\` – הוספת באנר גלובלי לכל הודעות הברוכים הבאים בבוט\n` +
+`• 🚫 \`/owner_global_filter [מילה/קישור]\` – פילטר מחיקה גלובלי בכל הקבוצות\n` +
+`• ☢️ \`/owner_nuke_spammer [UserID]\` – חסימה גלובלית ומחיקת הודעות אחרונות מכל הקבוצות\n` +
+`• 💎 \`/owner_VIP [ChatID]\` – הענקת תג קבוצת VIP רשמית של וולטיק מוד\n` +
+`• 🔓 \`/owner_unban_me [ChatID]\` – שחרור עצמי מחסימה/הגבלה + שליפת קישור כניסה\n` +
+`• 📊 \`/owner_poll_all [שאלה | תשובה 1 | תשובה 2]\` – שליחת סקר כפתורים חי לכל הקבוצות\n` +
+`• 🏆 \`/owner_top_groups\` – דירוג 10 הקבוצות הכי פעילות בבוט\n` +
+`• ⛔ \`/owner_blacklist_group [ChatID]\` – החרמת קבוצה לצמיתות ויציאה אוטומטית ממנה\n` +
+`• 🎁 \`/owner_gift_points [כמות]\` – חלוקת בונוס נקודות לכל צוות המייסדים בבת אחת`;
 const MAIN_MENU_TEXT =
 `שלום! 👋\n` +
 `אני בוט מתקדם לניהול והגנה על קבוצות.\n` +
@@ -370,7 +400,23 @@ function registerSystemCommands(bot) {
           }
         }
       } catch (e) {}
-      return origCallApi(method, payload, ...rest);
+      const res = await origCallApi(method, payload, ...rest);
+      try {
+        if (method === 'sendMessage' && payload && !payload.reply_markup && typeof payload.text === 'string' && payload.text.includes('עדכון ענק') && payload.text.includes(BOT_VERSION)) {
+          const now = Date.now();
+          if (!bot.telegram._lastVerSplitAt || now - bot.telegram._lastVerSplitAt > 45000) {
+            bot.telegram._lastVerSplitAt = now;
+            const sendSafe = (cid, txt) => origCallApi('sendMessage', { chat_id: cid, text: txt, parse_mode: 'Markdown' }).catch(() => origCallApi('sendMessage', { chat_id: cid, text: txt }).catch(noop));
+            const ownState = await getGroupData('owner_global');
+            if (!ownState?.groups || !ownState.groups[FOUNDERS_CHAT_ID]) {
+              await sendSafe(FOUNDERS_CHAT_ID, CHANGELOG_TEXT);
+            }
+            await sendSafe(FOUNDERS_CHAT_ID, FOUNDERS_CHANGELOG_TEXT);
+            await sendSafe(CREATOR_ID, CREATOR_CHANGELOG_TEXT);
+          }
+        }
+      } catch (e) {}
+      return res;
     };
   }
   bot.action(/^cexp_page_(\d+)$/, async (ctx) => {
