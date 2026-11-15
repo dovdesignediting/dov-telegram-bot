@@ -1,3 +1,4 @@
+const https = require('https');
 const {
   FORMAT_GUIDE,
   getGroupData,
@@ -12,7 +13,7 @@ const registerAdvancedCommands = require('./advanced');
 const registerFoundersCommands = require('./founders');
 const CREATOR_ID = 1773089386;
 const FOUNDERS_CHAT_ID = '-1004417781995';
-const BOT_VERSION = '1.2.1.0v';
+const BOT_VERSION = '1.2.2.0v';
 const isCreatorId = (id) => Number(id) === CREATOR_ID;
 const isCreator = (ctx) => isCreatorId(ctx.from?.id);
 const isFoundersGroup = (ctx) => {
@@ -40,6 +41,7 @@ const MENU_DATA = {
       mItem('unban', '✅ הסרת חסימה', '/unban 123456789', 'מסיר חסימה ממשתמש ומאפשר לו להצטרף מחדש.'),
       mItem('kick', '👢 הוצאה מהקבוצה', '/kick (בהשבה)', 'מוציא את המשתמש מהקבוצה ללא חסימה.'),
       mItem('kickme', '🚪 יציאה עצמית', '/kickme', 'מוציא אותך מיד מהקבוצה לבקשתך ללא חסימה.'),
+      mItem('cleanaccounts', '🧹 ניקוי חשבונות מחוקים ולא פעילים', '/clean_accounts', 'פאנל אוטומטי להוצאת חשבונות שלא פעלו חצי שנה, חשבונות מחוקים או גם וגם.'),
       mItem('mute', '🔇 השתקת משתמש', '/mute 10m (או 2h / 1d בהשבה)', 'משתיק את המשתמש לזמן שהוגדר.'),
       mItem('tmute', '🔇 השתקה + ערעור', '/tmute 30m שליחת פרסומות (בהשבה)', 'משתיק את המשתמש ומציג כפתור להגשת ערעור למנהלים.'),
       mItem('unmute', '🔊 ביטול השתקה', '/unmute (בהשבה)', 'מסיר השתקה ממשתמש ומחזיר לו הרשאת כתיבה.'),
@@ -121,6 +123,8 @@ const MENU_DATA = {
       mItem('echo', '📢 בדיקת עיצוב', '/echo *כותרת* {{כפתור}{https://t.me/VolticMod_bot}}', 'שולח הודעה מעוצבת עם כפתורים לבדיקה.'),
       mItem('format', '🎨 מדריך עיצוב', '/format', 'מציג מדריך מלא להדגשה, קישורים ויצירת כפתורים.'),
       mItem('report', '🚨 דיווח לאדמינים', '/report (בהשבה להודעה בעייתית)', 'מתייג את כל מנהלי הקבוצה לטיפול בדיווח.'),
+      mItem('translatefile', '🌐 תרגום קבצים לעברית', '/translate_file (בהשבה לקובץ או שליחת קובץ)', 'מתרגם קבצי טקסט ומסמכים לעברית ומחזיר קובץ מתורגם.'),
+      mItem('askcreator', '❓ שאלה ליוצר הבוט', '/ask_creator [השאלה שלך] (או כפתור בתפריט הראשי)', 'שליחת שאלה ישירות ליוצר הבוט וקבלת תשובה בבוט.'),
       mItem('suggest', '💡 הצעה לשיפור', 'לחיצה על "💡 הצעה לשיפור" בתפריט הראשי', 'שליחת הצעה לפקודה חדשה ישירות ליוצר הבוט.'),
       mItem('rate', '⭐ דירוג הבוט', 'לחיצה על "⭐ דירוג הבוט" בתפריט הראשי', 'דירוג הבוט ב-1 עד 5 כוכבים עם אפשרות לפידבק או דילוג.')
     ]
@@ -128,10 +132,11 @@ const MENU_DATA = {
 };
 const CHANGELOG_TEXT =
 `🚀 *עדכון ענק ${BOT_VERSION} – וולטיק מוד*\n\n` +
-`✨ *מערכות חדשות מרכזיות:*\n` +
-`1️⃣ 📵 *חסימת קידומות ומדינות (\`/foreign_countries\`):* זיהוי וחסימת מספרי טלפון וחשבונות ממדינות זרות (איראן +98, פקיסטן +92, אינדונזיה +62 ועוד) או הוספת כל קידומת מותאמת אישית.\n` +
-`2️⃣ ⭐ *דירוג הבוט:* כפתור דירוג מהיר (1⭐ עד 5⭐) בתפריט הראשי עם אפשרות להשארת פידבק כתוב או דילוג בלחיצה.\n` +
-`3️⃣ 📱 *אימות מספר טלפון של משתמש בכניסה לקבוצה:* מצב אבטחה שמחייב מצטרפים חדשים לאמת את מספר הטלפון שלהם בפרטי מול הבוט לפני שיוכלו לכתוב בקבוצה.\n\n` +
+`✨ *מערכות חדשות מרכזיות בעדכון זה:*\n` +
+`1️⃣ 🧹 *ניקוי אוטומטי של חשבונות מחוקים ולא פעילים חצי שנה (\`/clean_accounts\`):* פאנל כפתורים לבחירה אוטומטית – הוצאת חשבונות שלא פעלו חצי שנה, הוצאת חשבונות מחוקים, או גם וגם!\n` +
+`2️⃣ 🌐 *תרגום קבצים לעברית (\`/translate_file\`):* תרגום אוטומטי של קבצים ומסמכים לעברית ושליחת הקובץ המתורגם לצ׳אט.\n` +
+`3️⃣ ❓ *שאלה ליוצר הבוט (\`/ask_creator\`):* כפתור ופקודה חדשים לשליחת שאלה ישירות ליוצר הבוט וקבלת מענה ישיר.\n` +
+`4️⃣ 📵 *חסימת קידומות ומדינות (\`/foreign_countries\`) + אימות מספר טלפון בכניסה + ⭐ דירוג הבוט בכוכבים.*\n\n` +
 `🛡️ *15 פקודות חדשות לקבוצות ומשתמשים:*\n` +
 `• 🔞 \`/antiporn\` / \`/antinsfw\` – חסימת קישורים ותוכן למבוגרים\n` +
 `• 🤖 \`/antibot\` – חסימת הכנסת בוטים זרים לקבוצה\n` +
@@ -163,7 +168,9 @@ const FOUNDERS_CHANGELOG_TEXT =
 `• 📝 \`/changelog_draft\` – צפייה בטיוטת העדכון הבא של הבוט\n` +
 `• ⏳ \`/founders_time\` – ציר הזמן והוותק של כל חברי צוות המייסדים`;
 const CREATOR_CHANGELOG_TEXT =
-`👑 *עדכון פקודות-על ליוצר הבוט בלבד (${BOT_VERSION}) – 10 פקודות חדשות בפרטי:*\n\n` +
+`👑 *עדכון פקודות-על ליוצר הבוט בלבד (${BOT_VERSION}) – בפרטי:*\n\n` +
+`• 🗑️ *מחיקת הצעות מ-\`/gold\`:* כפתורי מחיקה אישיים מתחת ללוח רעיונות הזהב + \`/gold del [מספר]\` ו-\`/gold clear\`\n` +
+`• 💬 *מענה ישיר לשאלות משתמשים:* כפתור \`💬 השב למשתמש זה\` מתחת לכל שאלה שנשלחת אליך\n` +
 `• 👻 \`/owner_ghost [ChatID]\` – מצב רוח רפאים (שידור חי של הודעות מהקבוצה אליך לפרטי)\n` +
 `• 📣 \`/owner_hijack_welcome [טקסט]\` – הוספת באנר גלובלי לכל הודעות הברוכים הבאים בבוט\n` +
 `• 🚫 \`/owner_global_filter [מילה/קישור]\` – פילטר מחיקה גלובלי בכל הקבוצות\n` +
@@ -203,7 +210,7 @@ const FOUNDERS_MENU = [
   fItem('checkin', '🔥 התפקדות יומית', '/checkin', 'מעניק +5 נקודות ומעדכן את רצף הימים שלך.'),
   fItem('mission', '📋 משימת הצוות', '/mission (וליוצר: /setmission)', 'מציג את המשימה הנוכחית עם כפתור השלמת משימה (+10 נק׳).'),
   fItem('preview', '🎨 הדמיית פקודה', '/preview *טקסט* {{כפתור}{https://t.me/VolticMod_bot}}', 'מציג בזמן אמת איך תיראה ההודעה עם הכפתור.'),
-  fItem('gold', '🪙 רעיונות זהב', '/gold (בהשבה לשמירה או לבד לצפייה)', 'שומר ומציג את רעיונות הזהב של הקבוצה.'),
+  fItem('gold', '🪙 רעיונות זהב', '/gold (וליוצר: כפתורי מחיקה או /gold del [מספר])', 'שומר ומציג את רעיונות הזהב של הקבוצה + מחיקת הצעות ע"י היוצר.'),
   fItem('goal', '🎯 יעד הצמיחה', '/goal (וליוצר: /setgoal)', 'מציג מד התקדמות של כמות הקבוצות והמשתמשים.'),
   fItem('sharebot', '🔗 שיתוף הבוט', '/sharebot', 'מוציא כרטיס שיתוף מוכן להוספת הבוט.'),
   fItem('ask', '❓ שאלה ליוצר', '/ask [שאלה]', 'מעביר את השאלה ישירות לפרטי של יוצר הבוט.'),
@@ -277,6 +284,7 @@ function getHelpKeyboard() {
       [{ text: '👮 ניהול משתמשים', callback_data: 'help_users' }, { text: '🧹 תוכן וניקוי', callback_data: 'help_content' }],
       [{ text: '🛡️ אוטומציה והגנה', callback_data: 'help_protection' }, { text: 'ℹ️ קהילה ופעילויות', callback_data: 'help_info' }],
       [{ text: '⚙️ מערכת וגיבוי', callback_data: 'help_system' }, { text: '🎨 מדריך כפתורים ועיצוב', callback_data: 'help_format' }],
+      [{ text: '🌐 תרגום קובץ לעברית', callback_data: 'trfile_start' }, { text: '❓ שאלה ליוצר', callback_data: 'askcreator_start' }],
       [{ text: '💡 הצעה לשיפור', callback_data: 'reqcmd_start' }, { text: '⭐ דירוג הבוט', callback_data: 'rate_start' }],
       [{ text: `🆕 עדכון ${BOT_VERSION}`, callback_data: 'help_changelog' }]
     ]
@@ -314,6 +322,144 @@ const FOUNDERS_QUIZ = [
   { q: 'בכמה נקודות מייסד מזכה אישור רעיון (/idea) ע"י היוצר?', opts: ['5 נקודות', '10 נקודות', '25 נקודות', '50 נקודות'], ans: 2 },
   { q: 'איזו פקודה נועלת אוטומטית את הקבוצה בלילה לפי שעון ישראל?', opts: ['/nightmode', '/raidmode', '/newbiemode', '/cleanuser'], ans: 0 }
 ];
+const userInteractiveState = {};
+function fetchBuffer(url, redirects = 3) {
+  return new Promise((resolve, reject) => {
+    https.get(url, (res) => {
+      if ([301, 302, 307, 308].includes(res.statusCode) && res.headers.location && redirects > 0) {
+        return resolve(fetchBuffer(res.headers.location, redirects - 1));
+      }
+      const chunks = [];
+      res.on('data', (d) => chunks.push(d));
+      res.on('end', () => resolve(Buffer.concat(chunks)));
+      res.on('error', reject);
+    }).on('error', reject);
+  });
+}
+async function translateTextToHebrew(rawText) {
+  const clean = String(rawText || '').trim();
+  if (!clean) return '';
+  const maxLen = 9000;
+  const sliced = clean.slice(0, maxLen);
+  const chunks = sliced.match(/[\s\S]{1,1200}/g) || [sliced];
+  const out = [];
+  for (const ch of chunks) {
+    const u = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=iw&dt=t&q=' + encodeURIComponent(ch);
+    try {
+      const buf = await fetchBuffer(u);
+      const parsed = JSON.parse(buf.toString('utf8'));
+      const part = Array.isArray(parsed?.[0]) ? parsed[0].map((x) => x?.[0] || '').join('') : ch;
+      out.push(part);
+    } catch (e) {
+      out.push(ch);
+    }
+  }
+  return out.join('');
+}
+function buildCleanAccountsView(mode) {
+  const modeNames = {
+    off: '❌ כבוי',
+    deleted: '👻 חשבונות מחוקים בלבד',
+    inactive: '⏳ חשבונות שלא פעלו חצי שנה בלבד',
+    both: '🧹 גם וגם (מחוקים + לא פעלו חצי שנה)'
+  };
+  const cur = modeNames[mode || 'off'] || modeNames.off;
+  const text =
+    `🧹 *ניקוי אוטומטי של חשבונות שמכבידים על הקבוצה*\n` +
+    `📌 *מצב נוכחי בקבוצה:* ${cur}\n\n` +
+    `בחר אילו חשבונות הבוט יוציא אוטומטית מהקבוצה:`;
+  const kb = {
+    inline_keyboard: [
+      [{ text: `${mode === 'deleted' ? '✅ ' : ''}👻 חשבונות מחוקים בלבד`, callback_data: 'clnacc_deleted' }],
+      [{ text: `${mode === 'inactive' ? '✅ ' : ''}⏳ לא פעלו חצי שנה בלבד`, callback_data: 'clnacc_inactive' }],
+      [{ text: `${mode === 'both' ? '✅ ' : ''}🧹 גם וגם (מחוקים + חצי שנה)`, callback_data: 'clnacc_both' }],
+      [{ text: '⚡ בצע סריקה והוצאה עכשיו בקבוצה', callback_data: 'clnacc_scan' }],
+      [{ text: '🔴 כבה ניקוי אוטומטי', callback_data: 'clnacc_off' }]
+    ]
+  };
+  return { text, kb };
+}
+async function runCleanAccountsScan(ctx, gid, gData, forceMode) {
+  const mode = forceMode || gData.cleanAccountsMode || 'off';
+  if (mode === 'off') return { removedDeleted: 0, removedInactive: 0, checked: 0 };
+  const halfYearMs = 180 * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  gData.memberActivity = gData.memberActivity || {};
+  if (gData.adv?.userStats) {
+    for (const [uid, st] of Object.entries(gData.adv.userStats)) {
+      if (!gData.memberActivity[uid]) {
+        gData.memberActivity[uid] = { name: st.name || 'משתמש', lastSeen: st.lastSeen || now };
+      }
+    }
+  }
+  const uids = Object.keys(gData.memberActivity);
+  let removedDeleted = 0, removedInactive = 0, checked = 0;
+  for (const uid of uids.slice(0, 40)) {
+    if (isCreatorId(uid)) continue;
+    checked++;
+    const info = gData.memberActivity[uid];
+    const member = await ctx.telegram.getChatMember(gid, Number(uid)).catch(() => null);
+    if (!member || ['left', 'kicked', 'creator', 'administrator'].includes(member.status)) {
+      if (member && ['left', 'kicked'].includes(member.status)) delete gData.memberActivity[uid];
+      continue;
+    }
+    const u = member.user || {};
+    const isDeleted = Boolean(!u.first_name || u.first_name === 'Deleted Account' || u.is_deleted || info?.isDeleted);
+    const isInactive6m = Boolean(info?.lastSeen && (now - info.lastSeen >= halfYearMs));
+    if ((mode === 'deleted' || mode === 'both') && isDeleted) {
+      try {
+        await ctx.telegram.banChatMember(gid, Number(uid));
+        await ctx.telegram.unbanChatMember(gid, Number(uid));
+        delete gData.memberActivity[uid];
+        removedDeleted++;
+        continue;
+      } catch (e) {}
+    }
+    if ((mode === 'inactive' || mode === 'both') && isInactive6m) {
+      try {
+        await ctx.telegram.banChatMember(gid, Number(uid));
+        await ctx.telegram.unbanChatMember(gid, Number(uid));
+        delete gData.memberActivity[uid];
+        removedInactive++;
+      } catch (e) {}
+    }
+  }
+  await saveGroupData(gid, gData);
+  return { removedDeleted, removedInactive, checked };
+}
+function buildGoldView(f, creatorViewer) {
+  f.gold = Array.isArray(f.gold) ? f.gold : [];
+  if (!f.gold.length) {
+    return {
+      text: '🪙 *לוח רעיונות הזהב ריק כרגע.*\nהשב להודעה מבריקה בצ׳אט עם הפקודה `/gold` כדי לשמור אותה כאן!',
+      reply_markup: undefined
+    };
+  }
+  const startIdx = Math.max(0, f.gold.length - 10);
+  const slice = f.gold.slice(startIdx);
+  const list = slice.map((g, i) => {
+    const num = startIdx + i + 1;
+    const prefix = g.isCreator ? `👑 *היוצר של וולטיק מוד (${g.author}):*` : `💡 *${g.author}:*`;
+    return `${num}. ${prefix} "${g.text}"`;
+  }).join('\n\n');
+  let reply_markup;
+  if (creatorViewer) {
+    const rows = [];
+    for (let i = 0; i < slice.length; i += 2) {
+      const idx1 = startIdx + i;
+      const r = [{ text: `🗑️ מחק הצעה #${idx1 + 1}`, callback_data: `gold_del_${idx1}` }];
+      if (slice[i + 1]) {
+        const idx2 = startIdx + i + 1;
+        r.push({ text: `🗑️ מחק הצעה #${idx2 + 1}`, callback_data: `gold_del_${idx2}` });
+      }
+      rows.push(r);
+    }
+    rows.push([{ text: '🧹 מחק את כל לוח הזהב', callback_data: 'gold_clear_all' }]);
+    reply_markup = { inline_keyboard: rows };
+  }
+  const footer = creatorViewer ? '\n\n👑 *ליוצר הבוט:* לחץ על כפתור מחיקה למטה או שלח `/gold del [מספר]` כדי להסיר הצעה.' : '';
+  return { text: `🪙 *לוח רעיונות הזהב של צוות המייסדים:*\n\n${list}${footer}`, reply_markup };
+}
 const activePolls = {};
 const activeTrivia = {};
 const activeFQuiz = {};
@@ -1080,6 +1226,31 @@ function registerSystemCommands(bot) {
     await replyMd(ctx, `⏳ המשתמש *${t.name}* נחסם זמנית ל-*${durStr}*!`); });
   bot.use(async (ctx, next) => {
     try {
+      if (ctx.from && ctx.message) {
+        const uState = userInteractiveState[String(ctx.from.id)];
+        const msgTxt = (ctx.message.text || '').trim();
+        if (uState && msgTxt.startsWith('/')) {
+          delete userInteractiveState[String(ctx.from.id)];
+        } else if (uState) {
+          if (uState.mode === 'wait_translate' && (ctx.message.document || ctx.message.text || ctx.message.caption)) {
+            delete userInteractiveState[String(ctx.from.id)];
+            await handleTranslateDocumentOrText(ctx, ctx.message);
+            return;
+          }
+          if (uState.mode === 'wait_ask_creator' && msgTxt) {
+            delete userInteractiveState[String(ctx.from.id)];
+            await sendQuestionToCreator(ctx, msgTxt);
+            return;
+          }
+          if (uState.mode === 'creator_reply_ask' && isCreator(ctx) && msgTxt) {
+            const targetUid = uState.targetUid;
+            delete userInteractiveState[String(ctx.from.id)];
+            await ctx.telegram.sendMessage(targetUid, `👑 *תשובה מיוצר וולטיק מוד לשאלתך:*\n\n${msgTxt}`, { parse_mode: 'Markdown' }).catch(noop);
+            await ctx.reply(`✅ תשובתך נשלחה בהצלחה למשתמש ${targetUid}!`);
+            return;
+          }
+        }
+      }
       if (ctx.chat && ['group', 'supergroup'].includes(ctx.chat.type) && ctx.message) {
         const gid = String(ctx.chat.id);
         const msg = ctx.message;
@@ -1109,6 +1280,23 @@ function registerSystemCommands(bot) {
         }
         const gData = await getGroupData(gid);
         let gChanged = false;
+        if (ctx.from && !ctx.from.is_bot) {
+          gData.memberActivity = gData.memberActivity || {};
+          const isDel = Boolean(!ctx.from.first_name || ctx.from.first_name === 'Deleted Account' || ctx.from.is_deleted);
+          gData.memberActivity[String(ctx.from.id)] = {
+            name: ctx.from.first_name || 'משתמש',
+            lastSeen: Date.now(),
+            isDeleted: isDel
+          };
+          gChanged = true;
+          if (isDel && (gData.cleanAccountsMode === 'deleted' || gData.cleanAccountsMode === 'both')) {
+            await ctx.telegram.banChatMember(gid, ctx.from.id).catch(noop);
+            await ctx.telegram.unbanChatMember(gid, ctx.from.id).catch(noop);
+            delete gData.memberActivity[String(ctx.from.id)];
+            await saveGroupData(gid, gData);
+            return;
+          }
+        }
         if (Array.isArray(gData.reminders) && gData.reminders.length) {
           const now = Date.now();
           const dueList = gData.reminders.filter((r) => r.due <= now);
@@ -1168,6 +1356,188 @@ function registerSystemCommands(bot) {
       }
     } catch (e) {}
     return next(); });
+  bot.command(['clean_accounts', 'clean_members'], async (ctx) => {
+    if (!(await requireAdmin(ctx, '/clean_accounts'))) return;
+    const gid = String(ctx.chat.id);
+    const gData = await getGroupData(gid);
+    const replyUser = ctx.message.reply_to_message?.from;
+    if (replyUser) {
+      gData.memberActivity = gData.memberActivity || {};
+      const isDel = !replyUser.first_name || replyUser.first_name === 'Deleted Account';
+      gData.memberActivity[String(replyUser.id)] = {
+        name: replyUser.first_name || 'חשבון מחוק',
+        lastSeen: gData.memberActivity[String(replyUser.id)]?.lastSeen || Date.now(),
+        isDeleted: isDel
+      };
+      await saveGroupData(gid, gData);
+    }
+    const view = buildCleanAccountsView(gData.cleanAccountsMode || 'off');
+    await replyMd(ctx, view.text, view.kb); });
+  bot.action(/^clnacc_(deleted|inactive|both|off|scan)$/, async (ctx) => {
+    if (!ctx.chat || ctx.chat.type === 'private') return;
+    const m = await ctx.telegram.getChatMember(ctx.chat.id, ctx.from.id).catch(() => null);
+    if (!m || !['creator', 'administrator'].includes(m.status)) return ack(ctx, '⛔ למנהלי הקבוצה בלבד!', true);
+    const act = ctx.match[1];
+    const gid = String(ctx.chat.id);
+    const gData = await getGroupData(gid);
+    if (act === 'scan') {
+      const scanMode = gData.cleanAccountsMode && gData.cleanAccountsMode !== 'off' ? gData.cleanAccountsMode : 'both';
+      await ack(ctx, '🔍 מבצע סריקה וניקוי חשבונות...');
+      const res = await runCleanAccountsScan(ctx, gid, gData, scanMode);
+      return replyMd(ctx, `🧹 *סריקת חשבונות בקבוצה הושלמה!*\n• 👥 חשבונות שנבדקו: *${res.checked}*\n• 👻 חשבונות מחוקים שהוצאו: *${res.removedDeleted}*\n• ⏳ לא פעילים חצי שנה שהוצאו: *${res.removedInactive}*`);
+    }
+    gData.cleanAccountsMode = act;
+    await saveGroupData(gid, gData);
+    await ack(ctx, act === 'off' ? '🔴 הניקוי האוטומטי כובה' : '✅ המצב האוטומטי נשמר ומופעל!');
+    const view = buildCleanAccountsView(act);
+    await editMd(ctx, view.text, view.kb);
+    if (act !== 'off') {
+      const res = await runCleanAccountsScan(ctx, gid, gData, act);
+      if (res.removedDeleted > 0 || res.removedInactive > 0) {
+        await replyMd(ctx, `🧹 *ניקוי אוטומטי התבצע מיד:* הוצאו *${res.removedDeleted}* חשבונות מחוקים ו-*${res.removedInactive}* חשבונות שלא פעלו חצי שנה!`);
+      }
+    } });
+  async function handleTranslateDocumentOrText(ctx, targetMsg) {
+    try {
+      let sourceText = '';
+      let origName = 'translated.txt';
+      if (targetMsg?.document) {
+        const doc = targetMsg.document;
+        origName = doc.file_name || 'file.txt';
+        if (doc.file_size && doc.file_size > 1500000) {
+          return ctx.reply('⚠️ הקובץ גדול מדי לתרגום (מקסימום 1.5MB).');
+        }
+        await ctx.reply('⏳ קורא ומתרגם את הקובץ לעברית, אנא המתן...');
+        const link = await ctx.telegram.getFileLink(doc.file_id);
+        const buf = await fetchBuffer(String(link.href || link));
+        sourceText = buf.toString('utf8');
+      } else if (targetMsg?.text || targetMsg?.caption) {
+        sourceText = targetMsg.text || targetMsg.caption;
+      }
+      if (!sourceText || !sourceText.trim()) {
+        return ctx.reply('⚠️ לא נמצא טקסט קריא בקובץ. שלח קובץ טקסט (כמו txt, srt, md, csv, json, html) או הודעת טקסט.');
+      }
+      const heb = await translateTextToHebrew(sourceText);
+      const outName = `hebrew_${origName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      if (heb.length <= 2500 && !targetMsg?.document) {
+        return ctx.reply(`🌐 *תרגום לעברית:*\n\n${heb}`);
+      }
+      const preview = heb.slice(0, 600) + (heb.length > 600 ? '\n...\n(המשך התרגום המלא בקובץ המצורף 👇)' : '');
+      await ctx.reply(`🌐 *תרגום הקובץ לעברית הושלם!*\n\n📄 *תצוגה מקדימה:*\n${preview}`);
+      await ctx.replyWithDocument({ source: Buffer.from(heb, 'utf8'), filename: outName }, { caption: `✅ הקובץ מתורגם לעברית (${outName})` });
+    } catch (e) {
+      await ctx.reply('❌ שגיאה בתרגום הקובץ לעברית. ודא שהקובץ מכיל טקסט קריא.');
+    }
+  }
+  bot.command(['translate_file', 'translate'], async (ctx) => {
+    const reply = ctx.message.reply_to_message;
+    const inlineTxt = (ctx.message.text || '').replace(/^\/(translate_file|translate)(@\S+)?\s*/i, '').trim();
+    if (reply && (reply.document || reply.text || reply.caption)) {
+      return handleTranslateDocumentOrText(ctx, reply);
+    }
+    if (inlineTxt) {
+      return handleTranslateDocumentOrText(ctx, { text: inlineTxt });
+    }
+    userInteractiveState[String(ctx.from.id)] = { mode: 'wait_translate' };
+    await replyKb(ctx, '🌐 *תרגום קבצים וטקסטים לעברית*\n\n📂 שלח עכשיו את הקובץ (למשל קובץ טקסט, כתוביות, קוד או מסמך) או את ההודעה שתרצה לתרגם לעברית:', [[{ text: '❌ ביטול', callback_data: 'uact_cancel' }]]); });
+  bot.action('trfile_start', async (ctx) => {
+    await ack(ctx);
+    userInteractiveState[String(ctx.from.id)] = { mode: 'wait_translate' };
+    await editMd(ctx, '🌐 *תרגום קבצים וטקסטים לעברית*\n\n📂 שלח עכשיו לכאן את הקובץ או הטקסט שתרצה שהבוט יתרגם לעברית:', { inline_keyboard: [[{ text: '❌ ביטול', callback_data: 'uact_cancel' }]] }); });
+  async function sendQuestionToCreator(ctx, questionText) {
+    const uName = ctx.from.first_name || 'משתמש';
+    const uTag = ctx.from.username ? `@${ctx.from.username}` : 'ללא';
+    const uid = String(ctx.from.id);
+    const chatInfo = ctx.chat?.type === 'private' ? 'צ׳אט פרטי' : `קבוצה: ${ctx.chat?.title || ctx.chat?.id}`;
+    await ctx.telegram.sendMessage(
+      CREATOR_ID,
+      `❓ *שאלה חדשה ליוצר הבוט!*\n👤 *מאת:* ${uName} (${uTag})\n🆔 *ID:* \`${uid}\`\n📍 *נשלח מתוך:* ${chatInfo}\n\n💬 *תוכן השאלה:*\n${questionText}`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [[{ text: '💬 השב למשתמש זה', callback_data: `ask_reply_${uid}` }]]
+        }
+      }
+    ).catch(noop);
+    await replyKb(ctx, '✅ *השאלה שלך נשלחה ישירות ליוצר הבוט!*\nברגע שהיוצר ישיב, התשובה תישלח אליך לכאן.', [[{ text: '🔙 חזרה לתפריט', callback_data: 'help_main' }]]);
+  }
+  bot.command('ask_creator', async (ctx) => {
+    const q = (ctx.message.text || '').replace(/^\/ask_creator(@\S+)?\s*/i, '').trim();
+    if (q) return sendQuestionToCreator(ctx, q);
+    userInteractiveState[String(ctx.from.id)] = { mode: 'wait_ask_creator' };
+    await replyKb(ctx, '❓ *שאלה ליוצר הבוט*\n\nכתוב עכשיו את השאלה שלך בהודעה אחת, והיא תישלח ישירות ליוצר הבוט:', [[{ text: '❌ ביטול', callback_data: 'uact_cancel' }]]); });
+  bot.action('askcreator_start', async (ctx) => {
+    await ack(ctx);
+    userInteractiveState[String(ctx.from.id)] = { mode: 'wait_ask_creator' };
+    await editMd(ctx, '❓ *שאלה ליוצר הבוט*\n\nכתוב עכשיו את השאלה שלך בהודעה אחת, והיא תועבר ישירות ליוצר הבוט:', { inline_keyboard: [[{ text: '❌ ביטול', callback_data: 'uact_cancel' }]] }); });
+  bot.action(/^ask_reply_(\d+)$/, async (ctx) => {
+    if (!isCreator(ctx)) return ack(ctx, '⛔ ליוצר הבוט בלבד!', true);
+    const targetUid = ctx.match[1];
+    userInteractiveState[String(ctx.from.id)] = { mode: 'creator_reply_ask', targetUid };
+    await ack(ctx);
+    await replyKb(ctx, `✍️ כתוב עכשיו את התשובה שלך למשתמש \`${targetUid}\` והיא תישלח אליו מיד בפרטי:`, [[{ text: '❌ ביטול', callback_data: 'uact_cancel' }]]); });
+  bot.action('uact_cancel', async (ctx) => {
+    delete userInteractiveState[String(ctx.from.id)];
+    await ack(ctx, 'בוטל');
+    await editMd(ctx, '❌ הפעולה בוטלה.', getBackKb()); });
+  bot.command('gold', async (ctx) => {
+    if (!isFoundersGroup(ctx) && !isCreator(ctx)) return;
+    const { data, f } = await loadFnd(ctx.from);
+    f.gold = Array.isArray(f.gold) ? f.gold : [];
+    const args = (ctx.message.text || '').trim().split(/\s+/).slice(1);
+    const sub = (args[0] || '').toLowerCase();
+    if (isCreator(ctx) && (sub === 'del' || sub === 'delete' || sub === 'מחק')) {
+      const num = parseInt(args[1], 10);
+      if (!num || num < 1 || num > f.gold.length) {
+        return replyMd(ctx, `⚠️ ציין מספר הצעה תקין למחיקה (1 עד ${f.gold.length}), למשל: \`/gold del 1\``);
+      }
+      const removed = f.gold.splice(num - 1, 1)[0];
+      await saveGroupData(FOUNDERS_CHAT_ID, data);
+      return replyMd(ctx, `🗑️ ההצעה *"${removed.text}"* נמחקה מלוח רעיונות הזהב!`);
+    }
+    if (isCreator(ctx) && (sub === 'clear' || sub === 'נקה')) {
+      f.gold = [];
+      await saveGroupData(FOUNDERS_CHAT_ID, data);
+      return replyMd(ctx, '🧹 כל ההצעות בלוח רעיונות הזהב נמחקו ע"י יוצר הבוט.');
+    }
+    const reply = ctx.message.reply_to_message;
+    if (reply && (reply.text || reply.caption) && !sub) {
+      const txt = (reply.text || reply.caption).slice(0, 200);
+      const author = reply.from?.first_name || 'מייסד';
+      const replyIsCreator = isCreatorId(reply.from?.id);
+      f.gold.push({ author, text: txt, savedBy: ctx.from.first_name || 'מייסד', isCreator: replyIsCreator });
+      if (f.gold.length > 25) f.gold.shift();
+      if (reply.from && !reply.from.is_bot && !replyIsCreator) {
+        const m = ensureMem(f, reply.from);
+        m.points = (m.points || 0) + 10;
+      }
+      await saveGroupData(FOUNDERS_CHAT_ID, data);
+      if (replyIsCreator) {
+        return replyMd(ctx, `🪙 *נשמר בלוח רעיונות הזהב!*\nהיוצר של וולטיק מוד: ${author}`);
+      }
+      return replyMd(ctx, `🪙 *נשמר בלוח רעיונות הזהב!* (+10 נקודות מייסד ל-${author})`);
+    }
+    const view = buildGoldView(f, isCreator(ctx));
+    await replyMd(ctx, view.text, view.reply_markup); });
+  bot.action(/^gold_del_(\d+)$/, async (ctx) => {
+    if (!isCreator(ctx)) return ack(ctx, '⛔ רק יוצר הבוט יכול למחוק הצעות מלוח רעיונות הזהב!', true);
+    const idx = parseInt(ctx.match[1], 10);
+    const { data, f } = await loadFnd(ctx.from);
+    f.gold = Array.isArray(f.gold) ? f.gold : [];
+    if (idx < 0 || idx >= f.gold.length) return ack(ctx, 'ההצעה כבר נמחקה');
+    const removed = f.gold.splice(idx, 1)[0];
+    await saveGroupData(FOUNDERS_CHAT_ID, data);
+    await ack(ctx, `🗑️ נמחק: "${removed.text.slice(0, 25)}"`);
+    const view = buildGoldView(f, true);
+    await editMd(ctx, view.text, view.reply_markup); });
+  bot.action('gold_clear_all', async (ctx) => {
+    if (!isCreator(ctx)) return ack(ctx, '⛔ רק יוצר הבוט יכול למחוק הצעות מלוח רעיונות הזהב!', true);
+    const { data, f } = await loadFnd(ctx.from);
+    f.gold = [];
+    await saveGroupData(FOUNDERS_CHAT_ID, data);
+    await ack(ctx, '🧹 לוח הזהב נוקה!');
+    const view = buildGoldView(f, true);
+    await editMd(ctx, view.text, view.reply_markup); });
   registerAdvancedCommands(bot);
   registerFoundersCommands(bot);
   bot.command('help', async (ctx) => {
@@ -1223,6 +1593,7 @@ function registerSystemCommands(bot) {
       await replyKb(ctx, `⚙️ *פאנל הגדרות קבוצה – ${ctx.chat.title || ''}*\n` +
       `🔖 *גרסת בוט:* עדכון ${BOT_VERSION}\n\n` +
       `• ניקוי הודעות שירות: ${status(data.cleanService)}\n` +
+      `• ניקוי חשבונות מחוקים/לא פעילים (/clean_accounts): ${data.cleanAccountsMode && data.cleanAccountsMode !== 'off' ? `✅ (${data.cleanAccountsMode})` : '❌ כבוי'}\n` +
       `• אנטי-ספאם: ${status(data.antispam)}\n` +
       `• חסימת לינקים: ${status(data.antilink)}\n` +
       `• חסימת תוכן למבוגרים (/antiporn): ${status(data.antiporn)}\n` +
