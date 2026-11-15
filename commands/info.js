@@ -8,10 +8,91 @@ const {
 } = require('./utils');
 
 const CREATOR_ID = 1773089386;
+const FOUNDERS_CHAT_ID = '-1004417781995';
+const LATEST_VERSION = '1.2.2.1v';
+const DEFAULT_PREV_USER_VERSION = '1.2.1.0v';
+
 const isCreator = (ctx) => Number(ctx.from?.id) === CREATOR_ID;
+const isFoundersChatId = (cid) => {
+  const s = String(cid || '');
+  return s === FOUNDERS_CHAT_ID || s === '-4417781995' || s.endsWith('4417781995');
+};
+
 const creatorWaitState = {};
 
-// שליחה בטוחה עם תמיכה בעיצוב וכפתורים לשידור לקבוצות
+// היסטוריית כל עדכוני הבוט (לכפתור "עדכון מספר..." למשתמשים ולכפתור "📜 היסטוריית עדכוני הבוט" בפאנל היוצר)
+const VERSION_HISTORY = {
+  '1.0.0.0v': {
+    title: 'עדכון מספר 1.0.0.0v – השקת וולטיק מוד',
+    date: 'השקה ראשונית',
+    text:
+      `📦 *עדכון מספר 1.0.0.0v – השקת וולטיק מוד*\n\n` +
+      `• 👮 *ניהול משתמשים:* חסימה (/ban), שחרור (/unban), הוצאה (/kick), השתקה (/mute), אזהרות (/warn) וקידום אדמינים (/promote).\n` +
+      `• 🧹 *תוכן וניקוי:* מחיקת הודעות (/del, /purge), נעיצה (/pin), מצב איטי (/slowmode) ונעילת תוכן (/lock).\n` +
+      `• 🛡️ *הגנות בסיס:* אנטי-ספאם (/antispam), חסימת לינקים (/antilink), הגנת הצפה (/antiflood), מילים אסורות (/filter), ברוכים הבאים (/welcome) וחוקים (/rules).`
+  },
+  '1.1.0.0v': {
+    title: 'עדכון מספר 1.1.0.0v – אבטחה מתקדמת וקהילה',
+    date: 'עדכון מערכות הגנה',
+    text:
+      `🛡️ *עדכון מספר 1.1.0.0v – אבטחה מתקדמת וקהילה*\n\n` +
+      `• 🚨 *מצב חירום נגד מתקפות (/raidmode):* זיהוי ובלימה אוטומטית של מתקפות בוטים.\n` +
+      `• 🔐 *אימות מצטרפים (/verify):* אימות אנושי בכפתורים המאוחד עם הודעת הברוכים הבאים.\n` +
+      `• 🔒 *לחישה סודית (/secret):* שליחת הודעה סודית בקבוצה שרק הנמען יכול לקרוא.\n` +
+      `• 🎁 *הגרלות ומשחקים:* מערכת הגרלות (/giveaway), טבלת פעילים (/top), נעילת לילה לפי שעון ישראל (/nightmode) וגיבוי קבוצה (/backup).`
+  },
+  '1.2.0.0v': {
+    title: 'עדכון מספר 1.2.0.0v – צוות המייסדים ופקודות חכמות',
+    date: 'עדכון מייסדים וקהילה',
+    text:
+      `👑 *עדכון מספר 1.2.0.0v – צוות המייסדים ופקודות חכמות*\n\n` +
+      `• 👑 *מערכת צוות המייסדים (/founders):* הצעת רעיונות (/idea), דיווח באגים (/bug), תעודת מייסד (/founder), דרגות (/rank), היכל התהילה (/halloffame) ורעיונות זהב (/gold).\n` +
+      `• 🌍 *הגנות וכלים לקבוצות:* חסימת שפות זרות (/antiforeign), חסימת העברות (/antiforward), הצבעת הדחה (/voteban), מערכת ערעורים (/appeal), מכסת הודעות (/msgquota), דו-קרב (/duel) ומלכודת דבש (/honeypot).`
+  },
+  '1.2.1.0v': {
+    title: 'עדכון מספר 1.2.1.0v – 37 פקודות חדשות וחסימת קידומות',
+    date: 'עדכון ענק 1.2.1.0v',
+    text:
+      `🚀 *עדכון מספר 1.2.1.0v – חסימת קידומות ו-15 פקודות קהילה*\n\n` +
+      `• 📵 *חסימת קידומות ומדינות (/foreign_countries):* פאנל חסימת קידומות זרות ואימות מספר טלפון בכניסה.\n` +
+      `• ⭐ *דירוג הבוט בכוכבים:* דירוג 1⭐ עד 5⭐ עם אפשרות לכתיבת פידבק או דילוג.\n` +
+      `• 🛡️ *פקודות הגנה וקהילה:* חסימת תוכן למבוגרים (/antiporn), חסימת בוטים (/antibot), חסימת ערוצים (/antichannels), הגבלת אורך הודעה (/maxlength), חסימה זמנית (/tempban), השתקה עם ערעור (/tmute), מצב לא זמין (/afk), תזכורת (/remind), טריוויה (/trivia), אבן נייר ומספריים (/rps), הטלת מטבע (/coin), הגרלת מספר (/roll), יציאה עצמית (/kickme), צוות הנהלה (/staff), דוח פעילות (/inactive) ועיצוב כפתור חוקים (/rules_button).`
+  },
+  '1.2.2.0v': {
+    title: 'עדכון מספר 1.2.2.0v – ניקוי חשבונות, תרגום קבצים ושאלה ליוצר',
+    date: 'עדכון 1.2.2.0v',
+    text:
+      `✨ *עדכון מספר 1.2.2.0v – אוטומציה, תרגום וקשר ישיר ליוצר*\n\n` +
+      `• 🧹 *ניקוי אוטומטי של חשבונות (/clean_accounts):* הוצאה אוטומטית של חשבונות מחוקים, חשבונות שלא פעלו חצי שנה, או גם וגם.\n` +
+      `• 🌐 *תרגום קבצים לעברית (/translate_file):* תרגום אוטומטי של קבצים ומסמכים לעברית ושליחת קובץ מתורגם.\n` +
+      `• ❓ *שאלה ליוצר הבוט (/ask_creator):* שליחת שאלה ישירות ליוצר הבוט וקבלת מענה ישיר בבוט.\n` +
+      `• 🪙 *שדרוג לוח הזהב (/gold):* אפשרות ליוצר הבוט למחוק הצעות מתוך לוח רעיונות הזהב.`
+  },
+  '1.2.2.1v': {
+    title: 'עדכון מספר 1.2.2.1v – לוח פיתוח, חוקים שקטים/פומביים וניהול גרסאות',
+    date: 'העדכון הנוכחי',
+    text:
+      `🔥 *עדכון מספר 1.2.2.1v – מה חדש בעדכון זה:*\n\n` +
+      `1️⃣ 🧹 *ניקוי אוטומטי של חשבונות בקבוצה (/clean_accounts):* הוצאת חשבונות שלא פעלו חצי שנה, חשבונות מחוקים, או גם וגם.\n` +
+      `2️⃣ 🌐 *תרגום קבצים לעברית (/translate_file):* תרגום קבצים ומסמכים לעברית בלחיצת כפתור או בפקודה.\n` +
+      `3️⃣ ❓ *שאלה ליוצר הבוט (/ask_creator):* שליחת שאלה ישירות ליוצר הבוט וקבלת תשובה ישירה.\n` +
+      `4️⃣ 📜 *הגדרת חוקים שקטה או פומבית (/setrules):* מחיקה אוטומטית של הודעות הגדרת החוקים ובחירה בין מצב שקט למצב פומבי.\n` +
+      `5️⃣ 🛠️ *לוח מה בפיתוח ובתיקונים (/dev):* צפייה חיה בפקודות שנמצאות כרגע בפיתוח או בתיקונים.\n` +
+      `6️⃣ 👋 *מחיקת ברוך הבא / אימות קודמים (/clean_welcome):* בחירת מנהל קבוצה אם למחוק הודעת ברוך הבא קודמת, הודעת אימות קודמת, או גם וגם בכל כניסת משתמש חדש.`
+  }
+};
+
+// פקודות וכפתורים שנוספו בעדכון החדש ומוסתרים ממשתמש שעדיין לא לחץ על "♻️עדכון גרסת הבוט♻️"
+const NEW_UPDATE_COMMANDS = new Set([
+  'clean_accounts', 'clean_members', 'translate_file', 'translate',
+  'ask_creator', 'dev', 'status', 'roadmap', 'in_dev',
+  'clean_welcome', 'welcome_clean', 'clean_join'
+]);
+const NEW_UPDATE_CALLBACKS = new Set([
+  'trfile_start', 'askcreator_start', 'devboard_open',
+  'hcmd_users_cleanaccounts', 'hcmd_system_translatefile', 'hcmd_system_askcreator'
+]);
+
 async function safeSendGroupRich(telegram, chatId, rawText) {
   const fixedText = String(rawText || '').replace(/([/@][a-zA-Z0-9_]+)/g, (m) => m.replace(/\\?_/g, '\\_'));
   const p = parseRichMessage(fixedText);
@@ -25,7 +106,6 @@ async function safeSendGroupRich(telegram, chatId, rawText) {
   }
 }
 
-// ניקוי אוטומטי של טקסט החוקים מפקודות /setrules כפולות, תווי כיוון נסתרים וכותרות כפולות
 function cleanRulesText(raw) {
   let txt = String(raw || '').trim();
   txt = txt.replace(/^[\s\u200B-\u200F\u202A-\u202E\u2060-\u206F]+/, '');
@@ -42,6 +122,7 @@ function cleanRulesText(raw) {
 
 async function isGroupAdminCb(ctx) {
   if (!ctx.chat || ctx.chat.type === 'private' || !ctx.from) return false;
+  if (isCreator(ctx)) return true;
   try {
     const m = await ctx.telegram.getChatMember(ctx.chat.id, ctx.from.id);
     return Boolean(m && ['creator', 'administrator'].includes(m.status));
@@ -50,19 +131,24 @@ async function isGroupAdminCb(ctx) {
   }
 }
 
+async function getUserActiveVersion(uid) {
+  if (Number(uid) === CREATOR_ID) return LATEST_VERSION;
+  const s = await getGroupData('owner_global');
+  s.userVersions = s.userVersions || {};
+  return s.userVersions[String(uid)] || DEFAULT_PREV_USER_VERSION;
+}
+
+async function setUserActiveVersion(uid, ver) {
+  const s = await getGroupData('owner_global');
+  s.userVersions = s.userVersions || {};
+  s.userVersions[String(uid)] = ver;
+  await saveGroupData('owner_global', s);
+}
+
 async function loadDevBoard() {
   const s = await getGroupData('owner_global');
   s.devBoard = s.devBoard || { items: [] };
-  if (!Array.isArray(s.devBoard.items)) {
-    const migrated = [];
-    if (Array.isArray(s.devBoard.inDev)) {
-      for (const t of s.devBoard.inDev) migrated.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), type: 'dev', text: String(t), uid: '' });
-    }
-    if (Array.isArray(s.devBoard.inFix)) {
-      for (const t of s.devBoard.inFix) migrated.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), type: 'fix', text: String(t), uid: '' });
-    }
-    s.devBoard.items = migrated;
-  }
+  if (!Array.isArray(s.devBoard.items)) s.devBoard.items = [];
   return { s, items: s.devBoard.items };
 }
 
@@ -98,7 +184,7 @@ function buildDevBoardView(items, creatorViewer) {
     `🛠️ *לוח מצב פיתוח ותיקונים – וולטיק מוד*\n\n` +
     `🚀 *פקודות ומערכות בפיתוח כרגע (${inDev.length}):*\n${devList}\n\n` +
     `🔧 *פקודות ומערכות בתיקונים/שדרוג (${inFix.length}):*\n${fixList}\n\n` +
-    `💡 *איך פקודה נכנסת לכאן?* כל הצעה שנשלחת דרך כפתור **"💡 הצעה לשיפור"** בתפריט הראשי מתווספת לכאן אוטומטית עד שיוצר הבוט מאשר או דוחה אותה!`;
+    `💡 *איך פקודה נכנסת לכאן?* כל הצעה שנשלחת דרך **"💡 הצעה לשיפור"** מתווספת לכאן אוטומטית עד שיוצר הבוט מאשר או דוחה אותה!`;
 
   const rows = [];
   if (creatorViewer) {
@@ -110,14 +196,11 @@ function buildDevBoardView(items, creatorViewer) {
         { text: `🗑️ מחק: ${shortTxt}`, callback_data: `devb_del_${idx}` }
       ]);
     });
-    if (items.length) {
-      rows.push([{ text: '🧹 נקה את כל הלוח', callback_data: 'devb_clear_all' }]);
-    }
+    if (items.length) rows.push([{ text: '🧹 נקה את כל הלוח', callback_data: 'devb_clear_all' }]);
     rows.push([{ text: '👑 חזרה לפאנל היוצר', callback_data: 'own_panel' }]);
   }
   rows.push([{ text: '💡 שלח הצעה לשיפור', callback_data: 'reqcmd_start' }]);
   rows.push([{ text: '🔙 חזרה לתפריט הראשי', callback_data: 'help_main' }]);
-
   return { text, reply_markup: { inline_keyboard: rows } };
 }
 
@@ -160,6 +243,93 @@ function isWelcomeMessagePayload(payload) {
 }
 
 module.exports = function registerInfoCommands(bot) {
+  // עטיפת handleUpdate לבדיקת גרסת קבוצה וגרסת משתמש לפני כל הפעלה של הבוט + מניעת שידור אוטומטי לכל המשתמשים!
+  if (bot && !bot._versionGateWrapped) {
+    bot._versionGateWrapped = true;
+    const origHandleUpdate = bot.handleUpdate.bind(bot);
+    bot.handleUpdate = async function (update, ...rest) {
+      try {
+        const s = await getGroupData('owner_global');
+        if (s.lastVersion !== LATEST_VERSION) {
+          s.lastVersion = LATEST_VERSION;
+          await saveGroupData('owner_global', s);
+        }
+
+        const msg = update?.message;
+        const cb = update?.callback_query;
+        const chat = msg?.chat || cb?.message?.chat;
+        const from = msg?.from || cb?.from;
+        const uid = from?.id ? String(from.id) : '';
+        const cid = chat?.id ? String(chat.id) : '';
+        const isGroup = chat && ['group', 'supergroup'].includes(chat.type);
+
+        if (uid) bot._activeCtxUserVer = await getUserActiveVersion(uid);
+
+        // 4. בקבוצות (חוץ מקבוצת המייסדים): אם הקבוצה עדיין לא עודכנה לגרסה החדשה ומנסים להפעיל את הבוט -> הצג כפתור "♻️עדכון גרסת הבוט♻️" למנהל!
+        if (isGroup && !isFoundersChatId(cid)) {
+          const gData = await getGroupData(cid);
+          if (gData.groupVersion !== LATEST_VERSION) {
+            const cbData = cb?.data || '';
+            const msgText = (msg?.text || '').trim();
+            const isBotCommand = msgText.startsWith('/');
+            const isBotCallback = Boolean(cb && cbData !== 'grp_upgrade_ver');
+
+            if (isBotCommand || isBotCallback) {
+              if (isBotCallback) {
+                await bot.telegram.callApi('answerCbQuery', {
+                  callback_query_id: cb.id,
+                  text: '⚠️ יש לעדכן תחילה את גרסת הבוט בקבוצה ע"י מנהל הקבוצה!',
+                  show_alert: true
+                }).catch(() => {});
+              }
+              await bot.telegram.callApi('sendMessage', {
+                chat_id: cid,
+                text:
+                  `⚠️ *גרסה חדשה של וולטיק מוד זמינה (${LATEST_VERSION})!*\n` +
+                  `כדי להמשיך להפעיל את הבוט ולפתוח את הפקודות החדשות בקבוצה זו, על *מנהל הקבוצה* ללחוץ על הכפתור למטה לעדכון גרסת הבוט:`,
+                parse_mode: 'Markdown',
+                reply_markup: {
+                  inline_keyboard: [[{ text: '♻️עדכון גרסת הבוט♻️', callback_data: 'grp_upgrade_ver' }]]
+                }
+              }).catch(() => {});
+              return;
+            }
+          }
+        } else if (isGroup && isFoundersChatId(cid)) {
+          const gData = await getGroupData(cid);
+          if (gData.groupVersion !== LATEST_VERSION) {
+            gData.groupVersion = LATEST_VERSION;
+            await saveGroupData(cid, gData);
+          }
+        }
+
+        // 3. בצ׳אט פרטי: כל עוד המשתמש לא לחץ על "♻️עדכון גרסת הבוט♻️", חסום הפעלה ישירה של הפקודות החדשות והצג לו את כפתור העדכון
+        if (chat?.type === 'private' && uid && Number(uid) !== CREATOR_ID) {
+          const userVer = bot._activeCtxUserVer || DEFAULT_PREV_USER_VERSION;
+          if (userVer !== LATEST_VERSION && msg?.text && msg.text.trim().startsWith('/')) {
+            const cmdName = msg.text.trim().split(/\s+/)[0].replace(/^\//, '').split('@')[0].toLowerCase();
+            if (NEW_UPDATE_COMMANDS.has(cmdName)) {
+              await bot.telegram.callApi('sendMessage', {
+                chat_id: cid,
+                text:
+                  `⚠️ הפקודה \`/${cmdName}\` שייכת לגרסה החדשה של הבוט (*${LATEST_VERSION}*)!\n` +
+                  `הגרסה הנוכחית שלך היא: *${userVer}*.\n\n` +
+                  `👇 לחץ על הכפתור למטה כדי לעדכן את גרסת הבוט שלך ולפתוח את כל הפקודות החדשות:`,
+                parse_mode: 'Markdown',
+                reply_markup: {
+                  inline_keyboard: [[{ text: '♻️עדכון גרסת הבוט♻️', callback_data: 'ver_upgrade_user' }]]
+                }
+              }).catch(() => {});
+              return;
+            }
+          }
+        }
+      } catch (e) {}
+
+      return origHandleUpdate(update, ...rest);
+    };
+  }
+
   if (bot && bot.telegram && !bot.telegram._rulesCleanWrapped) {
     bot.telegram._rulesCleanWrapped = true;
     const origCall = bot.telegram.callApi.bind(bot.telegram);
@@ -168,13 +338,21 @@ module.exports = function registerInfoCommands(bot) {
       let detectedVerify = false;
 
       try {
+        // 1. חסימה מוחלטת של שליחת הודעת עדכון אוטומטית לכל המשתמשים והקבוצות!
+        if (method === 'sendMessage' && payload && !payload.reply_markup && typeof payload.text === 'string') {
+          if ((payload.text.includes('תיקון הודעת גרסה חדש') || payload.text.includes('עדכון ענק')) && payload.text.includes(LATEST_VERSION)) {
+            if (!bot._allowManualVerBroadcast) {
+              return { message_id: 1 };
+            }
+          }
+        }
+
         if ((method === 'sendMessage' || method === 'editMessageText') && payload && typeof payload.text === 'string') {
-          // ניקוי /setrules מתוך הודעות חוקי קבוצה
           if (payload.text.includes('חוקי הקבוצה') && /\/setrules(@\S+)?/i.test(payload.text)) {
             payload.text = payload.text.replace(/\/setrules(@\S+)?\s*/gi, '');
           }
 
-          // 1א. כשמשתמש שולח "הצעה לשיפור" -> נכנס אוטומטית ללוח פיתוח/תיקונים!
+          // סנכרון אוטומטי של "הצעה לשיפור" ללוח פיתוח/תיקונים ומחיקה באישור/דחייה
           if (method === 'sendMessage' && String(payload.chat_id) === String(CREATOR_ID) && payload.text.startsWith('📩 הצעה חדשה לשיפור / פקודה:')) {
             const parsed = parseSuggestionCardText(payload.text);
             if (parsed.cmd) {
@@ -184,7 +362,6 @@ module.exports = function registerInfoCommands(bot) {
             }
           }
 
-          // 1ב. כשיוצר הבוט לוחץ על "אישור" או "דחייה" -> ההצעה נמחקת אוטומטית מלוח הפיתוח/תיקונים!
           if (method === 'editMessageText' && (payload.text.startsWith('אושר\n\n📩 הצעה חדשה לשיפור') || payload.text.startsWith('נדחה\n\n📩 הצעה חדשה לשיפור'))) {
             const parsed = parseSuggestionCardText(payload.text);
             const { s, items } = await loadDevBoard();
@@ -194,22 +371,68 @@ module.exports = function registerInfoCommands(bot) {
               if (parsed.uid && x.uid === parsed.uid) return false;
               return true;
             });
-            if (s.devBoard.items.length === beforeLen && s.devBoard.items.length > 0) {
-              s.devBoard.items.pop();
-            }
+            if (s.devBoard.items.length === beforeLen && s.devBoard.items.length > 0) s.devBoard.items.pop();
             await saveGroupData('owner_global', s);
           }
 
-          // הזרקת כפתורים לתפריט הראשי, לפאנל היוצר (/owner), ולפקודות /welcome ו-/verify
           const kb = payload.reply_markup?.inline_keyboard;
           if (Array.isArray(kb)) {
-            const hasDevBtn = kb.some((r) => r.some((b) => b.callback_data === 'devboard_open'));
-            if (!hasDevBtn && payload.text.includes('תפריט הפקודות הראשי')) {
-              kb.splice(kb.length - 1, 0, [{ text: '🛠️ מה בפיתוח ובתיקונים', callback_data: 'devboard_open' }]);
+            const curUserVer = bot._activeCtxUserVer || DEFAULT_PREV_USER_VERSION;
+            const isUpgraded = curUserVer === LATEST_VERSION;
+
+            // 2 + 3. התאמת התפריט הראשי וקטגוריות הפקודות לפי הגרסה שבה המשתמש נמצא כרגע!
+            if (payload.text.includes('תפריט הפקודות הראשי')) {
+              payload.text = payload.text.replace(
+                `🔖 *גרסה נוכחית:* עדכון ${LATEST_VERSION}`,
+                `🔖 *גרסה נוכחית:* עדכון מספר ${curUserVer}` +
+                (!isUpgraded ? `\n🔔 *גרסה חדשה (${LATEST_VERSION}) זמינה! לחץ על "♻️עדכון גרסת הבוט♻️" למטה כדי לעדכן ולפתוח את הפקודות החדשות.*` : '')
+              );
+
+              if (!isUpgraded) {
+                // הסתרת כפתורי הפקודות החדשות עד שהמשתמש ילחץ על "♻️עדכון גרסת הבוט♻️"
+                payload.reply_markup.inline_keyboard = kb
+                  .map((row) => row.filter((btn) => !NEW_UPDATE_CALLBACKS.has(btn.callback_data)))
+                  .filter((row) => row.length > 0);
+              } else {
+                const hasDevBtn = kb.some((r) => r.some((b) => b.callback_data === 'devboard_open'));
+                if (!hasDevBtn) {
+                  kb.splice(kb.length - 1, 0, [{ text: '🛠️ מה בפיתוח ובתיקונים', callback_data: 'devboard_open' }]);
+                }
+              }
+
+              // עדכון כפתור "עדכון מספר..." + הוספת "♻️עדכון גרסת הבוט♻️" אם טרם עודכן
+              const curKb = payload.reply_markup.inline_keyboard;
+              for (const row of curKb) {
+                for (const btn of row) {
+                  if (btn.callback_data === 'help_changelog' || btn.callback_data === 'ver_current_info') {
+                    btn.text = `🆕 עדכון מספר ${curUserVer}`;
+                    btn.callback_data = 'ver_current_info';
+                  }
+                }
+              }
+              if (!isUpgraded && !curKb.some((r) => r.some((b) => b.callback_data === 'ver_upgrade_user'))) {
+                curKb.push([{ text: '♻️עדכון גרסת הבוט♻️', callback_data: 'ver_upgrade_user' }]);
+              }
             }
+
+            // 3. הסתרת הפקודות החדשות מתוך קטגוריות התפריט אם המשתמש עדיין לא לחץ על "♻️עדכון גרסת הבוט♻️"
+            if (!isUpgraded && payload.text.startsWith('👮 *קטגוריה') || (!isUpgraded && payload.text.startsWith('⚙️ *קטגוריה'))) {
+              payload.text = payload.text.replace(`(עדכון ${LATEST_VERSION})`, `(עדכון מספר ${curUserVer})`);
+              payload.reply_markup.inline_keyboard = kb
+                .map((row) => row.filter((btn) => !NEW_UPDATE_CALLBACKS.has(btn.callback_data)))
+                .filter((row) => row.length > 0);
+              payload.reply_markup.inline_keyboard.unshift([{ text: '♻️עדכון גרסת הבוט♻️ (פתיחת פקודות חדשות)', callback_data: 'ver_upgrade_user' }]);
+            }
+
+            // 5. הזרקת כפתורים לפאנל היוצר (/owner): היסטוריית עדכוני הבוט + שליחה לכל הקבוצות + לוח פיתוח
             if (payload.text.startsWith('👑 פאנל שליטה ראשי – יוצר הבוט')) {
+              const hasDevBtn = kb.some((r) => r.some((b) => b.callback_data === 'devboard_open'));
               if (!hasDevBtn) {
                 kb.unshift([{ text: '🛠️ לוח פקודות בפיתוח ובתיקונים', callback_data: 'devboard_open' }]);
+              }
+              const hasHistBtn = kb.some((r) => r.some((b) => b.callback_data === 'ver_history_open'));
+              if (!hasHistBtn) {
+                kb.unshift([{ text: '📜 היסטוריית עדכוני הבוט', callback_data: 'ver_history_open' }]);
               }
               const hasBcastGroups = kb.some((r) => r.some((b) => b.callback_data === 'bcast_groups_only'));
               if (!hasBcastGroups) {
@@ -218,7 +441,10 @@ module.exports = function registerInfoCommands(bot) {
                 if (bcastIdx >= 0) kb.splice(bcastIdx + 1, 0, newBtnRow);
                 else kb.push(newBtnRow);
               }
+              // הסרת כפתור שליחת הודעת עדכון לכולם כדי למנוע שליחה גורפת למשתמשים
+              payload.reply_markup.inline_keyboard = kb.filter((r) => !r.some((b) => b.callback_data === 'own_announce_ver'));
             }
+
             if (payload.text.startsWith('🔐 *אימות אנושי למצטרפים') || payload.text.startsWith('⚙️ *פאנל הגדרות קבוצה')) {
               const hasClnJoin = kb.some((r) => r.some((b) => b.callback_data === 'clnjoin_open'));
               if (!hasClnJoin) {
@@ -227,7 +453,7 @@ module.exports = function registerInfoCommands(bot) {
             }
           }
 
-          // 3. מחיקת הודעת ברוך הבא / אימות קודמת בכניסת משתמש חדש לפי בחירת מנהל הקבוצה
+          // מחיקת הודעת ברוך הבא / אימות קודמת בכניסת משתמש חדש לפי בחירת מנהל הקבוצה
           if (payload.chat_id && String(payload.chat_id).startsWith('-')) {
             detectedVerify = method === 'sendMessage' && isVerifyMessagePayload(payload);
             detectedWelcome = isWelcomeMessagePayload(payload);
@@ -268,6 +494,129 @@ module.exports = function registerInfoCommands(bot) {
       return res;
     };
   }
+
+  // 2. לחיצה על "🆕 עדכון מספר..." -> מציג למשתמש מה חדש בגרסה שבה הוא נמצא כרגע!
+  bot.action('ver_current_info', async (ctx) => {
+    await ctx.answerCbQuery().catch(() => {});
+    let curVer = LATEST_VERSION;
+    if (ctx.chat && ['group', 'supergroup'].includes(ctx.chat.type)) {
+      const gData = await getGroupData(ctx.chat.id);
+      curVer = isFoundersChatId(ctx.chat.id) ? LATEST_VERSION : (gData.groupVersion || DEFAULT_PREV_USER_VERSION);
+    } else if (ctx.from) {
+      curVer = await getUserActiveVersion(ctx.from.id);
+    }
+    const verObj = VERSION_HISTORY[curVer] || VERSION_HISTORY[LATEST_VERSION];
+    const rows = [];
+    if (curVer !== LATEST_VERSION) {
+      rows.push([{ text: '♻️עדכון גרסת הבוט♻️', callback_data: ctx.chat?.type === 'private' ? 'ver_upgrade_user' : 'grp_upgrade_ver' }]);
+    }
+    rows.push([{ text: '🔙 חזרה לתפריט הראשי', callback_data: 'help_main' }]);
+    await ctx.editMessageText(verObj.text, {
+      parse_mode: 'Markdown',
+      reply_markup: { inline_keyboard: rows }
+    }).catch(() => ctx.reply(verObj.text, {
+      parse_mode: 'Markdown',
+      reply_markup: { inline_keyboard: rows }
+    }));
+  });
+
+  // 3. לחיצה על "♻️עדכון גרסת הבוט♻️" ע"י משתמש -> מעדכן אותו לגרסה החדשה וחושף את כל הפקודות החדשות!
+  bot.action('ver_upgrade_user', async (ctx) => {
+    if (!ctx.from) return;
+    await setUserActiveVersion(ctx.from.id, LATEST_VERSION);
+    bot._activeCtxUserVer = LATEST_VERSION;
+    await ctx.answerCbQuery(`🎉 הבוט עודכן בהצלחה לגרסה ${LATEST_VERSION}!`, { show_alert: true }).catch(() => {});
+    const verObj = VERSION_HISTORY[LATEST_VERSION];
+    const msg =
+      `🎉 *הבוט עודכן בהצלחה לגרסה החדשה (${LATEST_VERSION})!*\n` +
+      `כל הפקודות והמערכות החדשות נפתחו עבורך בתפריט הבוט.\n\n` +
+      `${verObj.text}`;
+    const kb = {
+      inline_keyboard: [
+        [{ text: '📚 מעבר לתפריט הפקודות המעודכן', callback_data: 'help_main' }]
+      ]
+    };
+    await ctx.editMessageText(msg, { parse_mode: 'Markdown', reply_markup: kb })
+      .catch(() => ctx.reply(msg, { parse_mode: 'Markdown', reply_markup: kb }));
+  });
+
+  // 4. לחיצה על "♻️עדכון גרסת הבוט♻️" בקבוצה -> מנהל הקבוצה בלבד מאשר ומעדכן את הבוט בקבוצה!
+  bot.action('grp_upgrade_ver', async (ctx) => {
+    if (!ctx.chat || ctx.chat.type === 'private') return;
+    if (!(await isGroupAdminCb(ctx))) {
+      return ctx.answerCbQuery('⛔ רק מנהל הקבוצה יכול ללחוץ על הכפתור ולעדכן את גרסת הבוט בקבוצה!', { show_alert: true }).catch(() => {});
+    }
+    const gData = await getGroupData(ctx.chat.id);
+    gData.groupVersion = LATEST_VERSION;
+    await saveGroupData(ctx.chat.id, gData);
+    if (ctx.from) {
+      await setUserActiveVersion(ctx.from.id, LATEST_VERSION);
+      bot._activeCtxUserVer = LATEST_VERSION;
+    }
+    await ctx.answerCbQuery(`🎉 הקבוצה עודכנה בהצלחה לגרסה ${LATEST_VERSION}!`, { show_alert: true }).catch(() => {});
+    await ctx.editMessageText(
+      `✅ *גרסת הבוט בקבוצה עודכנה בהצלחה ל-${LATEST_VERSION} ע"י המנהל ${ctx.from.first_name}!*\n` +
+      `כל הפקודות והמערכות של העדכון החדש פעילות כעת בקבוצה.`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: `🆕 עדכון מספר ${LATEST_VERSION} (מה חדש?)`, callback_data: 'ver_current_info' }],
+            [{ text: '📚 פתיחת תפריט הבוט', callback_data: 'help_main' }]
+          ]
+        }
+      }
+    ).catch(() => {});
+  });
+
+  // 5. כפתור "📜 היסטוריית עדכוני הבוט" בפאנל יוצר הבוט (/owner)
+  bot.action('ver_history_open', async (ctx) => {
+    if (!isCreator(ctx)) return ctx.answerCbQuery('⛔ ליוצר הבוט בלבד!', { show_alert: true }).catch(() => {});
+    await ctx.answerCbQuery().catch(() => {});
+    const s = await getGroupData('owner_global');
+    const uVers = Object.values(s.userVersions || {});
+    const upgradedUsers = uVers.filter((v) => v === LATEST_VERSION).length + 1;
+    const verKeys = Object.keys(VERSION_HISTORY).reverse();
+
+    const summaryLines = verKeys.map((v, idx) => `${idx + 1}. 🔖 *${VERSION_HISTORY[v].title}* (${VERSION_HISTORY[v].date})`).join('\n');
+    const text =
+      `📜 *היסטוריית עדכוני הבוט – וולטיק מוד (ליוצר בלבד)*\n` +
+      `📌 *גרסה אחרונה במערכת:* \`${LATEST_VERSION}\`\n` +
+      `👥 *משתמשים שעדכנו לגרסה האחרונה:* ${upgradedUsers}\n\n` +
+      `📚 *רשימת כל עדכוני הבוט:*\n${summaryLines}\n\n` +
+      `👇 *לחץ על כל גרסה למטה כדי לצפות בפירוט המלא של אותו עדכון:*`;
+
+    const rows = [];
+    for (let i = 0; i < verKeys.length; i += 2) {
+      const v1 = verKeys[i];
+      const r = [{ text: `📜 עדכון מספר ${v1}`, callback_data: `ver_hist_item_${v1}` }];
+      if (verKeys[i + 1]) {
+        const v2 = verKeys[i + 1];
+        r.push({ text: `📜 עדכון מספר ${v2}`, callback_data: `ver_hist_item_${v2}` });
+      }
+      rows.push(r);
+    }
+    rows.push([{ text: '👑 חזרה לפאנל היוצר', callback_data: 'own_panel' }]);
+
+    await ctx.editMessageText(text, { parse_mode: 'Markdown', reply_markup: { inline_keyboard: rows } })
+      .catch(() => ctx.reply(text, { parse_mode: 'Markdown', reply_markup: { inline_keyboard: rows } }));
+  });
+
+  bot.action(/^ver_hist_item_(.+)$/, async (ctx) => {
+    if (!isCreator(ctx)) return ctx.answerCbQuery('⛔ ליוצר הבוט בלבד!', { show_alert: true }).catch(() => {});
+    const ver = ctx.match[1];
+    const item = VERSION_HISTORY[ver];
+    if (!item) return ctx.answerCbQuery('גרסה לא נמצאה').catch(() => {});
+    await ctx.answerCbQuery().catch(() => {});
+    const kb = {
+      inline_keyboard: [
+        [{ text: '🔙 חזרה להיסטוריית העדכונים', callback_data: 'ver_history_open' }],
+        [{ text: '👑 חזרה לפאנל היוצר', callback_data: 'own_panel' }]
+      ]
+    };
+    await ctx.editMessageText(item.text, { parse_mode: 'Markdown', reply_markup: kb })
+      .catch(() => ctx.reply(item.text, { parse_mode: 'Markdown', reply_markup: kb }));
+  });
 
   // קליטת הודעה מיוצר הבוט לשידור לכל הקבוצות בלבד (ללא משתמשים)
   bot.use(async (ctx, next) => {
