@@ -1,6 +1,7 @@
 const {
   getGroupData,
   saveGroupData,
+  parseRichMessage,
   sendFormattedMessage,
   requireAdmin,
   getTarget
@@ -8,7 +9,21 @@ const {
 
 const CREATOR_ID = 1773089386;
 const isCreator = (ctx) => Number(ctx.from?.id) === CREATOR_ID;
-const creatorDevWait = {};
+const creatorWaitState = {};
+
+// שליחה בטוחה עם תמיכה בעיצוב וכפתורים לשידור לקבוצות
+async function safeSendGroupRich(telegram, chatId, rawText) {
+  const fixedText = String(rawText || '').replace(/([/@][a-zA-Z0-9_]+)/g, (m) => m.replace(/\\?_/g, '\\_'));
+  const p = parseRichMessage(fixedText);
+  try {
+    return await telegram.sendMessage(chatId, p.text, p.extra);
+  } catch (err) {
+    const plain = parseRichMessage(rawText);
+    const fallbackExtra = { disable_web_page_preview: true };
+    if (plain.extra.reply_markup) fallbackExtra.reply_markup = plain.extra.reply_markup;
+    return await telegram.sendMessage(chatId, plain.text, fallbackExtra);
+  }
+}
 
 // ניקוי אוטומטי של טקסט החוקים מפקודות /setrules כפולות, תווי כיוון נסתרים וכותרות כפולות
 function cleanRulesText(raw) {
@@ -37,200 +52,368 @@ async function isGroupAdminCb(ctx) {
 
 async function loadDevBoard() {
   const s = await getGroupData('owner_global');
-  s.devBoard = s.devBoard || { inDev: [], inFix: [] };
-  s.devBoard.inDev = Array.isArray(s.devBoard.inDev) ? s.devBoard.inDev : [];
-  s.devBoard.inFix = Array.isArray(s.devBoard.inFix) ? s.devBoard.inFix : [];
-  return { s, board: s.devBoard };
+  s.devBoard = s.devBoard || { items: [] };
+  if (!Array.isArray(s.devBoard.items)) {
+    const migrated = [];
+    if (Array.isArray(s.devBoard.inDev)) {
+      for (const t of s.devBoard.inDev) migrated.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), type: 'dev', text: String(t), uid: '' });
+    }
+    if (Array.isArray(s.devBoard.inFix)) {
+      for (const t of s.devBoard.inFix) migrated.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), type: 'fix', text: String(t), uid: '' });
+    }
+    s.devBoard.items = migrated;
+  }
+  return { s, items: s.devBoard.items };
 }
 
-function buildDevBoardView(board, creatorViewer) {
-  const devList = board.inDev.length
-    ? board.inDev.map((item, i) => `${i + 1}. 🚀 ${item}`).join('\n')
+function parseSuggestionCardText(rawText) {
+  const lines = String(rawText || '').split('\n');
+  let uid = '', cmd = '', desc = '';
+  for (let i = 0; i < lines.length; i++) {
+    const ln = lines[i].trim();
+    if (ln.startsWith('🆔 ID:')) uid = ln.replace('🆔 ID:', '').trim();
+    else if (ln.startsWith('⌨️ פקודה/נושא:')) cmd = ln.replace('⌨️ פקודה/נושא:', '').trim();
+    else if (ln.startsWith('💬 תוכן ההצעה:')) {
+      desc = lines.slice(i + 1).join(' ').trim();
+      break;
+    }
+  }
+  const combined = desc ? `${cmd} - ${desc}` : cmd;
+  const isFix = /(תיקון|באג|תקלה|שגיאה|לתקן|לסדר|בעיה|bug|fix)/i.test(`${cmd} ${desc}`);
+  return { uid, cmd, desc, combined: combined.slice(0, 120), type: isFix ? 'fix' : 'dev' };
+}
+
+function buildDevBoardView(items, creatorViewer) {
+  const inDev = items.filter((x) => x.type !== 'fix');
+  const inFix = items.filter((x) => x.type === 'fix');
+
+  const devList = inDev.length
+    ? inDev.map((item, i) => `${i + 1}. 🚀 ${item.text}`).join('\n')
     : '• אין כרגע פקודות חדשות ברשימת הפיתוח.';
-  const fixList = board.inFix.length
-    ? board.inFix.map((item, i) => `${i + 1}. 🔧 ${item}`).join('\n')
+  const fixList = inFix.length
+    ? inFix.map((item, i) => `${i + 1}. 🔧 ${item.text}`).join('\n')
     : '• אין כרגע פקודות בתיקונים – כל המערכות פועלות תקין! ✅';
 
   const text =
     `🛠️ *לוח מצב פיתוח ותיקונים – וולטיק מוד*\n\n` +
-    `🚀 *פקודות ומערכות בפיתוח כרגע (${board.inDev.length}):*\n${devList}\n\n` +
-    `🔧 *פקודות ומערכות בתיקונים/שדרוג (${board.inFix.length}):*\n${fixList}` +
-    (creatorViewer
-      ? `\n\n👑 *פאנל עריכה ליוצר הבוט:*\nלחץ על הכפתורים למטה כדי להוסיף או להסיר פקודות מרשימת הפיתוח והתיקונים:`
-      : `\n\n💡 יש לכם רעיון לפקודה או מצאתם באג? לחצו על "💡 הצעה לשיפור" או "❓ שאלה ליוצר" בתפריט הראשי!`);
+    `🚀 *פקודות ומערכות בפיתוח כרגע (${inDev.length}):*\n${devList}\n\n` +
+    `🔧 *פקודות ומערכות בתיקונים/שדרוג (${inFix.length}):*\n${fixList}\n\n` +
+    `💡 *איך פקודה נכנסת לכאן?* כל הצעה שנשלחת דרך כפתור **"💡 הצעה לשיפור"** בתפריט הראשי מתווספת לכאן אוטומטית עד שיוצר הבוט מאשר או דוחה אותה!`;
 
   const rows = [];
   if (creatorViewer) {
-    rows.push([
-      { text: '➕ הוסף לפיתוח 🚀', callback_data: 'devb_add_dev' },
-      { text: '➕ הוסף לתיקונים 🔧', callback_data: 'devb_add_fix' }
-    ]);
-    board.inDev.forEach((item, idx) => {
-      const shortTxt = item.length > 18 ? `${item.slice(0, 18)}…` : item;
-      rows.push([{ text: `🗑️ הסר מפיתוח #${idx + 1}: ${shortTxt}`, callback_data: `devb_del_dev_${idx}` }]);
+    items.forEach((item, idx) => {
+      const shortTxt = item.text.length > 16 ? `${item.text.slice(0, 16)}…` : item.text;
+      const switchLabel = item.type === 'fix' ? '🚀 העבר לפיתוח' : '🔧 העבר לתיקונים';
+      rows.push([
+        { text: switchLabel, callback_data: `devb_flip_${idx}` },
+        { text: `🗑️ מחק: ${shortTxt}`, callback_data: `devb_del_${idx}` }
+      ]);
     });
-    board.inFix.forEach((item, idx) => {
-      const shortTxt = item.length > 18 ? `${item.slice(0, 18)}…` : item;
-      rows.push([{ text: `🗑️ הסר מתיקונים #${idx + 1}: ${shortTxt}`, callback_data: `devb_del_fix_${idx}` }]);
-    });
-    if (board.inDev.length || board.inFix.length) {
+    if (items.length) {
       rows.push([{ text: '🧹 נקה את כל הלוח', callback_data: 'devb_clear_all' }]);
     }
     rows.push([{ text: '👑 חזרה לפאנל היוצר', callback_data: 'own_panel' }]);
   }
+  rows.push([{ text: '💡 שלח הצעה לשיפור', callback_data: 'reqcmd_start' }]);
   rows.push([{ text: '🔙 חזרה לתפריט הראשי', callback_data: 'help_main' }]);
 
   return { text, reply_markup: { inline_keyboard: rows } };
 }
 
+function buildCleanJoinPanel(mode) {
+  const curMode = mode || 'off';
+  const labels = {
+    off: '❌ לא מוחק הודעות קודמות',
+    welcome: '👋 מוחק הודעת ברוך הבא קודמת בלבד',
+    verify: '🔐 מוחק הודעת אימות משתמש קודמת בלבד',
+    both: '🧹 מוחק גם וגם (ברוך הבא + אימות קודמים)'
+  };
+  const text =
+    `🧹 *מחיקת הודעות קודמות בכניסת משתמש חדש לקבוצה*\n` +
+    `📌 *מצב נוכחי בקבוצה:* ${labels[curMode] || labels.off}\n\n` +
+    `בחר מה הבוט ימחק אוטומטית מהצ׳אט בכל פעם שמשתמש חדש נכנס לקבוצה:`;
+
+  const kb = {
+    inline_keyboard: [
+      [{ text: `${curMode === 'welcome' ? '✅ ' : ''}👋 מחק הודעת ברוך הבא קודמת בלבד`, callback_data: 'clnjoin_set_welcome' }],
+      [{ text: `${curMode === 'verify' ? '✅ ' : ''}🔐 מחק הודעת אימות משתמש קודמת בלבד`, callback_data: 'clnjoin_set_verify' }],
+      [{ text: `${curMode === 'both' ? '✅ ' : ''}🧹 מחק גם וגם (ברוך הבא + אימות קודמים)`, callback_data: 'clnjoin_set_both' }],
+      [{ text: `${curMode === 'off' ? '✅ ' : ''}❌ אל תמחק הודעות קודמות`, callback_data: 'clnjoin_set_off' }]
+    ]
+  };
+  return { text, reply_markup: kb };
+}
+
+function isVerifyMessagePayload(payload) {
+  if (!payload || typeof payload.text !== 'string') return false;
+  const kbStr = JSON.stringify(payload.reply_markup || '');
+  return kbStr.includes('ver_ok_') || kbStr.includes('fcnt_verifyme_') || payload.text.includes('כדי לוודא שאינך בוט') || payload.text.includes('לאימות קידומת הטלפון');
+}
+
+function isWelcomeMessagePayload(payload) {
+  if (!payload || typeof payload.text !== 'string') return false;
+  if (isVerifyMessagePayload(payload)) return false;
+  if (payload.text.startsWith('📜 *חוקי הקבוצה') || payload.text.startsWith('📢 *חוקי הקבוצה') || payload.text.startsWith('✅ הטקסט שעל כפתור החוקים')) return false;
+  const kbStr = JSON.stringify(payload.reply_markup || '');
+  return kbStr.includes('?start=rules_') || payload.text.includes('אומתת בהצלחה וכעת באפשרותך לכתוב בקבוצה');
+}
+
 module.exports = function registerInfoCommands(bot) {
-  // הזרקת כפתור "🛠️ מה בפיתוח ובתיקונים" לתפריט הראשי ולפאנל /owner + ניקוי /setrules מחוקי הקבוצה
   if (bot && bot.telegram && !bot.telegram._rulesCleanWrapped) {
     bot.telegram._rulesCleanWrapped = true;
     const origCall = bot.telegram.callApi.bind(bot.telegram);
     bot.telegram.callApi = async function (method, payload, ...rest) {
+      let detectedWelcome = false;
+      let detectedVerify = false;
+
       try {
         if ((method === 'sendMessage' || method === 'editMessageText') && payload && typeof payload.text === 'string') {
+          // ניקוי /setrules מתוך הודעות חוקי קבוצה
           if (payload.text.includes('חוקי הקבוצה') && /\/setrules(@\S+)?/i.test(payload.text)) {
             payload.text = payload.text.replace(/\/setrules(@\S+)?\s*/gi, '');
           }
+
+          // 1א. כשמשתמש שולח "הצעה לשיפור" -> נכנס אוטומטית ללוח פיתוח/תיקונים!
+          if (method === 'sendMessage' && String(payload.chat_id) === String(CREATOR_ID) && payload.text.startsWith('📩 הצעה חדשה לשיפור / פקודה:')) {
+            const parsed = parseSuggestionCardText(payload.text);
+            if (parsed.cmd) {
+              const { s, items } = await loadDevBoard();
+              items.push({ id: Date.now().toString(36), uid: parsed.uid, cmd: parsed.cmd, text: parsed.combined, type: parsed.type });
+              await saveGroupData('owner_global', s);
+            }
+          }
+
+          // 1ב. כשיוצר הבוט לוחץ על "אישור" או "דחייה" -> ההצעה נמחקת אוטומטית מלוח הפיתוח/תיקונים!
+          if (method === 'editMessageText' && (payload.text.startsWith('אושר\n\n📩 הצעה חדשה לשיפור') || payload.text.startsWith('נדחה\n\n📩 הצעה חדשה לשיפור'))) {
+            const parsed = parseSuggestionCardText(payload.text);
+            const { s, items } = await loadDevBoard();
+            const beforeLen = items.length;
+            s.devBoard.items = items.filter((x) => {
+              if (parsed.cmd && (x.cmd === parsed.cmd || x.text === parsed.combined || x.text.startsWith(parsed.cmd))) return false;
+              if (parsed.uid && x.uid === parsed.uid) return false;
+              return true;
+            });
+            if (s.devBoard.items.length === beforeLen && s.devBoard.items.length > 0) {
+              s.devBoard.items.pop();
+            }
+            await saveGroupData('owner_global', s);
+          }
+
+          // הזרקת כפתורים לתפריט הראשי, לפאנל היוצר (/owner), ולפקודות /welcome ו-/verify
           const kb = payload.reply_markup?.inline_keyboard;
           if (Array.isArray(kb)) {
             const hasDevBtn = kb.some((r) => r.some((b) => b.callback_data === 'devboard_open'));
             if (!hasDevBtn && payload.text.includes('תפריט הפקודות הראשי')) {
               kb.splice(kb.length - 1, 0, [{ text: '🛠️ מה בפיתוח ובתיקונים', callback_data: 'devboard_open' }]);
             }
-            if (!hasDevBtn && payload.text.startsWith('👑 פאנל שליטה ראשי – יוצר הבוט')) {
-              kb.unshift([{ text: '🛠️ ניהול פקודות בפיתוח ובתיקונים', callback_data: 'devboard_open' }]);
+            if (payload.text.startsWith('👑 פאנל שליטה ראשי – יוצר הבוט')) {
+              if (!hasDevBtn) {
+                kb.unshift([{ text: '🛠️ לוח פקודות בפיתוח ובתיקונים', callback_data: 'devboard_open' }]);
+              }
+              const hasBcastGroups = kb.some((r) => r.some((b) => b.callback_data === 'bcast_groups_only'));
+              if (!hasBcastGroups) {
+                const bcastIdx = kb.findIndex((r) => r.some((b) => b.callback_data === 'own_bcast_users'));
+                const newBtnRow = [{ text: '🏢 שליחת הודעה לכל הקבוצות (ללא שליחה למשתמשים)', callback_data: 'bcast_groups_only' }];
+                if (bcastIdx >= 0) kb.splice(bcastIdx + 1, 0, newBtnRow);
+                else kb.push(newBtnRow);
+              }
+            }
+            if (payload.text.startsWith('🔐 *אימות אנושי למצטרפים') || payload.text.startsWith('⚙️ *פאנל הגדרות קבוצה')) {
+              const hasClnJoin = kb.some((r) => r.some((b) => b.callback_data === 'clnjoin_open'));
+              if (!hasClnJoin) {
+                kb.push([{ text: '🧹 מחיקת ברוך הבא / אימות קודמים בכניסה', callback_data: 'clnjoin_open' }]);
+              }
+            }
+          }
+
+          // 3. מחיקת הודעת ברוך הבא / אימות קודמת בכניסת משתמש חדש לפי בחירת מנהל הקבוצה
+          if (payload.chat_id && String(payload.chat_id).startsWith('-')) {
+            detectedVerify = method === 'sendMessage' && isVerifyMessagePayload(payload);
+            detectedWelcome = isWelcomeMessagePayload(payload);
+            if (detectedVerify || detectedWelcome) {
+              const gData = await getGroupData(payload.chat_id);
+              const mode = gData.cleanPrevJoinMode || 'off';
+              if (detectedWelcome && (mode === 'welcome' || mode === 'both') && gData.lastWelcomeMsgId && gData.lastWelcomeMsgId !== payload.message_id) {
+                await origCall('deleteMessage', { chat_id: payload.chat_id, message_id: gData.lastWelcomeMsgId }).catch(() => {});
+                gData.lastWelcomeMsgId = null;
+                await saveGroupData(payload.chat_id, gData);
+              }
+              if (detectedVerify && (mode === 'verify' || mode === 'both') && gData.lastVerifyMsgId) {
+                await origCall('deleteMessage', { chat_id: payload.chat_id, message_id: gData.lastVerifyMsgId }).catch(() => {});
+                gData.lastVerifyMsgId = null;
+                await saveGroupData(payload.chat_id, gData);
+              }
             }
           }
         }
       } catch (e) {}
-      return origCall(method, payload, ...rest);
+
+      const res = await origCall(method, payload, ...rest);
+
+      try {
+        if (res?.message_id && payload?.chat_id && String(payload.chat_id).startsWith('-')) {
+          if (detectedVerify || detectedWelcome) {
+            const gData = await getGroupData(payload.chat_id);
+            if (detectedVerify) gData.lastVerifyMsgId = res.message_id;
+            if (detectedWelcome) {
+              gData.lastWelcomeMsgId = res.message_id;
+              if (gData.lastVerifyMsgId === res.message_id) gData.lastVerifyMsgId = null;
+            }
+            await saveGroupData(payload.chat_id, gData);
+          }
+        }
+      } catch (e) {}
+
+      return res;
     };
   }
 
-  // קליטת טקסט מיוצר הבוט אחרי לחיצה על "➕ הוסף לפיתוח" או "➕ הוסף לתיקונים"
+  // קליטת הודעה מיוצר הבוט לשידור לכל הקבוצות בלבד (ללא משתמשים)
   bot.use(async (ctx, next) => {
-    if (isCreator(ctx) && ctx.message?.text) {
-      const waitMode = creatorDevWait[String(ctx.from.id)];
+    if (isCreator(ctx) && ctx.chat?.type === 'private' && ctx.message?.text) {
+      const uid = String(ctx.from.id);
+      const waitMode = creatorWaitState[uid];
       const txt = ctx.message.text.trim();
       if (waitMode && txt.startsWith('/')) {
-        delete creatorDevWait[String(ctx.from.id)];
-      } else if (waitMode && txt) {
-        delete creatorDevWait[String(ctx.from.id)];
-        const { s, board } = await loadDevBoard();
-        if (waitMode === 'dev') board.inDev.push(txt);
-        else board.inFix.push(txt);
-        await saveGroupData('owner_global', s);
-        const view = buildDevBoardView(board, true);
+        delete creatorWaitState[uid];
+      } else if (waitMode === 'bcast_groups_only' && txt) {
+        delete creatorWaitState[uid];
+        const s = await getGroupData('owner_global');
+        const gIds = Object.keys(s.groups || {});
+        let gc = 0;
+        for (const gid of gIds) {
+          try {
+            await safeSendGroupRich(ctx.telegram, gid, txt);
+            gc++;
+          } catch (e) {}
+        }
         return await ctx.reply(
-          `✅ נוסף בהצלחה לרשימת *${waitMode === 'dev' ? 'בפיתוח 🚀' : 'בתיקונים 🔧'}*!\n\n${view.text}`,
-          { parse_mode: 'Markdown', reply_markup: view.reply_markup }
+          `🏢 ההודעה נשלחה בהצלחה ל-*${gc} קבוצות בלבד* (ללא שליחה למשתמשים בפרטי)!`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: { inline_keyboard: [[{ text: '👑 חזרה לפאנל היוצר', callback_data: 'own_panel' }]] }
+          }
         );
       }
     }
     return next();
   });
 
-  // פקודות וכפתורים ללוח פיתוח ותיקונים (/dev, /status, /roadmap)
-  bot.command(['dev', 'status', 'roadmap', 'in_dev'], async (ctx) => {
-    const { board } = await loadDevBoard();
-    const view = buildDevBoardView(board, isCreator(ctx));
+  // כפתור ופקודה לשליחת הודעה לכל הקבוצות בלבד (ללא שליחה למשתמשים)
+  bot.action('bcast_groups_only', async (ctx) => {
+    if (!isCreator(ctx)) return ctx.answerCbQuery('⛔ ליוצר הבוט בלבד!', { show_alert: true }).catch(() => {});
+    creatorWaitState[String(ctx.from.id)] = 'bcast_groups_only';
+    await ctx.answerCbQuery().catch(() => {});
+    const txt =
+      '🏢 *שליחת הודעה לכל הקבוצות (ללא שליחה למשתמשים)*\n\n' +
+      'כתוב עכשיו את ההודעה שתרצה לשלוח לכל הקבוצות שבהן הבוט נמצא (תומך בעיצוב וכפתורים):';
+    const kb = { inline_keyboard: [[{ text: '❌ ביטול וחזרה לפאנל היוצר', callback_data: 'bcast_groups_cancel' }]] };
+    await ctx.editMessageText(txt, { parse_mode: 'Markdown', reply_markup: kb })
+      .catch(() => ctx.reply(txt, { parse_mode: 'Markdown', reply_markup: kb }));
+  });
+
+  bot.action('bcast_groups_cancel', async (ctx) => {
+    if (!isCreator(ctx)) return;
+    delete creatorWaitState[String(ctx.from.id)];
+    await ctx.answerCbQuery('בוטל').catch(() => {});
+    await ctx.editMessageText('❌ השליחה לקבוצות בוטלה.', {
+      reply_markup: { inline_keyboard: [[{ text: '👑 חזרה לפאנל היוצר', callback_data: 'own_panel' }]] }
+    }).catch(() => {});
+  });
+
+  bot.command(['broadcast_groups', 'owner_sendgroups'], async (ctx) => {
+    if (!isCreator(ctx)) return;
+    const msg = (ctx.message.text || '').replace(/^\/(broadcast_groups|owner_sendgroups)(@\S+)?\s*/i, '').trim();
+    if (!msg) {
+      return ctx.reply('שימוש: `/broadcast_groups [הודעה לכל הקבוצות בלבד ללא משתמשים]`', { parse_mode: 'Markdown' });
+    }
+    const s = await getGroupData('owner_global');
+    let gc = 0;
+    for (const gid of Object.keys(s.groups || {})) {
+      try { await safeSendGroupRich(ctx.telegram, gid, msg); gc++; } catch (e) {}
+    }
+    await ctx.reply(`🏢 שודר בהצלחה ל-${gc} קבוצות בלבד (ללא שליחה למשתמשים).`);
+  });
+
+  // פקודה וכפתורים למנהל קבוצה: בחירה אם למחוק הודעת ברוך הבא / אימות קודמת בכניסת משתמש חדש
+  bot.command(['clean_welcome', 'welcome_clean', 'clean_join'], async (ctx) => {
+    if (!(await requireAdmin(ctx, '/clean_welcome'))) return;
+    const data = await getGroupData(ctx.chat.id);
+    const view = buildCleanJoinPanel(data.cleanPrevJoinMode || 'off');
     await ctx.reply(view.text, { parse_mode: 'Markdown', reply_markup: view.reply_markup });
   });
 
-  bot.command('add_dev', async (ctx) => {
-    if (!isCreator(ctx)) return;
-    const item = (ctx.message.text || '').replace(/^\/add_dev(@\S+)?\s*/i, '').trim();
-    if (!item) return ctx.reply('שימוש ליוצר: `/add_dev [שם הפקודה או הפיצ׳ר שבפיתוח]`', { parse_mode: 'Markdown' });
-    const { s, board } = await loadDevBoard();
-    board.inDev.push(item);
-    await saveGroupData('owner_global', s);
-    const view = buildDevBoardView(board, true);
-    await ctx.reply(`🚀 נוסף לרשימת הפיתוח!\n\n${view.text}`, { parse_mode: 'Markdown', reply_markup: view.reply_markup });
-  });
-
-  bot.command('add_fix', async (ctx) => {
-    if (!isCreator(ctx)) return;
-    const item = (ctx.message.text || '').replace(/^\/add_fix(@\S+)?\s*/i, '').trim();
-    if (!item) return ctx.reply('שימוש ליוצר: `/add_fix [שם הפקודה או התקלה שבתיקונים]`', { parse_mode: 'Markdown' });
-    const { s, board } = await loadDevBoard();
-    board.inFix.push(item);
-    await saveGroupData('owner_global', s);
-    const view = buildDevBoardView(board, true);
-    await ctx.reply(`🔧 נוסף לרשימת התיקונים!\n\n${view.text}`, { parse_mode: 'Markdown', reply_markup: view.reply_markup });
-  });
-
-  bot.command('del_dev', async (ctx) => {
-    if (!isCreator(ctx)) return;
-    const idx = parseInt(((ctx.message.text || '').trim().split(/\s+/)[1] || ''), 10) - 1;
-    const { s, board } = await loadDevBoard();
-    if (isNaN(idx) || idx < 0 || idx >= board.inDev.length) {
-      return ctx.reply('⚠️ ציין מספר תקין להסרה מרשימת הפיתוח, למשל: `/del_dev 1`', { parse_mode: 'Markdown' });
+  bot.action('clnjoin_open', async (ctx) => {
+    if (!(await isGroupAdminCb(ctx))) {
+      return ctx.answerCbQuery('⛔ למנהלי הקבוצה בלבד!', { show_alert: true }).catch(() => {});
     }
-    const removed = board.inDev.splice(idx, 1)[0];
-    await saveGroupData('owner_global', s);
-    await ctx.reply(`🗑️ הוסר מרשימת הפיתוח: *"${removed}"*`, { parse_mode: 'Markdown' });
-  });
-
-  bot.command('del_fix', async (ctx) => {
-    if (!isCreator(ctx)) return;
-    const idx = parseInt(((ctx.message.text || '').trim().split(/\s+/)[1] || ''), 10) - 1;
-    const { s, board } = await loadDevBoard();
-    if (isNaN(idx) || idx < 0 || idx >= board.inFix.length) {
-      return ctx.reply('⚠️ ציין מספר תקין להסרה מרשימת התיקונים, למשל: `/del_fix 1`', { parse_mode: 'Markdown' });
-    }
-    const removed = board.inFix.splice(idx, 1)[0];
-    await saveGroupData('owner_global', s);
-    await ctx.reply(`🗑️ הוסר מרשימת התיקונים: *"${removed}"*`, { parse_mode: 'Markdown' });
-  });
-
-  bot.action('devboard_open', async (ctx) => {
-    delete creatorDevWait[String(ctx.from?.id)];
     await ctx.answerCbQuery().catch(() => {});
-    const { board } = await loadDevBoard();
-    const view = buildDevBoardView(board, isCreator(ctx));
+    const data = await getGroupData(ctx.chat.id);
+    const view = buildCleanJoinPanel(data.cleanPrevJoinMode || 'off');
     await ctx.editMessageText(view.text, { parse_mode: 'Markdown', reply_markup: view.reply_markup })
       .catch(() => ctx.reply(view.text, { parse_mode: 'Markdown', reply_markup: view.reply_markup }));
   });
 
-  bot.action(/^devb_add_(dev|fix)$/, async (ctx) => {
-    if (!isCreator(ctx)) return ctx.answerCbQuery('⛔ ליוצר הבוט בלבד!', { show_alert: true }).catch(() => {});
-    const type = ctx.match[1];
-    creatorDevWait[String(ctx.from.id)] = type;
-    await ctx.answerCbQuery().catch(() => {});
-    const promptTxt = type === 'dev'
-      ? '🚀 *הוספת פקודה/מערכת לרשימת הפיתוח*\n\nכתוב עכשיו בהודעה את שם הפקודה והתיאור הקצר (למשל: `/ lottery - הגרלת כרטיסים אוטומטית`):'
-      : '🔧 *הוספת פקודה/מערכת לרשימת התיקונים*\n\nכתוב עכשיו בהודעה איזו פקודה נמצאת בתיקון או שדרוג (למשל: `/setrules - שדרוג מצב שקט ופומבי`):';
-    await ctx.editMessageText(promptTxt, {
-      parse_mode: 'Markdown',
-      reply_markup: { inline_keyboard: [[{ text: '❌ ביטול וחזרה ללוח', callback_data: 'devboard_open' }]] }
-    }).catch(() => {});
+  bot.action(/^clnjoin_set_(welcome|verify|both|off)$/, async (ctx) => {
+    if (!(await isGroupAdminCb(ctx))) {
+      return ctx.answerCbQuery('⛔ למנהלי הקבוצה בלבד!', { show_alert: true }).catch(() => {});
+    }
+    const mode = ctx.match[1];
+    const data = await getGroupData(ctx.chat.id);
+    data.cleanPrevJoinMode = mode;
+    await saveGroupData(ctx.chat.id, data);
+    await ctx.answerCbQuery('✅ ההגדרה נשמרה!').catch(() => {});
+    const view = buildCleanJoinPanel(mode);
+    await ctx.editMessageText(view.text, { parse_mode: 'Markdown', reply_markup: view.reply_markup }).catch(() => {});
   });
 
-  bot.action(/^devb_del_(dev|fix)_(\d+)$/, async (ctx) => {
+  // פקודות וכפתורים ללוח פיתוח ותיקונים (/dev, /status, /roadmap)
+  bot.command(['dev', 'status', 'roadmap', 'in_dev'], async (ctx) => {
+    const { items } = await loadDevBoard();
+    const view = buildDevBoardView(items, isCreator(ctx));
+    await ctx.reply(view.text, { parse_mode: 'Markdown', reply_markup: view.reply_markup });
+  });
+
+  bot.action('devboard_open', async (ctx) => {
+    await ctx.answerCbQuery().catch(() => {});
+    const { items } = await loadDevBoard();
+    const view = buildDevBoardView(items, isCreator(ctx));
+    await ctx.editMessageText(view.text, { parse_mode: 'Markdown', reply_markup: view.reply_markup })
+      .catch(() => ctx.reply(view.text, { parse_mode: 'Markdown', reply_markup: view.reply_markup }));
+  });
+
+  bot.action(/^devb_flip_(\d+)$/, async (ctx) => {
     if (!isCreator(ctx)) return ctx.answerCbQuery('⛔ ליוצר הבוט בלבד!', { show_alert: true }).catch(() => {});
-    const type = ctx.match[1];
-    const idx = parseInt(ctx.match[2], 10);
-    const { s, board } = await loadDevBoard();
-    const arr = type === 'dev' ? board.inDev : board.inFix;
-    if (idx < 0 || idx >= arr.length) return ctx.answerCbQuery('כבר הוסר').catch(() => {});
-    const removed = arr.splice(idx, 1)[0];
+    const idx = parseInt(ctx.match[1], 10);
+    const { s, items } = await loadDevBoard();
+    if (!items[idx]) return ctx.answerCbQuery('לא נמצא').catch(() => {});
+    items[idx].type = items[idx].type === 'fix' ? 'dev' : 'fix';
     await saveGroupData('owner_global', s);
-    await ctx.answerCbQuery(`🗑️ הוסר: ${removed.slice(0, 25)}`).catch(() => {});
-    const view = buildDevBoardView(board, true);
+    await ctx.answerCbQuery('🔄 הועבר!').catch(() => {});
+    const view = buildDevBoardView(items, true);
+    await ctx.editMessageText(view.text, { parse_mode: 'Markdown', reply_markup: view.reply_markup }).catch(() => {});
+  });
+
+  bot.action(/^devb_del_(\d+)$/, async (ctx) => {
+    if (!isCreator(ctx)) return ctx.answerCbQuery('⛔ ליוצר הבוט בלבד!', { show_alert: true }).catch(() => {});
+    const idx = parseInt(ctx.match[1], 10);
+    const { s, items } = await loadDevBoard();
+    if (idx < 0 || idx >= items.length) return ctx.answerCbQuery('כבר הוסר').catch(() => {});
+    const removed = items.splice(idx, 1)[0];
+    await saveGroupData('owner_global', s);
+    await ctx.answerCbQuery(`🗑️ הוסר: ${removed.text.slice(0, 25)}`).catch(() => {});
+    const view = buildDevBoardView(items, true);
     await ctx.editMessageText(view.text, { parse_mode: 'Markdown', reply_markup: view.reply_markup }).catch(() => {});
   });
 
   bot.action('devb_clear_all', async (ctx) => {
     if (!isCreator(ctx)) return ctx.answerCbQuery('⛔ ליוצר הבוט בלבד!', { show_alert: true }).catch(() => {});
-    const { s, board } = await loadDevBoard();
-    board.inDev = [];
-    board.inFix = [];
+    const { s } = await loadDevBoard();
+    s.devBoard.items = [];
     await saveGroupData('owner_global', s);
     await ctx.answerCbQuery('🧹 הלוח נוקה!').catch(() => {});
-    const view = buildDevBoardView(board, true);
+    const view = buildDevBoardView([], true);
     await ctx.editMessageText(view.text, { parse_mode: 'Markdown', reply_markup: view.reply_markup }).catch(() => {});
   });
 
@@ -280,7 +463,6 @@ module.exports = function registerInfoCommands(bot) {
         rawInput = replyMsg.text || replyMsg.caption;
       }
 
-      // בדיקה אם המנהל ציין מראש "שקט" או "פומבי" בתחילת הפקודה
       let explicitMode = null;
       if (/^(שקט|silent)(\s+|\n|$)/i.test(rawInput.trim())) {
         explicitMode = 'silent';
@@ -300,11 +482,9 @@ module.exports = function registerInfoCommands(bot) {
         );
       }
 
-      // בדיקת תקינות העיצוב ושליחת הודעת בדיקה זמנית שנמחקת מיד
       const preview = await sendFormattedMessage(ctx, text, { name: ctx.from.first_name || 'חבר' });
       if (!preview) return;
 
-      // 1. מחיקה מיידית של הודעת המגדיר ושל הודעת החוקים של הבוט מהקבוצה!
       if (adminMsgId) {
         await ctx.telegram.deleteMessage(ctx.chat.id, adminMsgId).catch(() => {});
       }
@@ -336,7 +516,6 @@ module.exports = function registerInfoCommands(bot) {
         });
       }
 
-      // 2. שליחת כפתורי בחירה למנהל: הגדרת החוקים באופן שקט או פומבי
       await ctx.reply(
         '✅ *חוקי הקבוצה נשמרו והודעות הטקסט נמחקו מהצ׳אט!*\n\n' +
         'איך תרצה להגדיר את חוקי הקבוצה כעת?',
