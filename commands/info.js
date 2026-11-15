@@ -6,6 +6,10 @@ const {
   getTarget
 } = require('./utils');
 
+const CREATOR_ID = 1773089386;
+const isCreator = (ctx) => Number(ctx.from?.id) === CREATOR_ID;
+const creatorDevWait = {};
+
 // ניקוי אוטומטי של טקסט החוקים מפקודות /setrules כפולות, תווי כיוון נסתרים וכותרות כפולות
 function cleanRulesText(raw) {
   let txt = String(raw || '').trim();
@@ -31,8 +35,56 @@ async function isGroupAdminCb(ctx) {
   }
 }
 
+async function loadDevBoard() {
+  const s = await getGroupData('owner_global');
+  s.devBoard = s.devBoard || { inDev: [], inFix: [] };
+  s.devBoard.inDev = Array.isArray(s.devBoard.inDev) ? s.devBoard.inDev : [];
+  s.devBoard.inFix = Array.isArray(s.devBoard.inFix) ? s.devBoard.inFix : [];
+  return { s, board: s.devBoard };
+}
+
+function buildDevBoardView(board, creatorViewer) {
+  const devList = board.inDev.length
+    ? board.inDev.map((item, i) => `${i + 1}. 🚀 ${item}`).join('\n')
+    : '• אין כרגע פקודות חדשות ברשימת הפיתוח.';
+  const fixList = board.inFix.length
+    ? board.inFix.map((item, i) => `${i + 1}. 🔧 ${item}`).join('\n')
+    : '• אין כרגע פקודות בתיקונים – כל המערכות פועלות תקין! ✅';
+
+  const text =
+    `🛠️ *לוח מצב פיתוח ותיקונים – וולטיק מוד*\n\n` +
+    `🚀 *פקודות ומערכות בפיתוח כרגע (${board.inDev.length}):*\n${devList}\n\n` +
+    `🔧 *פקודות ומערכות בתיקונים/שדרוג (${board.inFix.length}):*\n${fixList}` +
+    (creatorViewer
+      ? `\n\n👑 *פאנל עריכה ליוצר הבוט:*\nלחץ על הכפתורים למטה כדי להוסיף או להסיר פקודות מרשימת הפיתוח והתיקונים:`
+      : `\n\n💡 יש לכם רעיון לפקודה או מצאתם באג? לחצו על "💡 הצעה לשיפור" או "❓ שאלה ליוצר" בתפריט הראשי!`);
+
+  const rows = [];
+  if (creatorViewer) {
+    rows.push([
+      { text: '➕ הוסף לפיתוח 🚀', callback_data: 'devb_add_dev' },
+      { text: '➕ הוסף לתיקונים 🔧', callback_data: 'devb_add_fix' }
+    ]);
+    board.inDev.forEach((item, idx) => {
+      const shortTxt = item.length > 18 ? `${item.slice(0, 18)}…` : item;
+      rows.push([{ text: `🗑️ הסר מפיתוח #${idx + 1}: ${shortTxt}`, callback_data: `devb_del_dev_${idx}` }]);
+    });
+    board.inFix.forEach((item, idx) => {
+      const shortTxt = item.length > 18 ? `${item.slice(0, 18)}…` : item;
+      rows.push([{ text: `🗑️ הסר מתיקונים #${idx + 1}: ${shortTxt}`, callback_data: `devb_del_fix_${idx}` }]);
+    });
+    if (board.inDev.length || board.inFix.length) {
+      rows.push([{ text: '🧹 נקה את כל הלוח', callback_data: 'devb_clear_all' }]);
+    }
+    rows.push([{ text: '👑 חזרה לפאנל היוצר', callback_data: 'own_panel' }]);
+  }
+  rows.push([{ text: '🔙 חזרה לתפריט הראשי', callback_data: 'help_main' }]);
+
+  return { text, reply_markup: { inline_keyboard: rows } };
+}
+
 module.exports = function registerInfoCommands(bot) {
-  // ניקוי אוטומטי של /setrules מתוך הודעות חוקי קבוצה גם בלחיצה על כפתור החוקים בפרטי
+  // הזרקת כפתור "🛠️ מה בפיתוח ובתיקונים" לתפריט הראשי ולפאנל /owner + ניקוי /setrules מחוקי הקבוצה
   if (bot && bot.telegram && !bot.telegram._rulesCleanWrapped) {
     bot.telegram._rulesCleanWrapped = true;
     const origCall = bot.telegram.callApi.bind(bot.telegram);
@@ -42,11 +94,145 @@ module.exports = function registerInfoCommands(bot) {
           if (payload.text.includes('חוקי הקבוצה') && /\/setrules(@\S+)?/i.test(payload.text)) {
             payload.text = payload.text.replace(/\/setrules(@\S+)?\s*/gi, '');
           }
+          const kb = payload.reply_markup?.inline_keyboard;
+          if (Array.isArray(kb)) {
+            const hasDevBtn = kb.some((r) => r.some((b) => b.callback_data === 'devboard_open'));
+            if (!hasDevBtn && payload.text.includes('תפריט הפקודות הראשי')) {
+              kb.splice(kb.length - 1, 0, [{ text: '🛠️ מה בפיתוח ובתיקונים', callback_data: 'devboard_open' }]);
+            }
+            if (!hasDevBtn && payload.text.startsWith('👑 פאנל שליטה ראשי – יוצר הבוט')) {
+              kb.unshift([{ text: '🛠️ ניהול פקודות בפיתוח ובתיקונים', callback_data: 'devboard_open' }]);
+            }
+          }
         }
       } catch (e) {}
       return origCall(method, payload, ...rest);
     };
   }
+
+  // קליטת טקסט מיוצר הבוט אחרי לחיצה על "➕ הוסף לפיתוח" או "➕ הוסף לתיקונים"
+  bot.use(async (ctx, next) => {
+    if (isCreator(ctx) && ctx.message?.text) {
+      const waitMode = creatorDevWait[String(ctx.from.id)];
+      const txt = ctx.message.text.trim();
+      if (waitMode && txt.startsWith('/')) {
+        delete creatorDevWait[String(ctx.from.id)];
+      } else if (waitMode && txt) {
+        delete creatorDevWait[String(ctx.from.id)];
+        const { s, board } = await loadDevBoard();
+        if (waitMode === 'dev') board.inDev.push(txt);
+        else board.inFix.push(txt);
+        await saveGroupData('owner_global', s);
+        const view = buildDevBoardView(board, true);
+        return await ctx.reply(
+          `✅ נוסף בהצלחה לרשימת *${waitMode === 'dev' ? 'בפיתוח 🚀' : 'בתיקונים 🔧'}*!\n\n${view.text}`,
+          { parse_mode: 'Markdown', reply_markup: view.reply_markup }
+        );
+      }
+    }
+    return next();
+  });
+
+  // פקודות וכפתורים ללוח פיתוח ותיקונים (/dev, /status, /roadmap)
+  bot.command(['dev', 'status', 'roadmap', 'in_dev'], async (ctx) => {
+    const { board } = await loadDevBoard();
+    const view = buildDevBoardView(board, isCreator(ctx));
+    await ctx.reply(view.text, { parse_mode: 'Markdown', reply_markup: view.reply_markup });
+  });
+
+  bot.command('add_dev', async (ctx) => {
+    if (!isCreator(ctx)) return;
+    const item = (ctx.message.text || '').replace(/^\/add_dev(@\S+)?\s*/i, '').trim();
+    if (!item) return ctx.reply('שימוש ליוצר: `/add_dev [שם הפקודה או הפיצ׳ר שבפיתוח]`', { parse_mode: 'Markdown' });
+    const { s, board } = await loadDevBoard();
+    board.inDev.push(item);
+    await saveGroupData('owner_global', s);
+    const view = buildDevBoardView(board, true);
+    await ctx.reply(`🚀 נוסף לרשימת הפיתוח!\n\n${view.text}`, { parse_mode: 'Markdown', reply_markup: view.reply_markup });
+  });
+
+  bot.command('add_fix', async (ctx) => {
+    if (!isCreator(ctx)) return;
+    const item = (ctx.message.text || '').replace(/^\/add_fix(@\S+)?\s*/i, '').trim();
+    if (!item) return ctx.reply('שימוש ליוצר: `/add_fix [שם הפקודה או התקלה שבתיקונים]`', { parse_mode: 'Markdown' });
+    const { s, board } = await loadDevBoard();
+    board.inFix.push(item);
+    await saveGroupData('owner_global', s);
+    const view = buildDevBoardView(board, true);
+    await ctx.reply(`🔧 נוסף לרשימת התיקונים!\n\n${view.text}`, { parse_mode: 'Markdown', reply_markup: view.reply_markup });
+  });
+
+  bot.command('del_dev', async (ctx) => {
+    if (!isCreator(ctx)) return;
+    const idx = parseInt(((ctx.message.text || '').trim().split(/\s+/)[1] || ''), 10) - 1;
+    const { s, board } = await loadDevBoard();
+    if (isNaN(idx) || idx < 0 || idx >= board.inDev.length) {
+      return ctx.reply('⚠️ ציין מספר תקין להסרה מרשימת הפיתוח, למשל: `/del_dev 1`', { parse_mode: 'Markdown' });
+    }
+    const removed = board.inDev.splice(idx, 1)[0];
+    await saveGroupData('owner_global', s);
+    await ctx.reply(`🗑️ הוסר מרשימת הפיתוח: *"${removed}"*`, { parse_mode: 'Markdown' });
+  });
+
+  bot.command('del_fix', async (ctx) => {
+    if (!isCreator(ctx)) return;
+    const idx = parseInt(((ctx.message.text || '').trim().split(/\s+/)[1] || ''), 10) - 1;
+    const { s, board } = await loadDevBoard();
+    if (isNaN(idx) || idx < 0 || idx >= board.inFix.length) {
+      return ctx.reply('⚠️ ציין מספר תקין להסרה מרשימת התיקונים, למשל: `/del_fix 1`', { parse_mode: 'Markdown' });
+    }
+    const removed = board.inFix.splice(idx, 1)[0];
+    await saveGroupData('owner_global', s);
+    await ctx.reply(`🗑️ הוסר מרשימת התיקונים: *"${removed}"*`, { parse_mode: 'Markdown' });
+  });
+
+  bot.action('devboard_open', async (ctx) => {
+    delete creatorDevWait[String(ctx.from?.id)];
+    await ctx.answerCbQuery().catch(() => {});
+    const { board } = await loadDevBoard();
+    const view = buildDevBoardView(board, isCreator(ctx));
+    await ctx.editMessageText(view.text, { parse_mode: 'Markdown', reply_markup: view.reply_markup })
+      .catch(() => ctx.reply(view.text, { parse_mode: 'Markdown', reply_markup: view.reply_markup }));
+  });
+
+  bot.action(/^devb_add_(dev|fix)$/, async (ctx) => {
+    if (!isCreator(ctx)) return ctx.answerCbQuery('⛔ ליוצר הבוט בלבד!', { show_alert: true }).catch(() => {});
+    const type = ctx.match[1];
+    creatorDevWait[String(ctx.from.id)] = type;
+    await ctx.answerCbQuery().catch(() => {});
+    const promptTxt = type === 'dev'
+      ? '🚀 *הוספת פקודה/מערכת לרשימת הפיתוח*\n\nכתוב עכשיו בהודעה את שם הפקודה והתיאור הקצר (למשל: `/ lottery - הגרלת כרטיסים אוטומטית`):'
+      : '🔧 *הוספת פקודה/מערכת לרשימת התיקונים*\n\nכתוב עכשיו בהודעה איזו פקודה נמצאת בתיקון או שדרוג (למשל: `/setrules - שדרוג מצב שקט ופומבי`):';
+    await ctx.editMessageText(promptTxt, {
+      parse_mode: 'Markdown',
+      reply_markup: { inline_keyboard: [[{ text: '❌ ביטול וחזרה ללוח', callback_data: 'devboard_open' }]] }
+    }).catch(() => {});
+  });
+
+  bot.action(/^devb_del_(dev|fix)_(\d+)$/, async (ctx) => {
+    if (!isCreator(ctx)) return ctx.answerCbQuery('⛔ ליוצר הבוט בלבד!', { show_alert: true }).catch(() => {});
+    const type = ctx.match[1];
+    const idx = parseInt(ctx.match[2], 10);
+    const { s, board } = await loadDevBoard();
+    const arr = type === 'dev' ? board.inDev : board.inFix;
+    if (idx < 0 || idx >= arr.length) return ctx.answerCbQuery('כבר הוסר').catch(() => {});
+    const removed = arr.splice(idx, 1)[0];
+    await saveGroupData('owner_global', s);
+    await ctx.answerCbQuery(`🗑️ הוסר: ${removed.slice(0, 25)}`).catch(() => {});
+    const view = buildDevBoardView(board, true);
+    await ctx.editMessageText(view.text, { parse_mode: 'Markdown', reply_markup: view.reply_markup }).catch(() => {});
+  });
+
+  bot.action('devb_clear_all', async (ctx) => {
+    if (!isCreator(ctx)) return ctx.answerCbQuery('⛔ ליוצר הבוט בלבד!', { show_alert: true }).catch(() => {});
+    const { s, board } = await loadDevBoard();
+    board.inDev = [];
+    board.inFix = [];
+    await saveGroupData('owner_global', s);
+    await ctx.answerCbQuery('🧹 הלוח נוקה!').catch(() => {});
+    const view = buildDevBoardView(board, true);
+    await ctx.editMessageText(view.text, { parse_mode: 'Markdown', reply_markup: view.reply_markup }).catch(() => {});
+  });
 
   // 24. /rules + /setrules - הצגת והגדרת חוקי הקבוצה (במצב שקט או פומבי + מחיקה אוטומטית של הודעות ההגדרה)
   bot.command('rules', async (ctx) => {
