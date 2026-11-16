@@ -136,20 +136,20 @@ async function isGroupAdminCb(ctx) {
 
 async function getUserActiveVersion(uid) {
   if (Number(uid) === CREATOR_ID) return LATEST_VERSION;
-  const s = await getGroupData('owner_global');
+  const s = await getGroupData('info_global_state');
   s.userVersions = s.userVersions || {};
   return s.userVersions[String(uid)] || DEFAULT_PREV_USER_VERSION;
 }
 
 async function setUserActiveVersion(uid, ver) {
-  const s = await getGroupData('owner_global');
+  const s = await getGroupData('info_global_state');
   s.userVersions = s.userVersions || {};
   s.userVersions[String(uid)] = ver;
-  await saveGroupData('owner_global', s);
+  await saveGroupData('info_global_state', s);
 }
 
 async function loadDevBoard() {
-  const s = await getGroupData('owner_global');
+  const s = await getGroupData('info_global_state');
   s.devBoard = s.devBoard || { items: [] };
   if (!Array.isArray(s.devBoard.items)) s.devBoard.items = [];
   return { s, items: s.devBoard.items };
@@ -401,7 +401,7 @@ module.exports = function registerInfoCommands(bot) {
   if (bot && bot.telegram && !bot.telegram._rulesCleanWrapped) {
     bot.telegram._rulesCleanWrapped = true;
     const origCall = bot.telegram.callApi.bind(bot.telegram);
-    bot.telegram.callApi = async function (method, payload, ...rest) {
+    const wrappedCallApi = async function (method, payload, ...rest) {
       let detectedWelcome = false;
       let detectedVerify = false;
 
@@ -448,7 +448,7 @@ module.exports = function registerInfoCommands(bot) {
             if (parsed.cmd) {
               const { s, items } = await loadDevBoard();
               items.push({ id: Date.now().toString(36), uid: parsed.uid, cmd: parsed.cmd, text: parsed.combined, type: parsed.type });
-              await saveGroupData('owner_global', s);
+              await saveGroupData('info_global_state', s);
             }
           }
 
@@ -462,7 +462,7 @@ module.exports = function registerInfoCommands(bot) {
               return true;
             });
             if (s.devBoard.items.length === beforeLen && s.devBoard.items.length > 0) s.devBoard.items.pop();
-            await saveGroupData('owner_global', s);
+            await saveGroupData('info_global_state', s);
           }
 
           const kb = payload.reply_markup?.inline_keyboard;
@@ -598,6 +598,12 @@ module.exports = function registerInfoCommands(bot) {
 
       return res;
     };
+    bot.telegram.callApi = wrappedCallApi;
+    const tgProto = Object.getPrototypeOf(bot.telegram);
+    if (tgProto && !tgProto._volticProtoWrapped) {
+      tgProto._volticProtoWrapped = true;
+      tgProto.callApi = wrappedCallApi;
+    }
   }
 
   // 2. לחיצה על "🆕 עדכון מספר..." -> מציג למשתמש מה חדש בגרסה שבה הוא נמצא כרגע!
@@ -678,7 +684,7 @@ module.exports = function registerInfoCommands(bot) {
   bot.action('ver_history_open', async (ctx) => {
     if (!isCreator(ctx)) return ctx.answerCbQuery('⛔ ליוצר הבוט בלבד!', { show_alert: true }).catch(() => {});
     await ctx.answerCbQuery().catch(() => {});
-    const s = await getGroupData('owner_global');
+    const s = await getGroupData('info_global_state');
     const uVers = Object.values(s.userVersions || {});
     const upgradedUsers = uVers.filter((v) => v === LATEST_VERSION).length + 1;
     const verKeys = Object.keys(VERSION_HISTORY).reverse();
@@ -706,6 +712,7 @@ module.exports = function registerInfoCommands(bot) {
     await ctx.editMessageText(text, { parse_mode: 'Markdown', reply_markup: { inline_keyboard: rows } })
       .catch(() => ctx.reply(text, { parse_mode: 'Markdown', reply_markup: { inline_keyboard: rows } }));
   });
+
   bot.action(/^ver_hist_item_(.+)$/, async (ctx) => {
     if (!isCreator(ctx)) return ctx.answerCbQuery('⛔ ליוצר הבוט בלבד!', { show_alert: true }).catch(() => {});
     const ver = ctx.match[1];
@@ -753,7 +760,7 @@ module.exports = function registerInfoCommands(bot) {
         const itemType = waitMode === 'devb_add_fix' ? 'fix' : 'dev';
         const { s, items } = await loadDevBoard();
         items.push({ id: Date.now().toString(36), uid, cmd: txt.split(/\s+/)[0], text: txt.slice(0, 120), type: itemType });
-        await saveGroupData('owner_global', s);
+        await saveGroupData('info_global_state', s);
         const view = buildDevBoardView(items, true);
         return await ctx.reply(`✅ נוסף בהצלחה ל${itemType === 'fix' ? 'רשימת התיקונים 🔧' : 'רשימת הפיתוח 🚀'}!
 
@@ -837,7 +844,7 @@ ${view.text}`, {
   // פקודה ליוצר הבוט לצפייה בהיסטוריית עדכוני הבוט (/owner_versions או /version_history)
   bot.command(['owner_versions', 'version_history'], async (ctx) => {
     if (!isCreator(ctx)) return;
-    const s = await getGroupData('owner_global');
+    const s = await getGroupData('info_global_state');
     const upgradedUsers = Object.values(s.userVersions || {}).filter((v) => v === LATEST_VERSION).length + 1;
     const verKeys = Object.keys(VERSION_HISTORY).reverse();
     const summaryLines = verKeys.map((v, idx) => `${idx + 1}. 🔖 *${VERSION_HISTORY[v].title}* (${VERSION_HISTORY[v].date})`).join('\n');
@@ -931,7 +938,7 @@ ${view.text}`, {
     if (!raw) return ctx.reply(`שימוש: \`/${isFixCmd ? 'fix_add' : 'dev_add'} [שם הפקודה והתיאור]\``, { parse_mode: 'Markdown' });
     const { s, items } = await loadDevBoard();
     items.push({ id: Date.now().toString(36), uid: String(ctx.from.id), cmd: raw.split(/\s+/)[0], text: raw.slice(0, 120), type: isFixCmd ? 'fix' : 'dev' });
-    await saveGroupData('owner_global', s);
+    await saveGroupData('info_global_state', s);
     const view = buildDevBoardView(items, true);
     await ctx.reply(view.text, { parse_mode: 'Markdown', reply_markup: view.reply_markup });
   });
@@ -955,13 +962,14 @@ ${view.text}`, {
     await ctx.editMessageText(view.text, { parse_mode: 'Markdown', reply_markup: view.reply_markup })
       .catch(() => ctx.reply(view.text, { parse_mode: 'Markdown', reply_markup: view.reply_markup }));
   });
+
   bot.action(/^devb_flip_(\d+)$/, async (ctx) => {
     if (!isCreator(ctx)) return ctx.answerCbQuery('⛔ ליוצר הבוט בלבד!', { show_alert: true }).catch(() => {});
     const idx = parseInt(ctx.match[1], 10);
     const { s, items } = await loadDevBoard();
     if (!items[idx]) return ctx.answerCbQuery('לא נמצא').catch(() => {});
     items[idx].type = items[idx].type === 'fix' ? 'dev' : 'fix';
-    await saveGroupData('owner_global', s);
+    await saveGroupData('info_global_state', s);
     await ctx.answerCbQuery('🔄 הועבר!').catch(() => {});
     const view = buildDevBoardView(items, true);
     await ctx.editMessageText(view.text, { parse_mode: 'Markdown', reply_markup: view.reply_markup }).catch(() => {});
@@ -973,7 +981,7 @@ ${view.text}`, {
     const { s, items } = await loadDevBoard();
     if (idx < 0 || idx >= items.length) return ctx.answerCbQuery('כבר הוסר').catch(() => {});
     const removed = items.splice(idx, 1)[0];
-    await saveGroupData('owner_global', s);
+    await saveGroupData('info_global_state', s);
     await ctx.answerCbQuery(`🗑️ הוסר: ${removed.text.slice(0, 25)}`).catch(() => {});
     const view = buildDevBoardView(items, true);
     await ctx.editMessageText(view.text, { parse_mode: 'Markdown', reply_markup: view.reply_markup }).catch(() => {});
@@ -983,7 +991,7 @@ ${view.text}`, {
     if (!isCreator(ctx)) return ctx.answerCbQuery('⛔ ליוצר הבוט בלבד!', { show_alert: true }).catch(() => {});
     const { s } = await loadDevBoard();
     s.devBoard.items = [];
-    await saveGroupData('owner_global', s);
+    await saveGroupData('info_global_state', s);
     await ctx.answerCbQuery('🧹 הלוח נוקה!').catch(() => {});
     const view = buildDevBoardView([], true);
     await ctx.editMessageText(view.text, { parse_mode: 'Markdown', reply_markup: view.reply_markup }).catch(() => {});
