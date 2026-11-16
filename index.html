@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>וולטיק מוד | מרכז התיעוד והפקודות הרשמי (@VolticMod_bot)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-main: #080c16;
+      --bg-card: #101729;
+      --bg-card-hover: #162038;
+      --bg-glass: rgba(16, 23, 41, 0.85);
+      --border: rgba(99, 132, 255, 0.2);
+      --border-strong: rgba(56, 189, 248, 0.5);
+      --primary: #38bdf8;
+      --primary-dark: #0284c7;
+      --accent: #a855f7;
+      --gold: #f59e0b;
+      --success: #10b981;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+      --radius: 16px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Heebo', sans-serif;
+      background: radial-gradient(circle at top right, #132142 0%, var(--bg-main) 55%);
+      color: var(--text-main);
+      line-height: 1.65;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .navbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--bg-glass);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 20px;
+    }
+
+    .navbar-inner {
+      max-width: 1180px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 900;
+      font-size: 1.3rem;
+      letter-spacing: -0.3px;
+    }
+
+    .brand-badge {
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      color: #fff;
+      font-size: 0.78rem;
+      font-weight: 800;
+      padding: 4px 10px;
+      border-radius: 999px;
+    }
+
+    .nav-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.2s ease;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: #fff;
+      box-shadow: 0 6px 20px rgba(56, 189, 248, 0.3);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(56, 189, 248, 0.45);
+    }
+
+    .btn-outline {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: var(--border);
+      color: var(--text-main);
+    }
+
+    .btn-outline:hover {
+      border-color: var(--primary);
+      background: rgba(56, 189, 248, 0.1);
+    }
+
+    .container {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px 18px 60px;
+    }
+
+    .hero {
+      text-align: center;
+      padding: 42px 22px;
+      background: linear-gradient(180deg, rgba(22, 32, 56, 0.75) 0%, rgba(16, 23, 41, 0.9) 100%);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      margin-bottom: 34px;
+    }
+
+    .hero-tag {
+      display: inline-block;
+      background: rgba(56, 189, 248, 0.14);
+      color: var(--primary);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      padding: 6px 16px;
+      border-radius: 999px;
+      font-weight: 800;
+      font-size: 0.88rem;
+      margin-bottom: 16px;
+    }
+
+    .hero h1 {
+      font-size: clamp(1.9rem, 4.5vw, 3rem);
+      font-weight: 900;
+      margin-bottom: 12px;
+      background: linear-gradient(90deg, #ffffff, #38bdf8, #c084fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero p {
+      color: var(--text-muted);
+      font-size: 1.08rem;
+      max-width: 720px;
+      margin: 0 auto 24px;
+    }
+
+    .hero-buttons {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 28px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 14px;
+      max-width: 860px;
+      margin: 0 auto;
+    }
+
+    .stat-box {
+      background: rgba(8, 12, 22, 0.65);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+    }
+
+    .stat-num {
+      font-size: 1.55rem;
+      font-weight: 900;
+      color: var(--primary);
+    }
+
+    .stat-label {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+    }
+
+    .section-title {
+      font-size: 1.5rem;
+      font-weight: 800;
+      margin: 34px 0 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(245px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .step-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      position: relative;
+    }
+
+    .step-num {
+      display: inline-flex;
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      background: rgba(56, 189, 248, 0.16);
+      color: var(--primary);
+      font-weight: 900;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 10px;
+    }
+
+    .step-card h3 {
+      font-size: 1.1rem;
+      margin-bottom: 6px;
+    }
+
+    .step-card p {
+      color: var(--text-muted);
+      font-size: 0.93rem;
+    }
+
+    .perms-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-bottom: 34px;
+    }
+    .perm-item {
+      background: rgba(16, 185, 129, 0.07);
+      border: 1px solid rgba(16, 185, 129, 0.28);
+      border-radius: 12px;
+      padding: 14px 16px;
+    }
+
+    .perm-item strong {
+      display: block;
+      color: #34d399;
+      margin-bottom: 4px;
+    }
+
+    .perm-item span {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+    }
+
+    .controls-bar {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px;
+      margin-bottom: 22px;
+      box-shadow: var(--shadow);
+    }
+
+    .search-wrap {
+      position: relative;
+      margin-bottom: 14px;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 14px 18px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #080c16;
+      color: var(--text-main);
+      font-family: inherit;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .search-input:focus {
+      border-color: var(--primary);
+    }
+
+    .filter-tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .tab-btn {
+      padding: 8px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-muted);
+      font-family: inherit;
+      font-weight: 700;
+      font-size: 0.88rem;
+      cursor: pointer;
+      transition: all 0.18s;
+    }
+
+    .tab-btn:hover,
+    .tab-btn.active {
+      background: var(--primary);
+      color: #06101e;
+      border-color: var(--primary);
+    }
+
+    .cmd-count {
+      margin-top: 12px;
+      font-size: 0.88rem;
+      color: var(--text-muted);
+    }
+
+    .cmd-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+      gap: 16px;
+    }
+
+    .cmd-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: transform 0.18s, border-color 0.18s;
+    }
+
+    .cmd-card:hover {
+      transform: translateY(-3px);
+      border-color: var(--border-strong);
+      background: var(--bg-card-hover);
+    }
+
+    .cmd-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .cmd-title {
+      font-weight: 800;
+      font-size: 1.05rem;
+    }
+
+    .cmd-badge {
+      font-size: 0.74rem;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: rgba(168, 85, 247, 0.16);
+      color: #d8b4fe;
+      white-space: nowrap;
+    }
+
+    .cmd-badge.new {
+      background: rgba(245, 158, 11, 0.2);
+      color: #fcd34d;
+    }
+
+    .cmd-desc {
+      color: var(--text-muted);
+      font-size: 0.92rem;
+      margin-bottom: 14px;
+    }
+
+    .cmd-Syntax-box {
+      background: #060911;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .cmd-code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      color: var(--primary);
+      direction: ltr;
+      text-align: left;
+      overflow-x: auto;
+    }
+
+    .copy-btn {
+      background: rgba(56, 189, 248, 0.14);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      color: var(--primary);
+      padding: 6px 11px;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .copy-btn:hover {
+      background: var(--primary);
+      color: #06101e;
+    }
+
+    .format-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px;
+      margin-top: 36px;
+    }
+
+    .format-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .format-item {
+      background: #080c16;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+    }
+
+    .format-item code {
+      display: block;
+      color: var(--gold);
+      font-family: 'JetBrains Mono', monospace;
+      margin-top: 6px;
+      font-size: 0.86rem;
+    }
+
+    footer {
+      text-align: center;
+      padding: 32px 16px;
+      border-top: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.93rem;
+      margin-top: 50px;
+    }
+
+    footer a {
+      color: var(--primary);
+      font-weight: 800;
+    }
+  </style>
+</head>
+<body>
+
+  <header class="navbar">
+    <div class="navbar-inner">
+      <div class="brand">
+        <span>⚡ וולטיק מוד</span>
+        <span class="brand-badge">עדכון 1.2.2.1v</span>
+      </div>
+      <div class="nav-actions">
+        <a href="https://t.me/VolticMod_bot?startgroup=true" target="_blank" class="btn btn-primary">➕ הוסף לקבוצה</a>
+        <a href="https://t.me/VolticMod_bot" target="_blank" class="btn btn-outline">💬 פתח בוט בטלגרם</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <div class="hero-tag">📘 מרכז התיעוד והמדריך הרשמי</div>
+      <h1>וולטיק מוד (@VolticMod_bot)</h1>
+      <p>
+        הבוט הישראלי החכם והמתקדם ביותר לניהול, אבטחה ואוטומציה של קבוצות טלגרם.
+        סינון קידומות ומדינות זרות, ניקוי חשבונות מחוקים ולא פעילים, תרגום קבצים לעברית, אימות מצטרפים ומערכות קהילה.
+      </p>
+      <div class="hero-buttons">
+        <a href="https://t.me/VolticMod_bot?startgroup=true" target="_blank" class="btn btn-primary">🚀 הוסף את וולטיק מוד לקבוצה שלך</a>
+        <a href="#commands-section" class="btn btn-outline">🔍 חיפוש במילון הפקודות</a>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-box">
+          <div class="stat-num">130+</div>
+          <div class="stat-label">פקודות ומערכות חכמות</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num">1.2.2.1v</div>
+          <div class="stat-label">גרסה אחרונה ומעודכנת</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num">24/7</div>
+          <div class="stat-label">אבטחה וניטור בזמן אמת</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num">100%</div>
+          <div class="stat-label">ממשק מלא בעברית</div>
+        </div>
+      </div>
+    </section>
+
+    <h2 class="section-title">🚀 התחלה מהירה: חיבור הבוט לקבוצה ב-4 שלבים</h2>
+    <section class="steps-grid">
+      <div class="step-card">
+        <div class="step-num">1</div>
+        <h3>הוספת הבוט לקבוצה</h3>
+        <p>לחצו על כפתור "הוסף לקבוצה" ובחרו את הקבוצה שלכם בטלגרם.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-num">2</div>
+        <h3>מתן הרשאות מנהל (Admin)</h3>
+        <p>היכנסו להגדרות הקבוצה -> מנהלים -> הוסיפו את וולטיק מוד כמנהל והפעילו את הרשאות המחיקה והחסימה.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-num">3</div>
+        <h3>עדכון לגרסה החדשה</h3>
+        <p>שלחו בקבוצה <code>/help</code> ולחצו על הכפתור <strong>"♻️עדכון גרסת הבוט♻️"</strong> כדי לפתוח את כל הפקודות החדשות.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-num">4</div>
+        <h3>הגדרת חוקים והגנות</h3>
+        <p>הגדירו חוקים עם <code>/setrules</code>, הפעילו ניקוי כניסות עם <code>/clean_welcome</code> וחסמו קידומות עם <code>/foreign_countries</code>.</p>
+      </div>
+    </section>
+
+    <h2 class="section-title">🛡️ הרשאות אדמין חובה לבוט בקבוצה</h2>
+    <section class="perms-grid">
+      <div class="perm-item">
+        <strong>🗑️ מחיקת הודעות (Delete Messages)</strong>
+        <span>נדרש לסינון קישורים, מילים אסורות, ניקוי הודעות שירות ומחיקת הודעות הגדרת חוקים.</span>
+      </div>
+      <div class="perm-item">
+        <strong>🚫 חסימת משתמשים (Ban Users)</strong>
+        <span>נדרש לאימות מצטרפים, חסימת קידומות זרות, השתקת מציפים וניקוי חשבונות מחוקים.</span>
+      </div>
+      <div class="perm-item">
+        <strong>📌 נעיצת הודעות (Pin Messages)</strong>
+        <span>נדרש לפקודות נעיצה והסרת נעיצות בראש הקבוצה (/pin, /unpin).</span>
+      </div>
+      <div class="perm-item">
+        <strong>🔗 הזמנת משתמשים (Invite Users)</strong>
+        <span>נדרש ליצירת קישורי הזמנה ולשחרור חסימות בקבוצה.</span>
+      </div>
+    </section>
+
+    <h2 id="commands-section" class="section-title">📚 מילון הפקודות המלא של וולטיק מוד</h2>
+    <section class="controls-bar">
+      <div class="search-wrap">
+        <input
+          type="text"
+          id="searchInput"
+          class="search-input"
+          placeholder="🔍 חפש פקודה לפי שם או תיאור (למשל: חוקים, אימות, קידומות, תרגום, /ban, /clean_welcome)..."
+        />
+      </div>
+      <div class="filter-tabs" id="filterTabs">
+        <button class="tab-btn active" data-cat="all">📋 כל הפקודות</button>
+        <button class="tab-btn" data-cat="new">🔥 חדש בעדכון 1.2.2.1v</button>
+        <button class="tab-btn" data-cat="users">👮 ניהול משתמשים</button>
+        <button class="tab-btn" data-cat="content">🧹 תוכן וניקוי</button>
+        <button class="tab-btn" data-cat="protection">🛡️ אוטומציה והגנה</button>
+        <button class="tab-btn" data-cat="info">ℹ️ קהילה ופעילויות</button>
+        <button class="tab-btn" data-cat="system">⚙️ מערכת וגיבוי</button>
+        <button class="tab-btn" data-cat="founders">👑 צוות המייסדים</button>
+      </div>
+      <div class="cmd-count" id="cmdCount">מציג את כל הפקודות</div>
+    </section>
+
+    <section class="cmd-grid" id="cmdGrid"></section>
+
+    <section class="format-box">
+      <h2>🎨 מדריך עיצוב הודעות וכפתורים (/format)</h2>
+      <p style="color: var(--text-muted); margin-top: 6px;">
+        ניתן להשתמש בעיצוב עשיר ובכפתורי קישור בפקודות <code>/setwelcome</code>, <code>/setrules</code>, <code>/addcmd</code> ו-<code>/echo</code>:
+      </p>
+      <div class="format-grid">
+        <div class="format-item">
+          <strong>טקסט מודגש (Bold)</strong>
+          <code>*ברוכים הבאים לקבוצה*</code>
+        </div>
+        <div class="format-item">
+          <strong>שם המשתמש אוטומטית</strong>
+          <code>שלום {name} היקר!</code>
+        </div>
+        <div class="format-item">
+          <strong>הוספת כפתור קישור מתחת להודעה</strong>
+          <code>{{טקסט הכפתור}{https://t.me/VolticMod_bot}}</code>
+        </div>
+        <div class="format-item">
+          <strong>קישור מוטמע במילה</strong>
+          <code>[לחץ כאן](https://t.me/VolticMod_bot)</code>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>⚡ וולטיק מוד (@VolticMod_bot) – מערכת ניהול ואבטחת קבוצות טלגרם</p>
+    <p style="margin-top: 6px;">
+      כל הזכויות שמורות ל-<a href="https://dov-portfolio.vercel.app" target="_blank" rel="noopener">דוב עיצוב ופיתוח</a>
+    </p>
+  </footer>
+
+  <script>
+    const COMMANDS = [
+      // חדש בעדכון 1.2.2.1v
+      { cat: 'users', isNew: true, title: '🧹 ניקוי חשבונות מחוקים ולא פעילים', cmd: '/clean_accounts', desc: 'פאנל אוטומטי לבחירה והוצאה של חשבונות שלא פעלו חצי שנה, חשבונות מחוקים או גם וגם.' },
+      { cat: 'system', isNew: true, title: '🌐 תרגום קבצים לעברית', cmd: '/translate_file', desc: 'מתרגם אוטומטית קבצי טקסט ומסמכים לעברית ושולח קובץ מתורגם לצ׳אט.' },
+      { cat: 'system', isNew: true, title: '❓ שאלה ליוצר הבוט', cmd: '/ask_creator [השאלה שלך]', desc: 'שולח שאלה ישירות ליוצר הבוט ומאפשר לקבל מענה ישיר בבוט.' },
+      { cat: 'info', isNew: true, title: '📜 הגדרת חוקים שקטה או פומבית', cmd: '/setrules [טקסט החוקים]', desc: 'מוחק מיד את הודעות ההגדרה ומאפשר למנהל לבחור בין הגדרה שקטה להגדרה פומבית.' },
+      { cat: 'protection', isNew: true, title: '👋 מחיקת ברוך הבא / אימות קודמים', cmd: '/clean_welcome', desc: 'בחירת מנהל קבוצה אם למחוק הודעת ברוך הבא קודמת, הודעת אימות קודמת, או גם וגם בכל כניסת משתמש חדש.' },
+      { cat: 'system', isNew: true, title: '🛠️ לוח מה בפיתוח ובתיקונים', cmd: '/dev', desc: 'מציג בזמן אמת אילו פקודות חדשות נמצאות כרגע בפיתוח ואילו מערכות בתיקונים.' },
+      { cat: 'system', isNew: true, title: '📘 מדריך הפעלה ותיעוד הבוט', cmd: '/docs', desc: 'פותח את מרכז התיעוד והמדריך המלא של הבוט בכפתורים בעברית.' },
+
+      // ניהול משתמשים
+      { cat: 'users', title: '🚫 חסימת משתמש לצמיתות', cmd: '/ban [סיבה] (בהשבה)', desc: 'חוסם את המשתמש לצמיתות מהקבוצה ומתעד את הסיבה.' },
+      { cat: 'users', title: '⏳ חסימה זמנית', cmd: '/tempban 2h (בהשבה)', desc: 'חוסם את המשתמש לזמן קצוב ומשחרר אוטומטית בתום הזמן.' },
+      { cat: 'users', title: '✅ הסרת חסימה', cmd: '/unban [UserID]', desc: 'מסיר חסימה ממשתמש ומאפשר לו להצטרף מחדש לקבוצה.' },
+      { cat: 'users', title: '👢 הוצאה מהקבוצה (Kick)', cmd: '/kick (בהשבה)', desc: 'מוציא את המשתמש מהקבוצה ללא חסימה לצמיתות.' },
+      { cat: 'users', title: '🚪 יציאה עצמית מהירה', cmd: '/kickme', desc: 'מוציא אותך מיד מהקבוצה לבקשתך ללא חסימה.' },
+      { cat: 'users', title: '🔇 השתקת משתמש', cmd: '/mute 30m (בהשבה)', desc: 'משתיק את המשתמש ומונע ממנו לשלוח הודעות לזמן שהוגדר.' },
+      { cat: 'users', title: '🔇 השתקה עם כפתור ערעור', cmd: '/tmute 30m [סיבה] (בהשבה)', desc: 'משתיק את המשתמש ומציג כפתור להגשת ערעור למנהלי הקבוצה.' },
+      { cat: 'users', title: '🔊 ביטול השתקה', cmd: '/unmute (בהשבה)', desc: 'מסיר השתקה ממשתמש ומחזיר לו הרשאות כתיבה מלאות.' },
+      { cat: 'users', title: '⚠️ מתן אזהרה', cmd: '/warn [סיבה] (בהשבה)', desc: 'רושם אזהרה למשתמש (ב-3 אזהרות המשתמש נחסם אוטומטית).' },
+      { cat: 'users', title: '📋 בדיקת אזהרות', cmd: '/warnings (בהשבה)', desc: 'מציג כמה אזהרות יש למשתמש ומהן הסיבות שנרשמו.' },
+      { cat: 'users', title: '🧼 איפוס אזהרות', cmd: '/clearwarns (בהשבה)', desc: 'מוחק את כל האזהרות של המשתמש בקבוצה.' },
+      { cat: 'users', title: '⭐ קידום לאדמין', cmd: '/promote (בהשבה)', desc: 'מקדם חבר קבוצה לדרגת מנהל בקבוצה.' },
+      { cat: 'users', title: '⬇️ הורדה מניהול', cmd: '/demote (בהשבה)', desc: 'מסיר הרשאות ניהול מאדמין בקבוצה.' },
+      { cat: 'users', title: '⚖️ הצבעת הדחה דמוקרטית', cmd: '/voteban 5', desc: 'פותח הצבעת הדחה בקבוצה כשהמנהל קובע כמה קולות נדרשים.' },
+      { cat: 'users', title: '📩 מערכת ערעורים', cmd: '/appeal on', desc: 'מאפשר למשתמשים לשלוח בקשת ערעור עם כפתורי אישור ודחייה למנהלים.' },
+      { cat: 'users', title: '📊 מכסת הודעות יומית', cmd: '/msgquota 15 (בהשבה)', desc: 'מגביל משתמש ספציפי למכסת הודעות מקסימלית ביום.' },
+      { cat: 'users', title: '🕵️ מדד אמינות משתמש', cmd: '/trust (בהשבה)', desc: 'מציג ציון אמינות, וותק, כמות הודעות ואזהרות של המשתמש.' },
+
+      // תוכן וניקוי
+      { cat: 'content', title: '🗑️ מחיקת הודעה', cmd: '/del (בהשבה)', desc: 'מוחק מיד את ההודעה שעליה השבת.' },
+      { cat: 'content', title: '🧹 מחיקה מרובה (Purge)', cmd: '/purge 20', desc: 'מוחק עד 100 הודעות אחרונות בבת אחת.' },
+      { cat: 'content', title: '👤 מחיקת הודעות של משתמש', cmd: '/cleanuser 15 (בהשבה)', desc: 'מוחק את ההודעות האחרונות של משתמש ספציפי בקבוצה.' },
+      { cat: 'content', title: '🧼 ניקוי הודעות שירות', cmd: '/cleanservice on', desc: 'מוחק אוטומטית הודעות הצטרפות ועזיבה של טלגרם בקבוצה.' },
+      { cat: 'content', title: '📏 הגבלת אורך הודעה', cmd: '/maxlength 500', desc: 'מוחק אוטומטית הודעות שעוברות את מכסת התווים שהגדרת.' },
+      { cat: 'content', title: '📌 נעיצת הודעה', cmd: '/pin (בהשבה)', desc: 'נועץ את ההודעה בראש הקבוצה.' },
+      { cat: 'content', title: '📍 הסרת נעיצה', cmd: '/unpin', desc: 'מסיר נעיצה מההודעה הנעוצה הנוכחית.' },
+      { cat: 'content', title: '🗃️ הסרת כל הנעוצים', cmd: '/unpinall', desc: 'מסיר את כל ההודעות הנעוצות בקבוצה.' },
+      { cat: 'content', title: '🐢 מצב איטי (Slowmode)', cmd: '/slowmode 30', desc: 'מגביל את קצב שליחת ההודעות של חברי הקבוצה בשניות.' },
+      { cat: 'content', title: '🔒 נעילת סוגי תוכן', cmd: '/lock links | media | stickers | all', desc: 'חוסם שליחת קישורים, מדיה, סטיקרים או את כל ההודעות בקבוצה.' },
+      { cat: 'content', title: '🔓 פתיחת נעילת תוכן', cmd: '/unlock all', desc: 'משחרר נעילת תוכן שהופעלה בקבוצה.' },
+
+      // אוטומציה והגנה
+      { cat: 'protection', title: '📵 חסימת קידומות ומדינות זרות', cmd: '/foreign_countries', desc: 'פאנל חסימת קידומות טלפון ומדינות זרות + דרישת אימות מספר אמיתי בכניסה.' },
+      { cat: 'protection', title: '🔐 אימות אנושי למצטרפים', cmd: '/verify', desc: 'אימות כפתורים למצטרפים חדשים המאוחד עם הודעת הברוכים הבאים וכפתור החוקים.' },
+      { cat: 'protection', title: '🚨 מצב חירום נגד מתקפות', cmd: '/raidmode auto', desc: 'מזהה ובולם אוטומטית מתקפות בוטים והצטרפויות המוניות.' },
+      { cat: 'protection', title: '🔞 חסימת תוכן למבוגרים', cmd: '/antiporn on', desc: 'מוחק אוטומטית קישורים ומילים בעלי תוכן למבוגרים.' },
+      { cat: 'protection', title: '🤖 חסימת הכנסת בוטים זרים', cmd: '/antibot on', desc: 'מסיר מיד כל בוט זר שמוכנס לקבוצה על ידי משתמש רגיל.' },
+      { cat: 'protection', title: '📢 חסימת כתיבה בשם ערוץ', cmd: '/antichannels on', desc: 'מוחק אוטומטית הודעות שנשלחות בשם ערוץ בקבוצה.' },
+      { cat: 'protection', title: '🔄 חסימת הודעות מועברות', cmd: '/antiforward on', desc: 'מוחק אוטומטית הודעות שמועברות מערוצים או מקבוצות אחרות.' },
+      { cat: 'protection', title: '🌍 חסימת שפות זרות', cmd: '/antiforeign', desc: 'פותח פאנל כפתורים לחסימת הודעות בערבית, רוסית, סינית והודית.' },
+      { cat: 'protection', title: '🌙 נעילת לילה לפי שעון ישראל', cmd: '/nightmode 00:00 07:00', desc: 'סוגר ופותח אוטומטית את הקבוצה בשעות הלילה לפי שעון ישראל.' },
+      { cat: 'protection', title: '👶 הגבלת וותק לחדשים', cmd: '/newbiemode 1h', desc: 'חוסם שליחת קישורים ומדיה ממצטרפים חדשים עד שיצברו וותק בקבוצה.' },
+      { cat: 'protection', title: '🍯 מלכודת דבש לבוטים', cmd: '/honeypot', desc: 'מפרסם כפתור מלכודת שלוכד וחוסם אוטומטית בוטים שלוחצים עליו.' },
+      { cat: 'protection', title: '🛡️ אנטי-ספאם אוטומטי', cmd: '/antispam on', desc: 'מפעיל סינון אוטומטי של הודעות ספאם והצפות.' },
+      { cat: 'protection', title: '🔗 חסימת לינקים', cmd: '/antilink on', desc: 'מוחק אוטומטית קישורים שנשלחים על ידי משתמשים רגילים.' },
+      { cat: 'protection', title: '🌊 הגנת הצפה (Anti-Flood)', cmd: '/antiflood 5', desc: 'משתיק אוטומטית ל-5 דקות משתמש ששולח יותר מדי הודעות ברצף.' },
+      { cat: 'protection', title: '🚫 ניהול מילים אסורות בכפתורים', cmd: '/filters', desc: 'פאנל אינטראקטיבי להוספה (`/filter`), עריכה ומחיקה של מילים אסורות.' },
+      { cat: 'protection', title: '👋 הודעת ברוכים הבאים', cmd: '/setwelcome ברוך הבא {name}!', desc: 'מגדיר הודעת כניסה מעוצבת עם כפתור אוטומטי לחוקי הקבוצה.' },
+
+      // קהילה ופעילויות
+      { cat: 'info', title: '🔒 לחישה סודית בקבוצה', cmd: '/secret @username [הודעה]', desc: 'שולח הודעה סודית בקבוצה שרק הנמען יכול לקרוא + כפתור ביטול בפרטי.' },
+      { cat: 'info', title: '💤 מצב לא זמין (AFK)', cmd: '/afk [סיבה]', desc: 'מעדכן שאתה לא זמין ועונה אוטומטית למי שמתייג אותך בקבוצה.' },
+      { cat: 'info', title: '⏰ תזכורת חכמה', cmd: '/remind 10m [טקסט]', desc: 'קובע תזכורת ומתייג אותך בקבוצה בתום הזמן.' },
+      { cat: 'info', title: '🤖 מענה אוטומטי חכם', cmd: '/autoreply', desc: 'ניהול תגובות אוטומטיות של הבוט למילים או שאלות נפוצות בצ׳אט.' },
+      { cat: 'info', title: '🎁 הגרלה חיה בקבוצה', cmd: '/giveaway [שם הפרס]', desc: 'פותח הגרלה עם כפתור השתתפות והגרלת זוכה אקראי.' },
+      { cat: 'info', title: '🧠 משחק טריוויה בעברית', cmd: '/trivia', desc: 'שולח שאלת טריוויה עם 4 כפתורים – הראשון שעונה נכון מנצח.' },
+      { cat: 'info', title: '✂️ אבן נייר ומספריים', cmd: '/rps', desc: 'משחק אבן, נייר ומספריים בכפתורים בין שני חברי קבוצה.' },
+      { cat: 'info', title: '🪙 הטלת מטבע והגרלת מספר', cmd: '/coin | /roll', desc: 'הטלת מטבע (עץ/פלי) או הגרלת מספר אקראי בין 1 ל-100.' },
+      { cat: 'info', title: '🏆 טבלת 10 הפעילים', cmd: '/top', desc: 'מציג את דירוג 10 החברים הפעילים ביותר בקבוצה עם מדליות.' },
+      { cat: 'info', title: '⚡ אתגר הראשון שלוחץ', cmd: '/fastclick start', desc: 'משחק מהירות בקבוצה שבו הראשון שלוחץ על הכפתור מנצח.' },
+      { cat: 'info', title: '⚔️ דו-קרב קובייה', cmd: '/duel', desc: 'דו-קרב הטלת קובייה בכפתורים בין שני חברי קבוצה.' },
+      { cat: 'info', title: '📣 תיוג חברי הקבוצה', cmd: '/tagall [הודעה]', desc: 'מתייג את חברי הקבוצה הפעילים לקריאה מרוכזת.' },
+      { cat: 'info', title: '📖 צפייה בחוקי הקבוצה', cmd: '/rules', desc: 'מציג את חוקי הקבוצה (או שולח כפתור לקריאה בפרטי במצב שקט).' },
+      { cat: 'info', title: '➕ פקודות מותאמות אישית', cmd: '/addcmd [שם] [תוכן]', desc: 'יוצר פקודה חדשה מותאמת אישית לקבוצה (לצפייה: `/cmds`, למחיקה: `/delcmd`).' },
+      { cat: 'info', title: '👑 רשימת צוות הניהול ודוח פעילות', cmd: '/staff | /inactive', desc: 'מציג את בעל הקבוצה, רשימת המנהלים ודוח משתמשים פעילים ושקטים.' },
+      { cat: 'info', title: '🆔 פרטי משתמש וסטטיסטיקות', cmd: '/userinfo | /stats', desc: 'מציג תעודת מידע על משתמש וסטטיסטיקות מלאות של הקבוצה.' },
+
+      // מערכת וגיבוי
+      { cat: 'system', title: '💾 גיבוי ושחזור קבוצה', cmd: '/backup | /restore [קוד]', desc: 'מייצא את כל הגדרות הקבוצה לקוד גיבוי ומשחזר אותן בלחיצה.' },
+      { cat: 'system', title: '🔘 שינוי טקסט כפתור החוקים', cmd: '/rules_button [טקסט]', desc: 'משנה את הכיתוב שעל כפתור חוקי הקבוצה בהודעות הכניסה וב-/rules.' },
+      { cat: 'system', title: '⚙️ פאנל הגדרות קבוצה', cmd: '/settings', desc: 'מציג פאנל מרוכז עם מצב כל ההגנות והמערכות הפעילות בקבוצה.' },
+      { cat: 'system', title: '📢 בדיקת הודעה מעוצבת', cmd: '/echo [טקסט + כפתורים]', desc: 'שולח הודעה מעוצבת עם כפתורים בשם הבוט לבדיקה.' },
+      { cat: 'system', title: '🚨 דיווח מהיר לאדמינים', cmd: '/report (בהשבה)', desc: 'מתייג את כל מנהלי הקבוצה לטיפול בהודעה בעייתית.' },
+
+      // צוות המייסדים
+      { cat: 'founders', title: '👑 תפריט צוות המייסדים', cmd: '/founders', desc: 'פותח את פאנל הפקודות המיוחד של קהילת המייסדים.' },
+      { cat: 'founders', title: '💡 הצעת רעיון לפקודה', cmd: '/idea [תיאור הרעיון]', desc: 'מפרסם כרטיס הצבעה לצוות המייסדים ומזכה ב-25 נקודות באישור היוצר.' },
+      { cat: 'founders', title: '🐛 דיווח באג', cmd: '/bug [תיאור התקלה]', desc: 'פותח כרטיס דיווח באג ממוספר ומזכה ב-20 נקודות.' },
+      { cat: 'founders', title: '🪙 לוח רעיונות הזהב', cmd: '/gold', desc: 'מציג את רעיונות הזהב הנבחרים של צוות המייסדים.' },
+      { cat: 'founders', title: '🛒 חנות נקודות וגלגל המזל', cmd: '/shop | /daily_spin', desc: 'רכישת תארים והטבות בנקודות מייסד וסיבוב גלגל המזל היומי.' },
+      { cat: 'founders', title: '🏆 היכל התהילה ותעודת מייסד', cmd: '/halloffame | /founder', desc: 'מציג את טבלת המובילים ואת תעודת המייסד האישית שלך.' }
+    ];
+
+    const gridEl = document.getElementById('cmdGrid');
+    const searchEl = document.getElementById('searchInput');
+    const countEl = document.getElementById('cmdCount');
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    let activeCat = 'all';
+
+    const catNames = {
+      users: '👮 ניהול משתמשים',
+      content: '🧹 תוכן וניקוי',
+      protection: '🛡️ אוטומציה והגנה',
+      info: 'ℹ️ קהילה ופעילויות',
+      system: '⚙️ מערכת וגיבוי',
+      founders: '👑 צוות המייסדים'
+    };
+
+    function renderCommands() {
+      const q = (searchEl.value || '').trim().toLowerCase();
+      const filtered = COMMANDS.filter((item) => {
+        const matchCat =
+          activeCat === 'all' ? true :
+          activeCat === 'new' ? Boolean(item.isNew) :
+          item.cat === activeCat;
+        if (!matchCat) return false;
+        if (!q) return true;
+        return (
+          item.title.toLowerCase().includes(q) ||
+          item.cmd.toLowerCase().includes(q) ||
+          item.desc.toLowerCase().includes(q)
+        );
+      });
+
+      countEl.textContent = `מציג ${filtered.length} מתוך ${COMMANDS.length} פקודות`;
+      gridEl.innerHTML = filtered.map((item, idx) => `
+        <article class="cmd-card">
+          <div>
+            <div class="cmd-header">
+              <div class="cmd-title">${item.title}</div>
+              <span class="cmd-badge ${item.isNew ? 'new' : ''}">${item.isNew ? '🔥 חדש 1.2.2.1v' : (catNames[item.cat] || '')}</span>
+            </div>
+            <p class="cmd-desc">${item.desc}</p>
+          </div>
+          <div class="cmd-Syntax-box">
+            <code class="cmd-code" id="code-${idx}">${item.cmd}</code>
+            <button class="copy-btn" onclick="copyCmd('${item.cmd.replace(/'/g, "\\'")}', this)">📋 העתק</button>
+          </div>
+        </article>
+      `).join('');
+    }
+
+    function copyCmd(text, btn) {
+      const cleanCmd = text.split(' ')[0];
+      navigator.clipboard.writeText(cleanCmd).then(() => {
+        const orig = btn.textContent;
+        btn.textContent = '✅ הועתק!';
+        setTimeout(() => { btn.textContent = orig; }, 1600);
+      });
+    }
+
+    searchEl.addEventListener('input', renderCommands);
+    tabBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        tabBtns.forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeCat = btn.getAttribute('data-cat');
+        renderCommands();
+      });
+    });
+
+    renderCommands();
+  </script>
+</body>
+</html>
