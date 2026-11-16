@@ -79,7 +79,10 @@ const VERSION_HISTORY = {
       `4️⃣ 📜 *הגדרת חוקים שקטה או פומבית (/setrules):* מחיקה אוטומטית של הודעות הגדרת החוקים ובחירה בין מצב שקט למצב פומבי.\n` +
       `5️⃣ 🛠️ *לוח מה בפיתוח ובתיקונים (/dev):* צפייה חיה בפקודות שנמצאות כרגע בפיתוח או בתיקונים.\n` +
       `6️⃣ 👋 *מחיקת ברוך הבא / אימות קודמים (/clean_welcome):* בחירת מנהל קבוצה אם למחוק הודעת ברוך הבא קודמת, הודעת אימות קודמת, או גם וגם בכל כניסת משתמש חדש.\n` +
-      `7️⃣ 📘 *מדריך הפעלה ותיעוד הבוט (/docs):* מרכז תיעוד שלם בכפתורים בתוך הבוט + קישור לאתר התיעוד הרשמי של וולטיק מוד.`
+      `7️⃣ 📘 *מדריך הפעלה ותיעוד הבוט (/docs):* מרכז תיעוד שלם בכפתורים בתוך הבוט + קישור לאתר התיעוד הרשמי של וולטיק מוד.\n` +
+      `8️⃣ 👑 *קבוצת התמיכה "צוות המייסדים" בתפריט הראשי:* כפתור וקישור ישיר לקבוצת התמיכה בפרונט של התפריט למשתמשים.\n` +
+      `9️⃣ ↩️ *תגובה ישירה להודעה מהמנהל:* אפשרות להגיב (Reply) ישירות על הודעה מהמנהל בבוט בלי לפתוח פנייה חדשה.\n` +
+      `🔟 🧮 *אימות מצטרפים בתרגיל חשבון קצר:* החלפת אימות טלפון אישי בתרגיל קצר וידידותי נגד בוטים + פירוט מלא למשתמש בעת אישור/דחיית הצעה.`
   }
 };
 
@@ -346,6 +349,30 @@ function buildCleanJoinPanel(mode) {
   return { text, reply_markup: kb };
 }
 
+function buildShortMathExercise(targetUid, memberName, extraSecText = '') {
+  const a = Math.floor(Math.random() * 8) + 2;
+  const b = Math.floor(Math.random() * 8) + 1;
+  const correct = a + b;
+  const wrongs = new Set();
+  while (wrongs.size < 3) {
+    const cand = Math.max(2, correct + (Math.floor(Math.random() * 7) - 3));
+    if (cand !== correct) wrongs.add(cand);
+  }
+  const options = [
+    { text: `${correct}`, callback_data: `ver_ok_${targetUid}_1` },
+    ...Array.from(wrongs).map((w) => ({ text: `${w}`, callback_data: `ver_ok_${targetUid}_0` }))
+  ].sort(() => Math.random() - 0.5);
+
+  const text =
+    `🧮 שלום *${memberName || 'חבר'}*! כדי לוודא שאינך בוט ולקבל הרשאת כתיבה בקבוצה, פתור את התרגיל הקצר${extraSecText}:\n\n` +
+    `❓ *כמה זה ${a} + ${b}?*\n` +
+    `בחר את התשובה הנכונה מהכפתורים למטה:`;
+  return {
+    text,
+    reply_markup: { inline_keyboard: [options] }
+  };
+}
+
 function isVerifyMessagePayload(payload) {
   if (!payload || typeof payload.text !== 'string') return false;
   const kbStr = JSON.stringify(payload.reply_markup || '');
@@ -421,6 +448,52 @@ module.exports = function registerInfoCommands(bot) {
           if (gData.groupVersion !== LATEST_VERSION) {
             gData.groupVersion = LATEST_VERSION;
             await saveGroupData(cid, gData);
+          }
+        }
+
+        // 2. תגובה בהשבה (Reply) להודעה מהמנהל בצ׳אט פרטי (ללא צורך בפתיחת פנייה חדשה!)
+        if (chat?.type === 'private' && msg?.reply_to_message && msg?.text && !msg.text.trim().startsWith('/')) {
+          const repliedTxt = String(msg.reply_to_message.text || msg.reply_to_message.caption || '');
+
+          // אם המשתמש מגיב על "ההודעה מהמנהל: ... הגב להודעה זו כדי להגיב"
+          if (Number(uid) !== CREATOR_ID && (repliedTxt.includes('ההודעה מהמנהל:') || repliedTxt.includes('הגב להודעה זו כדי להגיב') || repliedTxt.includes('תשובה מיוצר וולטיק מוד'))) {
+            const uName = from?.first_name || 'משתמש';
+            const uTag = from?.username ? `@${from.username}` : 'ללא';
+            const cleanOrig = repliedTxt.replace('הגב להודעה זו כדי להגיב', '').trim();
+            await bot.telegram.callApi('sendMessage', {
+              chat_id: CREATOR_ID,
+              text:
+                `📩 תגובה חדשה ממשתמש להודעתך:\n` +
+                `👤 מאת: ${uName} (${uTag})\n` +
+                `🆔 ID: ${uid}\n` +
+                `↩️ בתגובה ל: "${cleanOrig.slice(0, 120)}"\n\n` +
+                `💬 תוכן ההודעה:\n${msg.text.trim()}`,
+              reply_markup: {
+                inline_keyboard: [[{ text: '💬 השב למשתמש זה', callback_data: `ask_reply_${uid}` }]]
+              }
+            }).catch(() => {});
+            await bot.telegram.callApi('sendMessage', {
+              chat_id: cid,
+              text: 'נשלח בהצלחה למנהל'
+            }).catch(() => {});
+            return;
+          }
+
+          // אם המנהל (יוצר הבוט) משיב ב-Reply ישירות על כרטיס פנייה/תגובה של משתמש בפרטי
+          if (Number(uid) === CREATOR_ID) {
+            const idMatch = repliedTxt.match(/🆔\s*\*?ID:\*?\s*`?(\d+)`?/);
+            if (idMatch && idMatch[1]) {
+              const targetUid = idMatch[1];
+              await bot.telegram.callApi('sendMessage', {
+                chat_id: targetUid,
+                text: `ההודעה מהמנהל: ${msg.text.trim()}\n\nהגב להודעה זו כדי להגיב`
+              }).catch(() => {});
+              await bot.telegram.callApi('sendMessage', {
+                chat_id: CREATOR_ID,
+                text: `✅ ההודעה נשלחה בהצלחה למשתמש ${targetUid}!`
+              }).catch(() => {});
+              return;
+            }
           }
         }
 
@@ -581,15 +654,29 @@ module.exports = function registerInfoCommands(bot) {
             return { ok: true };
           }
         }
+        // 3. החלפת אימות טלפון אישי / אימות רגיל בתרגיל חשבון קצר נגד בוטים!
         if (method === 'sendMessage' && payload?.chat_id && payload?.reply_markup) {
           const kbJson = JSON.stringify(payload.reply_markup);
-          const mVer = kbJson.match(/fcnt_verifyme_(\d+)/);
-          if (mVer) {
+          const mPhoneVer = kbJson.match(/fcnt_verifyme_(\d+)/);
+          const mKeyVer = kbJson.match(/ver_ok_(\d+)_/);
+          const targetVerUid = mPhoneVer ? mPhoneVer[1] : (mKeyVer ? mKeyVer[1] : null);
+          if (targetVerUid) {
             const gData = await getGroupData(payload.chat_id);
-            if (gData.verifiedPhoneUsers && gData.verifiedPhoneUsers[mVer[1]]) {
+            if (gData.verifiedPhoneUsers && gData.verifiedPhoneUsers[targetVerUid]) {
               return { message_id: 1 };
             }
+            const nameMatch = String(payload.text || '').match(/שלום\s+\*([^*]+)\*/);
+            const memberName = nameMatch ? nameMatch[1] : 'חבר';
+            const secMatch = String(payload.text || '').match(/תוך \d+ שניות/);
+            const ex = buildShortMathExercise(targetVerUid, memberName, secMatch ? ` (${secMatch[0]})` : '');
+            payload.text = ex.text;
+            payload.parse_mode = 'Markdown';
+            payload.reply_markup = ex.reply_markup;
           }
+        }
+
+        if (method === 'answerCbQuery' && typeof payload?.text === 'string' && payload.text.includes('סמל המפתח')) {
+          payload.text = '❌ תשובה שגויה לתרגיל! נסה שוב לבחור את התשובה הנכונה.';
         }
 
         // 1. חסימה מוחלטת של שליחת הודעת עדכון אוטומטית לכל המשתמשים והקבוצות!
@@ -615,8 +702,36 @@ module.exports = function registerInfoCommands(bot) {
             }
           }
 
+          // 2. עיצוב הודעה מהמנהל למשתמש: "ההודעה מהמנהל: ... הגב להודעה זו כדי להגיב"
+          if (method === 'sendMessage' && payload.text.startsWith('👑 *תשובה מיוצר וולטיק מוד לשאלתך:*\n\n')) {
+            const adminMsg = payload.text.replace('👑 *תשובה מיוצר וולטיק מוד לשאלתך:*\n\n', '').trim();
+            payload.text = `ההודעה מהמנהל: ${adminMsg}\n\nהגב להודעה זו כדי להגיב`;
+            delete payload.parse_mode;
+          }
+
+          // עדכון תצוגת פאנל /foreign_countries כך שיציג אימות בתרגיל קצר במקום אימות טלפון אישי
+          if (payload.text.includes('חסימת קידומות ומדינות זרות') && payload.reply_markup?.inline_keyboard) {
+            payload.text = payload.text
+              .replace('אימות קידומת טלפון בכניסה:', 'אימות מצטרפים בתרגיל קצר בכניסה:')
+              .replace('לחייב מצטרפים חדשים לאמת קידומת טלפון בלחיצת כפתור', 'לחייב מצטרפים חדשים לפתור תרגיל חשבון קצר נגד בוטים (ללא חשיפת טלפון)');
+            for (const r of payload.reply_markup.inline_keyboard) {
+              for (const b of r) {
+                if (b.callback_data === 'fcnt_toggle_pver') {
+                  b.text = b.text.replace('אימות קידומת טלפון בכניסה', 'אימות בתרגיל קצר בכניסה');
+                }
+              }
+            }
+          }
+
+          // 4. שמירת פרטי ההצעה שאושרה/נדחתה ושליחת פירוט מדויק למשתמש איזו פקודה/רעיון אושר או נדחה!
           if (method === 'editMessageText' && (payload.text.startsWith('אושר\n\n📩 הצעה חדשה לשיפור') || payload.text.startsWith('נדחה\n\n📩 הצעה חדשה לשיפור'))) {
             const parsed = parseSuggestionCardText(payload.text);
+            bot._lastReviewedSuggestion = {
+              uid: parsed.uid,
+              cmd: parsed.cmd || 'הצעה לפקודה',
+              desc: parsed.desc || '',
+              approved: payload.text.startsWith('אושר')
+            };
             const { s, items } = await loadDevBoard();
             const beforeLen = items.length;
             s.devBoard.items = items.filter((x) => {
@@ -628,18 +743,42 @@ module.exports = function registerInfoCommands(bot) {
             await saveGroupData('info_global_state', s);
           }
 
+          if (method === 'sendMessage' && (payload.text === 'הפקודה אושרה ועובדת!' || payload.text === 'הפקודה נדחתה עקב החלטת היוצר')) {
+            const rev = bot._lastReviewedSuggestion;
+            const isApproved = payload.text === 'הפקודה אושרה ועובדת!';
+            const cmdTitle = rev?.cmd || 'ההצעה ששלחת';
+            const cmdDesc = rev?.desc ? `\n💬 תיאור ההצעה: ${rev.desc}` : '';
+            if (isApproved) {
+              payload.text =
+                `✅ ההצעה שלך אושרה ע"י יוצר הבוט ופעילה כעת! 🎉\n\n` +
+                `⌨️ הפקודה / הרעיון שאושר: ${cmdTitle}${cmdDesc}`;
+            } else {
+              payload.text =
+                `❌ עדכון לגבי ההצעה ששלחת לבוט:\n\n` +
+                `⌨️ הפקודה / הרעיון שנדחה: ${cmdTitle}${cmdDesc}\n\n` +
+                `📌 סטטוס: נדחה עקב החלטת יוצר הבוט.`;
+            }
+            bot._lastReviewedSuggestion = null;
+          }
+
           const kb = payload.reply_markup?.inline_keyboard;
           if (Array.isArray(kb)) {
             const curUserVer = bot._activeCtxUserVer || DEFAULT_PREV_USER_VERSION;
             const isUpgraded = curUserVer === LATEST_VERSION;
 
-            // 2 + 3. התאמת התפריט הראשי וקטגוריות הפקודות לפי הגרסה שבה המשתמש נמצא כרגע!
+            // 1 + 2 + 3. התאמת התפריט הראשי + הוספת קישור לקבוצת התמיכה "צוות המייסדים" בפרונט של התפריט למשתמשים!
             if (payload.text.includes('תפריט הפקודות הראשי')) {
               payload.text = payload.text.replace(
                 `🔖 *גרסה נוכחית:* עדכון ${LATEST_VERSION}`,
                 `🔖 *גרסה נוכחית:* עדכון מספר ${curUserVer}` +
                 (!isUpgraded ? `\n🔔 *גרסה חדשה (${LATEST_VERSION}) זמינה! לחץ על "♻️עדכון גרסת הבוט♻️" למטה כדי לעדכן ולפתוח את הפקודות החדשות.*` : '')
               );
+              if (!payload.text.includes('צוות המייסדים')) {
+                payload.text = payload.text.replace(
+                  '📚 *תפריט הפקודות הראשי',
+                  `👑 *קבוצת התמיכה של הבוט:* [צוות המייסדים](https://t.me/+v4Hrdnpg0rI3MTk0)\n\n📚 *תפריט הפקודות הראשי`
+                );
+              }
 
               if (!isUpgraded) {
                 // הסתרת כפתורי הפקודות החדשות עד שהמשתמש ילחץ על "♻️עדכון גרסת הבוט♻️"
@@ -665,6 +804,9 @@ module.exports = function registerInfoCommands(bot) {
                     btn.callback_data = 'ver_current_info';
                   }
                 }
+              }
+              if (!curKb.some((r) => r.some((b) => b.url && b.url.includes('v4Hrdnpg0rI3MTk0')))) {
+                curKb.unshift([{ text: '👑 קבוצת התמיכה של הבוט – צוות המייסדים', url: 'https://t.me/+v4Hrdnpg0rI3MTk0' }]);
               }
               if (!isUpgraded && !curKb.some((r) => r.some((b) => b.callback_data === 'ver_upgrade_user'))) {
                 curKb.push([{ text: '♻️עדכון גרסת הבוט♻️', callback_data: 'ver_upgrade_user' }]);
