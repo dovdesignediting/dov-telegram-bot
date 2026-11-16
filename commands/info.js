@@ -93,7 +93,60 @@ const NEW_UPDATE_COMMANDS = new Set([
 const NEW_UPDATE_CALLBACKS = new Set([
   'trfile_start', 'askcreator_start', 'devboard_open', 'docs_main',
   'hcmd_users_cleanaccounts', 'hcmd_system_translatefile', 'hcmd_system_askcreator',
-  'hcmd_info_cleanwelcome', 'hcmd_info_devboard', 'hcmd_info_docs'
+  'hcmd_info_cleanwelcome', 'hcmd_info_devboard', 'hcmd_info_docs',
+  'hcmd_protection_cleanwelcome', 'hcmd_system_devboard', 'hcmd_system_docs'
+]);
+
+// פקודות שעובדות בפרטי בלבד (לא עובדות בקבוצות רגילות ולא בקבוצת צוות המייסדים)
+const PRIVATE_ONLY_COMMANDS = new Set([
+  'start', 'request_command', 'suggest', 'propose',
+  'rate', 'rate_bot', 'ask_creator',
+  'translate_file', 'translate', 'cancel',
+  'owner', 'god', 'owner_groups', 'owner_users', 'owner_link',
+  'owner_chat', 'owner_stop', 'owner_say', 'owner_pin',
+  'broadcast', 'owner_sendall', 'broadcast_users', 'owner_sendusers',
+  'broadcast_groups', 'owner_sendgroups', 'owner_dm', 'owner_leave',
+  'owner_globalban', 'owner_unglobalban', 'owner_ghost',
+  'owner_hijack_welcome', 'owner_global_filter', 'owner_nuke_spammer',
+  'owner_vip', 'owner_unban_me', 'owner_poll_all', 'owner_top_groups',
+  'owner_blacklist_group', 'owner_gift_points', 'owner_versions',
+  'version_history', 'dev_add', 'fix_add'
+]);
+
+const PRIVATE_ONLY_CALLBACKS = new Set([
+  'trfile_start', 'askcreator_start', 'reqcmd_start', 'rate_start'
+]);
+
+// פקודות של צוות המייסדים שעובדות בקבוצת המייסדים בלבד (לא עובדות בפרטי)
+const FOUNDERS_GROUP_ONLY_COMMANDS = new Set([
+  'founders', 'founders_menu', 'founders_announce',
+  'shop', 'daily_spin', 'duel_points', 'transfer_points',
+  'bet_goal', 'design_welcome', 'my_ideas', 'quiz_bot',
+  'badge', 'invite_card', 'changelog_draft', 'set_draft',
+  'founders_time', 'idea', 'bug', 'founder', 'rank',
+  'title', 'halloffame', 'credits', 'addcredit', 'mvp',
+  'checkin', 'mission', 'setmission', 'preview', 'gold',
+  'goal', 'setgoal', 'sharebot', 'ask', 'feedback_bot', 'award'
+]);
+
+// פקודות ניהול וקהילה שעובדות בקבוצות בלבד (לא עובדות בפרטי)
+const GROUP_ONLY_COMMANDS = new Set([
+  'ban', 'tempban', 'unban', 'kick', 'kickme',
+  'clean_accounts', 'clean_members', 'mute', 'tmute', 'unmute',
+  'warn', 'warnings', 'clearwarns', 'promote', 'demote',
+  'voteban', 'appeal', 'msgquota', 'trust',
+  'del', 'purge', 'cleanuser', 'cleanservice', 'clean_service', 'delservice',
+  'maxlength', 'pin', 'unpin', 'unpinall', 'slowmode', 'lock', 'unlock',
+  'raidmode', 'verify', 'foreign_countries', 'foreigncountries', 'blockprefix',
+  'antiporn', 'antinsfw', 'antibot', 'antichannels', 'antiforward', 'antiforeign',
+  'nightmode', 'newbiemode', 'honeypot', 'antispam', 'antilink', 'antiflood',
+  'filter', 'unfilter', 'delfilter', 'editfilter', 'clearfilters', 'filters',
+  'welcome', 'setwelcome', 'clean_welcome', 'welcome_clean', 'clean_join',
+  'secret', 'whisper', 'afk', 'remind', 'autoreply', 'giveaway',
+  'trivia', 'rps', 'coin', 'roll', 'top', 'fastclick', 'duel', 'tagall',
+  'rules', 'setrules', 'addcmd', 'delcmd', 'cmds', 'admins', 'staff',
+  'inactive', 'id', 'userinfo', 'stats',
+  'backup', 'restore', 'rules_button', 'settings', 'report'
 ]);
 
 async function safeSendGroupRich(telegram, chatId, rawText) {
@@ -371,11 +424,121 @@ module.exports = function registerInfoCommands(bot) {
           }
         }
 
+        const rawCmdText = (msg?.text || '').trim();
+        const isSlashCmd = rawCmdText.startsWith('/');
+        const cmdName = isSlashCmd ? rawCmdText.split(/\s+/)[0].replace(/^\//, '').split('@')[0].toLowerCase() : '';
+        const cmdArg = isSlashCmd ? rawCmdText.split(/\s+/).slice(1).join(' ').trim() : '';
+
+        // תמיכה בקישור מהיר מקבוצה לפרטי ובקיצורי פקודות בפרטי (/rate, /suggest)
+        if (chat?.type === 'private') {
+          if (cmdName === 'start' && (cmdArg === 'ask_creator' || cmdArg === 'translate_file')) {
+            msg.text = `/${cmdArg}`;
+            if (Array.isArray(msg.entities)) msg.entities = [{ offset: 0, length: msg.text.length, type: 'bot_command' }];
+          } else if (cmdName === 'rate' || cmdName === 'rate_bot') {
+            msg.text = '/start rate_bot';
+            if (Array.isArray(msg.entities)) msg.entities = [{ offset: 0, length: 6, type: 'bot_command' }];
+          } else if (cmdName === 'suggest' || cmdName === 'propose') {
+            msg.text = '/request_command';
+            if (Array.isArray(msg.entities)) msg.entities = [{ offset: 0, length: msg.text.length, type: 'bot_command' }];
+          }
+        }
+
+        // א. בקבוצה רגילה או בקבוצת צוות המייסדים: אם הופעלה פקודה או כפתור שעובדים בפרטי בלבד -> הודע שהפקודה עובדת בפרטי!
+        if (isGroup) {
+          if (isSlashCmd && PRIVATE_ONLY_COMMANDS.has(cmdName)) {
+            const botUsername = bot.botInfo?.username || 'VolticMod_bot';
+            let startParam = '';
+            if (cmdName === 'request_command' || cmdName === 'suggest' || cmdName === 'propose') startParam = '?start=request_command';
+            else if (cmdName === 'rate' || cmdName === 'rate_bot') startParam = '?start=rate_bot';
+            else if (cmdName === 'ask_creator') startParam = '?start=ask_creator';
+            else if (cmdName === 'translate_file' || cmdName === 'translate') startParam = '?start=translate_file';
+            await bot.telegram.callApi('sendMessage', {
+              chat_id: cid,
+              text: `⚠️ הפקודה \`/${cmdName}\` לא עובדת בקבוצה – *הפקודה עובדת בפרטי בלבד!*`,
+              parse_mode: 'Markdown',
+              reply_markup: {
+                inline_keyboard: [[{ text: '💬 לחץ כאן למעבר לפרטי של הבוט', url: `https://t.me/${botUsername}${startParam}` }]]
+              }
+            }).catch(() => {});
+            return;
+          }
+
+          const cbData = cb?.data || '';
+          if (cb && PRIVATE_ONLY_CALLBACKS.has(cbData)) {
+            const botUsername = bot.botInfo?.username || 'VolticMod_bot';
+            const paramMap = {
+              reqcmd_start: '?start=request_command',
+              rate_start: '?start=rate_bot',
+              askcreator_start: '?start=ask_creator',
+              trfile_start: '?start=translate_file'
+            };
+            await bot.telegram.callApi('answerCbQuery', {
+              callback_query_id: cb.id,
+              text: '⚠️ אפשרות זו לא עובדת בקבוצה – היא עובדת בפרטי בלבד!',
+              show_alert: true
+            }).catch(() => {});
+            await bot.telegram.callApi('sendMessage', {
+              chat_id: cid,
+              text: '⚠️ אפשרות זו לא עובדת בקבוצה – *הפקודה עובדת בפרטי בלבד!*',
+              parse_mode: 'Markdown',
+              reply_markup: {
+                inline_keyboard: [[{ text: '💬 לחץ כאן להפעלה בפרטי של הבוט', url: `https://t.me/${botUsername}${paramMap[cbData] || ''}` }]]
+              }
+            }).catch(() => {});
+            return;
+          }
+
+          if (isSlashCmd && !isFoundersChatId(cid) && FOUNDERS_GROUP_ONLY_COMMANDS.has(cmdName)) {
+            await bot.telegram.callApi('sendMessage', {
+              chat_id: cid,
+              text: `⚠️ הפקודה \`/${cmdName}\` מיועדת לצוות המייסדים ועובדת בקבוצת צוות המייסדים בלבד!`,
+              parse_mode: 'Markdown'
+            }).catch(() => {});
+            return;
+          }
+        }
+
+        // ב. בצ׳אט פרטי: אם הופעלה פקודה שעובדת בקבוצות בלבד או בקבוצת צוות המייסדים בלבד -> הודע שהפקודה עובדת בקבוצות!
+        if (chat?.type === 'private' && isSlashCmd) {
+          if (FOUNDERS_GROUP_ONLY_COMMANDS.has(cmdName)) {
+            const creatorLookup = Number(uid) === CREATOR_ID && ((cmdName === 'founders' || cmdName === 'founders_menu') && cmdArg);
+            if (!creatorLookup) {
+              await bot.telegram.callApi('sendMessage', {
+                chat_id: cid,
+                text: `⚠️ הפקודה \`/${cmdName}\` לא עובדת בפרטי – *הפקודה עובדת בקבוצות (בקבוצת צוות המייסדים) בלבד!*`,
+                parse_mode: 'Markdown',
+                reply_markup: {
+                  inline_keyboard: [
+                    [{ text: '👑 מעבר לקבוצת צוות המייסדים', url: 'https://t.me/+v4Hrdnpg0rI3MTk0' }],
+                    [{ text: '🔙 חזרה לתפריט הראשי', callback_data: 'help_main' }]
+                  ]
+                }
+              }).catch(() => {});
+              return;
+            }
+          }
+
+          if (GROUP_ONLY_COMMANDS.has(cmdName)) {
+            const botUsername = bot.botInfo?.username || 'VolticMod_bot';
+            await bot.telegram.callApi('sendMessage', {
+              chat_id: cid,
+              text: `⚠️ הפקודה \`/${cmdName}\` לא עובדת בפרטי – *הפקודה עובדת בקבוצות בלבד!*`,
+              parse_mode: 'Markdown',
+              reply_markup: {
+                inline_keyboard: [
+                  [{ text: '➕ הוסף את הבוט לקבוצה', url: `https://t.me/${botUsername}?startgroup=true` }],
+                  [{ text: '🔙 חזרה לתפריט הראשי', callback_data: 'help_main' }]
+                ]
+              }
+            }).catch(() => {});
+            return;
+          }
+        }
+
         // 3. בצ׳אט פרטי: כל עוד המשתמש לא לחץ על "♻️עדכון גרסת הבוט♻️", חסום הפעלה ישירה של הפקודות החדשות והצג לו את כפתור העדכון
         if (chat?.type === 'private' && uid && Number(uid) !== CREATOR_ID) {
           const userVer = bot._activeCtxUserVer || DEFAULT_PREV_USER_VERSION;
-          if (userVer !== LATEST_VERSION && msg?.text && msg.text.trim().startsWith('/')) {
-            const cmdName = msg.text.trim().split(/\s+/)[0].replace(/^\//, '').split('@')[0].toLowerCase();
+          if (userVer !== LATEST_VERSION && isSlashCmd) {
             if (NEW_UPDATE_COMMANDS.has(cmdName)) {
               await bot.telegram.callApi('sendMessage', {
                 chat_id: cid,
