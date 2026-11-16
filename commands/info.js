@@ -78,7 +78,8 @@ const VERSION_HISTORY = {
       `3️⃣ ❓ *שאלה ליוצר הבוט (/ask_creator):* שליחת שאלה ישירות ליוצר הבוט וקבלת תשובה ישירה.\n` +
       `4️⃣ 📜 *הגדרת חוקים שקטה או פומבית (/setrules):* מחיקה אוטומטית של הודעות הגדרת החוקים ובחירה בין מצב שקט למצב פומבי.\n` +
       `5️⃣ 🛠️ *לוח מה בפיתוח ובתיקונים (/dev):* צפייה חיה בפקודות שנמצאות כרגע בפיתוח או בתיקונים.\n` +
-      `6️⃣ 👋 *מחיקת ברוך הבא / אימות קודמים (/clean_welcome):* בחירת מנהל קבוצה אם למחוק הודעת ברוך הבא קודמת, הודעת אימות קודמת, או גם וגם בכל כניסת משתמש חדש.`
+      `6️⃣ 👋 *מחיקת ברוך הבא / אימות קודמים (/clean_welcome):* בחירת מנהל קבוצה אם למחוק הודעת ברוך הבא קודמת, הודעת אימות קודמת, או גם וגם בכל כניסת משתמש חדש.\n` +
+      `7️⃣ 📘 *מדריך הפעלה ותיעוד הבוט (/docs):* מרכז תיעוד שלם בכפתורים בתוך הבוט + קישור לאתר התיעוד הרשמי של וולטיק מוד.`
   }
 };
 
@@ -86,12 +87,13 @@ const VERSION_HISTORY = {
 const NEW_UPDATE_COMMANDS = new Set([
   'clean_accounts', 'clean_members', 'translate_file', 'translate',
   'ask_creator', 'dev', 'status', 'roadmap', 'in_dev',
-  'clean_welcome', 'welcome_clean', 'clean_join'
+  'clean_welcome', 'welcome_clean', 'clean_join',
+  'docs', 'guide', 'manual'
 ]);
 const NEW_UPDATE_CALLBACKS = new Set([
-  'trfile_start', 'askcreator_start', 'devboard_open',
+  'trfile_start', 'askcreator_start', 'devboard_open', 'docs_main',
   'hcmd_users_cleanaccounts', 'hcmd_system_translatefile', 'hcmd_system_askcreator',
-  'hcmd_info_cleanwelcome', 'hcmd_info_devboard'
+  'hcmd_info_cleanwelcome', 'hcmd_info_devboard', 'hcmd_info_docs'
 ]);
 
 async function safeSendGroupRich(telegram, chatId, rawText) {
@@ -208,6 +210,65 @@ function buildDevBoardView(items, creatorViewer) {
   rows.push([{ text: '🔙 חזרה לתפריט הראשי', callback_data: 'help_main' }]);
   return { text, reply_markup: { inline_keyboard: rows } };
 }
+
+const DOCS_WEB_URL = 'https://dov-telegram-bot.vercel.app/';
+
+const DOCS_PAGES = {
+  main:
+    `📘 *מרכז התיעוד והמדריך הרשמי – וולטיק מוד (${LATEST_VERSION})*\n\n` +
+    `ברוכים הבאים למדריך ההפעלה המלא של *וולטיק מוד*!\n` +
+    `כאן תמצאו הסבר מפורט שלב אחר שלב להקמת קבוצה מאובטחת, הרשאות אדמין נדרשות, הגדרות מומלצות וקישור לאתר התיעוד המלא.\n\n` +
+    `👇 *בחרו נושא מהכפתורים למטה או פתחו את אתר התיעוד הרשמי:*`,
+  setup:
+    `🚀 *איך מחברים את וולטיק מוד לקבוצה ב-60 שניות:*\n\n` +
+    `1️⃣ *הוספה לקבוצה:* היכנסו לפרופיל הבוט \`@VolticMod_bot\`, לחצו על *"הוסף לקבוצה"* ובחרו את הקבוצה שלכם.\n` +
+    `2️⃣ *קידום למנהל (חובה):* היכנסו להגדרות הקבוצה -> *מנהלים (Administrators)* -> *הוסף מנהל* -> בחרו ב-*וולטיק מוד* ואשרו את ההרשאות.\n` +
+    `3️⃣ *עדכון גרסת הקבוצה:* שלחו בקבוצה \`/help\` ולחצו על כפתור *"♻️עדכון גרסת הבוט♻️"* כדי לפתוח את כל המערכות החדשות.\n` +
+    `4️⃣ *בדיקת תקינות:* שלחו \`/settings\` בקבוצה כדי לראות את לוח הבקרה של כל ההגנות בזמן אמת!`,
+  perms:
+    `🛡️ *אילו הרשאות אדמין חובה לתת לבוט ולמה?*\n\n` +
+    `כדי שהבוט יוכל להגן על הקבוצה ולבצע את כל הפקודות ללא שגיאות, יש להפעיל עבורו את ההרשאות הבאות בהגדרות המנהלים בטלגרם:\n\n` +
+    `• 🗑️ *מחיקת הודעות (Delete Messages):* חובה עבור אנטי-לינק, אנטי-ספאם, פילטר מילים, נעילת לילה, ניקוי הודעות שירות ומחיקת הגדרת חוקים.\n` +
+    `• 🚫 *חסימת משתמשים (Ban Users):* חובה עבור אימות מצטרפים, חסימת קידומות זרות, השתקת מציפים, אזהרות וניקוי חשבונות מחוקים.\n` +
+    `• 📌 *נעיצת הודעות (Pin Messages):* חובה עבור פקודות \`/pin\`, \`/unpin\` ו-\`/unpinall\`.\n` +
+    `• 🔗 *הזמנת משתמשים (Invite Users):* חובה ליצירת קישורי הזמנה ולשחרור חסימות.`,
+  recommended:
+    `⚡ *הגדרות מומלצות לקבוצה חדשה (צ׳ק-ליסט למנהל):*\n\n` +
+    `מומלץ להפעיל את הפקודות הבאות מיד עם חיבור הבוט לקבוצה:\n\n` +
+    `1️⃣ *הודעת כניסה:* \`/welcome on\` ואז \`/setwelcome ברוך הבא {name}!\`\n` +
+    `2️⃣ *תקנון הקבוצה:* \`/setrules [טקסט החוקים]\` ובחירה בין מצב *שקט* ל*פומבי*.\n` +
+    `3️⃣ *ניקוי הצטרפויות קודמות:* \`/clean_welcome\` ובחירת *"🧹 מחק גם וגם"* לשמירה על צ׳אט נקי.\n` +
+    `4️⃣ *מחיקת הודעות שירות:* \`/cleanservice on\` למחיקת הודעות "X הצטרף לקבוצה".\n` +
+    `5️⃣ *חסימת קידומות ואימות:* \`/foreign_countries\` או \`/verify\` לחסימת בוטים ומספרים זרים.\n` +
+    `6️⃣ *שמירת גיבוי:* \`/backup\` לקבלת קוד גיבוי של כל הגדרות הקבוצה.`,
+  systems:
+    `🧩 *מדריך מערכות הדגל של וולטיק מוד:*\n\n` +
+    `• 🧹 *ניקוי חשבונות (\`/clean_accounts\`):* סורק ומסיר אוטומטית חשבונות מחוקים וחשבונות שלא היו פעילים חצי שנה.\n` +
+    `• 📵 *חסימת קידומות (\`/foreign_countries\`):* חוסם כניסה או כתיבה של מספרי טלפון ממדינות עוינות ודורש אימות מספר אמיתי.\n` +
+    `• 🌐 *תרגום קבצים (\`/translate_file\`):* מתרגם מסמכים וקבצי טקסט לעברית ומחזיר קובץ מתורגם לצ׳אט.\n` +
+    `• 🔒 *לחישה סודית (\`/secret\`):* שליחת הודעה מוצפנת בקבוצה שרק הנמען יכול לפתוח ולקרוא.\n` +
+    `• 🌙 *נעילת לילה (\`/nightmode\`):* סגירה ופתיחה אוטומטית של הקבוצה בשעות הלילה לפי שעון ישראל.\n` +
+    `• 🛠️ *לוח פיתוח (\`/dev\`):* צפייה חיה בפקודות שנמצאות כרגע בפיתוח או בתיקונים.`
+};
+
+function buildDocsView(section = 'main') {
+  const text = DOCS_PAGES[section] || DOCS_PAGES.main;
+  const rows = [
+    [{ text: '🌐 פתח את אתר התיעוד הרשמי של הבוט', url: DOCS_WEB_URL }],
+    [
+      { text: `${section === 'setup' ? '✅ ' : ''}🚀 חיבור לקבוצה ב-60 שניות`, callback_data: 'docs_sec_setup' },
+      { text: `${section === 'perms' ? '✅ ' : ''}🛡️ הרשאות אדמין חובה`, callback_data: 'docs_sec_perms' }
+    ],
+    [
+      { text: `${section === 'recommended' ? '✅ ' : ''}⚡ הגדרות מומלצות למנהל`, callback_data: 'docs_sec_recommended' },
+      { text: `${section === 'systems' ? '✅ ' : ''}🧩 מדריך מערכות מתקדמות`, callback_data: 'docs_sec_systems' }
+    ],
+    [{ text: '➕ הוסף את וולטיק מוד לקבוצה חדשה', url: 'https://t.me/VolticMod_bot?startgroup=true' }],
+    [{ text: '🔙 חזרה לתפריט הראשי', callback_data: 'help_main' }]
+  ];
+  return { text, reply_markup: { inline_keyboard: rows } };
+}
+
 function buildCleanJoinPanel(mode) {
   const curMode = mode || 'off';
   const labels = {
@@ -381,7 +442,6 @@ module.exports = function registerInfoCommands(bot) {
           if (payload.text.includes('חוקי הקבוצה') && /\/setrules(@\S+)?/i.test(payload.text)) {
             payload.text = payload.text.replace(/\/setrules(@\S+)?\s*/gi, '');
           }
-
           // סנכרון אוטומטי של "הצעה לשיפור" ללוח פיתוח/תיקונים ומחיקה באישור/דחייה
           if (method === 'sendMessage' && String(payload.chat_id) === String(CREATOR_ID) && payload.text.startsWith('📩 הצעה חדשה לשיפור / פקודה:')) {
             const parsed = parseSuggestionCardText(payload.text);
@@ -426,9 +486,13 @@ module.exports = function registerInfoCommands(bot) {
               } else {
                 const hasDevBtn = kb.some((r) => r.some((b) => b.callback_data === 'devboard_open'));
                 if (!hasDevBtn) {
-                  kb.splice(kb.length - 1, 0, [{ text: '🛠️ מה בפיתוח ובתיקונים', callback_data: 'devboard_open' }]);
+                  kb.splice(kb.length - 1, 0, [
+                    { text: '📘 מדריך ותיעוד הבוט', callback_data: 'docs_main' },
+                    { text: '🛠️ מה בפיתוח ובתיקונים', callback_data: 'devboard_open' }
+                  ]);
                 }
               }
+
               // עדכון כפתור "עדכון מספר..." + הוספת "♻️עדכון גרסת הבוט♻️" אם טרם עודכן
               const curKb = payload.reply_markup.inline_keyboard;
               for (const row of curKb) {
@@ -457,7 +521,10 @@ module.exports = function registerInfoCommands(bot) {
                   kb.splice(Math.max(0, kb.length - 1), 0, [{ text: '🧹 מחיקת ברוך הבא / אימות קודמים', callback_data: 'hcmd_info_cleanwelcome' }]);
                 }
                 if (payload.text.startsWith('⚙️ *קטגוריה 5') && !kb.some((r) => r.some((b) => b.callback_data === 'hcmd_info_devboard'))) {
-                  kb.splice(Math.max(0, kb.length - 1), 0, [{ text: '🛠️ מה בפיתוח ובתיקונים', callback_data: 'hcmd_info_devboard' }]);
+                  kb.splice(Math.max(0, kb.length - 1), 0, [
+                    { text: '📘 מדריך ותיעוד הבוט', callback_data: 'hcmd_info_docs' },
+                    { text: '🛠️ מה בפיתוח ובתיקונים', callback_data: 'hcmd_info_devboard' }
+                  ]);
                 }
               }
             }
@@ -806,6 +873,36 @@ ${view.text}`, {
     await ctx.editMessageText(txt, { parse_mode: 'Markdown', reply_markup: { inline_keyboard: [[{ text: '🛠️ פתח עכשיו את לוח הפיתוח', callback_data: 'devboard_open' }], [{ text: '🔙 חזרה', callback_data: 'help_system' }]] } }).catch(() => {});
   });
 
+  bot.action('hcmd_info_docs', async (ctx) => {
+    await ctx.answerCbQuery().catch(() => {});
+    const txt =
+      '📘 *מדריך הפעלה ותיעוד הבוט (/docs)*\n\n' +
+      '⌨️ *מה לכתוב:*\n`/docs` (או `/guide` / `/manual`)\n\n' +
+      '🤖 *מה הבוט ישיב:*\nפותח את מרכז התיעוד של וולטיק מוד עם מדריך חיבור לקבוצה, הרשאות אדמין חובה, הגדרות מומלצות וקישור לאתר התיעוד הרשמי.';
+    await ctx.editMessageText(txt, { parse_mode: 'Markdown', reply_markup: { inline_keyboard: [[{ text: '📘 פתח עכשיו את מדריך הבוט', callback_data: 'docs_main' }], [{ text: '🌐 לאתר התיעוד הרשמי', url: DOCS_WEB_URL }], [{ text: '🔙 חזרה', callback_data: 'help_system' }]] } }).catch(() => {});
+  });
+
+  // פקודות וכפתורים למרכז התיעוד והמדריך של הבוט (/docs, /guide, /manual)
+  bot.command(['docs', 'guide', 'manual'], async (ctx) => {
+    const view = buildDocsView('main');
+    await ctx.reply(view.text, { parse_mode: 'Markdown', reply_markup: view.reply_markup });
+  });
+
+  bot.action('docs_main', async (ctx) => {
+    await ctx.answerCbQuery().catch(() => {});
+    const view = buildDocsView('main');
+    await ctx.editMessageText(view.text, { parse_mode: 'Markdown', reply_markup: view.reply_markup })
+      .catch(() => ctx.reply(view.text, { parse_mode: 'Markdown', reply_markup: view.reply_markup }));
+  });
+
+  bot.action(/^docs_sec_(setup|perms|recommended|systems)$/, async (ctx) => {
+    await ctx.answerCbQuery().catch(() => {});
+    const sec = ctx.match[1];
+    const view = buildDocsView(sec);
+    await ctx.editMessageText(view.text, { parse_mode: 'Markdown', reply_markup: view.reply_markup })
+      .catch(() => ctx.reply(view.text, { parse_mode: 'Markdown', reply_markup: view.reply_markup }));
+  });
+
   // פקודת /cleanservice לניקוי אוטומטי של הודעות שירות בקבוצה (הצטרפות/עזיבה)
   bot.command(['cleanservice', 'clean_service'], async (ctx) => {
     if (!(await requireAdmin(ctx, '/cleanservice [on | off]'))) return;
@@ -850,6 +947,7 @@ ${view.text}`, {
       { parse_mode: 'Markdown', reply_markup: { inline_keyboard: [[{ text: '❌ ביטול וחזרה ללוח', callback_data: 'devboard_open' }]] } }
     ).catch(() => {});
   });
+
   bot.action('devboard_open', async (ctx) => {
     await ctx.answerCbQuery().catch(() => {});
     const { items } = await loadDevBoard();
@@ -857,7 +955,6 @@ ${view.text}`, {
     await ctx.editMessageText(view.text, { parse_mode: 'Markdown', reply_markup: view.reply_markup })
       .catch(() => ctx.reply(view.text, { parse_mode: 'Markdown', reply_markup: view.reply_markup }));
   });
-
   bot.action(/^devb_flip_(\d+)$/, async (ctx) => {
     if (!isCreator(ctx)) return ctx.answerCbQuery('⛔ ליוצר הבוט בלבד!', { show_alert: true }).catch(() => {});
     const idx = parseInt(ctx.match[1], 10);
