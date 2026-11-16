@@ -14,6 +14,9 @@ const registerFoundersCommands = require('./founders');
 const CREATOR_ID = 1773089386;
 const FOUNDERS_CHAT_ID = '-1004417781995';
 const BOT_VERSION = '1.2.2.1v';
+const NEW_UPDATE_ITEM_IDS = new Set(['cleanaccounts', 'translatefile', 'askcreator']);
+let activeBotInstance = null;
+const getActiveUserVer = () => (activeBotInstance && activeBotInstance._activeCtxUserVer) || BOT_VERSION;
 const isCreatorId = (id) => Number(id) === CREATOR_ID;
 const isCreator = (ctx) => isCreatorId(ctx.from?.id);
 const isFoundersGroup = (ctx) => {
@@ -137,7 +140,11 @@ const CHANGELOG_TEXT =
 `✨ *מה חדש בעדכון זה:*\n` +
 `1️⃣ 🧹 *ניקוי אוטומטי של חשבונות בקבוצה (/clean_accounts):* אפשרות בחירה אוטומטית שהבוט יוציא מהקבוצה חשבונות שלא פעלו חצי שנה, חשבונות מחוקים, או גם וגם שמכבידים על הקבוצות.\n` +
 `2️⃣ 🌐 *תרגום קבצים לעברית (/translate_file):* אפשרות חדשה לתרגום קבצים ומסמכים לעברית (בהשבה לקובץ או דרך הכפתור "🌐 תרגום קובץ לעברית" בתפריט הראשי).\n` +
-`3️⃣ ❓ *הוספת שאלה ליוצר בבוט (/ask_creator):* כפתור ופקודה חדשים לשליחת שאלה ישירות ליוצר הבוט וקבלת מענה ישיר בבוט.`;
+`3️⃣ ❓ *הוספת שאלה ליוצר בבוט (/ask_creator):* כפתור ופקודה חדשים לשליחת שאלה ישירות ליוצר הבוט וקבלת מענה ישיר בבוט.\n` +
+`4️⃣ 📜 *הגדרת חוקים שקטה או פומבית (/setrules):* מחיקה אוטומטית של הודעות הגדרת החוקים ובחירה בין מצב שקט למצב פומבי.\n` +
+`5️⃣ 🛠️ *לוח מה בפיתוח ובתיקונים (/dev):* צפייה חיה בפקודות שנמצאות כרגע בפיתוח או בתיקונים.\n` +
+`6️⃣ 👋 *מחיקת ברוך הבא / אימות קודמים (/clean_welcome):* בחירת מנהל קבוצה אם למחוק הודעת ברוך הבא קודמת, אימות קודם, או גם וגם בכניסת משתמש חדש.\n` +
+`7️⃣ 📘 *מדריך ותיעוד הבוט (/docs):* מרכז תיעוד אינטראקטיבי בבוט וקישור לאתר התיעוד הרשמי.`;
 const FOUNDERS_CHANGELOG_TEXT =
 `🔄 *תיקון הודעת גרסה חדש – עדכון לצוות המייסדים (${BOT_VERSION}):*\n\n` +
 `• 🪙 *שדרוג פקודת רעיונות הזהב (/gold):* נוספה אפשרות ליוצר הבוט למחוק הצעות לפקודות מתוך לוח רעיונות הזהב כדי לשמור על לוח נקי ומעודכן.`;
@@ -145,12 +152,21 @@ const CREATOR_CHANGELOG_TEXT =
 `🔄 *תיקון הודעת גרסה חדש – עדכון ליוצר הבוט בלבד (${BOT_VERSION}):*\n\n` +
 `1️⃣ 🗑️ *מחיקת הצעות מהפקודה /gold:* כשאתה מפעיל \`/gold\` מופיעים לך כפתורי מחיקה אישיים לכל הצעה (\`🗑️ מחק הצעה #1\` וכו׳ + \`🧹 מחק את כל לוח הזהב\`), או בפקודה \`/gold del [מספר]\` ו-\`/gold clear\`.\n` +
 `2️⃣ 💬 *מענה ישיר לשאלות משתמשים:* מתחת לכל שאלה שנשלחת אליך דרך "❓ שאלה ליוצר" מופיע כפתור \`💬 השב למשתמש זה\` למענה ישיר.\n` +
-`3️⃣ 👑 *כל פקודות היוצר בפאנל /owner:* כל 32 הפקודות שעובדות לך (יוצר הבוט) מופיעות כעת ככפתורים בעברית ישירות בתוך פאנל \`/owner\` עם הסבר וכפתורי הפעלה מהירה.`;
+`3️⃣ 👑 *כל פקודות היוצר בפאנל /owner:* כל 35 הפקודות שעובדות לך (יוצר הבוט) מופיעות כעת ככפתורים בעברית ישירות בתוך פאנל \`/owner\` עם הסבר וכפתורי הפעלה מהירה.\n` +
+`4️⃣ 🏢 *שליחת הודעה לכל הקבוצות בלבד (/broadcast_groups):* שליחה לכל הקבוצות ללא שליחה למשתמשים.\n` +
+`5️⃣ 📜 *היסטוריית עדכוני הבוט (/owner_versions):* צפייה בכל עדכוני הבוט מאז ההשקה ועד היום.\n` +
+`6️⃣ 🛠️ *ניהול לוח פיתוח ותיקונים (/dev):* סנכרון אוטומטי של הצעות לשיפור וניהול בכפתורים.`;
+function getDynamicMainMenuText() {
+  const curVer = getActiveUserVer();
+  const isUp = curVer === BOT_VERSION;
+  return (
+    `שלום! 👋\nאני בוט מתקדם לניהול והגנה על קבוצות.\n🔖 *גרסה נוכחית:* עדכון מספר ${curVer}` +
+    (!isUp ? `\n🔔 *גרסה חדשה (${BOT_VERSION}) זמינה! לחץ על "♻️עדכון גרסת הבוט♻️" למטה כדי לעדכן ולפתוח את הפקודות החדשות.*` : '') +
+    `\n\n📚 *תפריט הפקודות הראשי – בחר קטגוריה מהכפתורים למטה:*`
+  );
+}
 const MAIN_MENU_TEXT =
-`שלום! 👋\n` +
-`אני בוט מתקדם לניהול והגנה על קבוצות.\n` +
-`🔖 *גרסה נוכחית:* עדכון ${BOT_VERSION}\n\n` +
-`📚 *תפריט הפקודות הראשי – בחר קטגוריה מהכפתורים למטה:*`;
+`שלום! 👋\nאני בוט מתקדם לניהול והגנה על קבוצות.\n🔖 *גרסה נוכחית:* עדכון מספר ${BOT_VERSION}\n\n📚 *תפריט הפקודות הראשי – בחר קטגוריה מהכפתורים למטה:*`;
 const FOUNDERS_MENU = [
   fItem('shop', '🛒 חנות נקודות', '/shop', 'פותח קטלוג כפתורים לרכישת תואר מוזהב, הכרזת כבוד, הקפצת רעיון וכתר VIP בנקודות.'),
   fItem('daily_spin', '🎡 גלגל המזל היומי', '/daily_spin', 'מסובב את גלגל המזל פעם ביום ומזכה בין 5 ל-30 נקודות מייסד!'),
@@ -213,7 +229,10 @@ const CREATOR_ONLY_DICT = {
   set_draft: cItem('📝 עריכת טיוטת העדכון הבא', '/set_draft [טקסט הטיוטה]', 'מעדכן את רשימת הפיצ׳רים שמוצגת בפקודה /changelog_draft במייסדים.'),
   addcredit: cItem('🏅 הוספת קרדיט למייסד', '/addcredit שם המייסד | שם הפקודה', 'מוסיף ידנית מייסד ופקודה להיכל הקרדיטים (/credits).'),
   founders_announce: cItem('📣 הכרזת עדכון במייסדים', '/founders_announce', 'מפרסם את הודעת העדכון המלאה בקבוצת צוות המייסדים עם כפתור לתפריט.'),
-  ask_reply: cItem('💬 מענה לשאלות משתמשים', 'לחיצה על כפתור "💬 השב למשתמש זה"', 'מתחת לכל שאלה שנשלחת אליך מופיע כפתור למענה ישיר שנשלח למשתמש בפרטי.')
+  ask_reply: cItem('💬 מענה לשאלות משתמשים', 'לחיצה על כפתור "💬 השב למשתמש זה"', 'מתחת לכל שאלה שנשלחת אליך מופיע כפתור למענה ישיר שנשלח למשתמש בפרטי.'),
+  broadcast_groups: cItem('🏢 שידור לכל הקבוצות בלבד', '/broadcast_groups [הודעה]', 'שולח הודעה לכל הקבוצות בלבד ללא שליחה למשתמשים בפרטי.'),
+  owner_versions: cItem('📜 היסטוריית עדכוני הבוט', '/owner_versions', 'מציג את רשימת כל גרסאות ועדכוני הבוט מאז ההשקה ועד היום.'),
+  dev_add: cItem('🛠️ ניהול לוח פיתוח ותיקונים', '/dev (או /dev_add / /fix_add)', 'צפייה וניהול של לוח הפקודות שבפיתוח ובתיקונים בכפתורים.')
 };
 const CREATOR_DICT = { ...CREATOR_ONLY_DICT };
 for (const f of FOUNDERS_MENU) {
@@ -236,7 +255,10 @@ const EXTRA_GROUP_CMDS = {
   cmds: cItem('📂 רשימת פקודות מותאמות', '/cmds', 'מציג את כל הפקודות המותאמות אישית של הקבוצה.'),
   inactive: cItem('📊 דוח פעילות ומשתמשים שקטים', '/inactive', 'מציג דוח חברים פעילים ומשתמשים שקטים בקבוצה.'),
   roll: cItem('🎲 הגרלת מספר 1–100', '/roll', 'מגריל מספר אקראי בין 1 ל-100.'),
-  restore: cItem('♻️ שחזור הגדרות קבוצה', '/restore [קוד גיבוי]', 'משחזר את כל הגדרות הקבוצה מקוד גיבוי של /backup.')
+  restore: cItem('♻️ שחזור הגדרות קבוצה', '/restore [קוד גיבוי]', 'משחזר את כל הגדרות הקבוצה מקוד גיבוי של /backup.'),
+  clean_welcome: cItem('🧹 מחיקת ברוך הבא / אימות קודמים', '/clean_welcome', 'בחירה אם למחוק הודעת ברוך הבא או אימות קודמים בכניסת משתמש חדש.'),
+  docs: cItem('📘 מדריך ותיעוד הבוט', '/docs (או /guide / /manual)', 'פותח את מרכז התיעוד של הבוט בכפתורים עם קישור לאתר התיעוד הרשמי.'),
+  dev: cItem('🛠️ מה בפיתוח ובתיקונים', '/dev (או /status / /roadmap)', 'מציג בזמן אמת אילו פקודות נמצאות כרגע בפיתוח או בתיקונים.')
 };
 for (const [k, v] of Object.entries(EXTRA_GROUP_CMDS)) {
   if (!CREATOR_DICT[k]) CREATOR_DICT[k] = v;
@@ -293,28 +315,40 @@ function buildFoundersKb() {
   return { inline_keyboard: rows };
 }
 function getHelpKeyboard() {
-  return {
-  inline_keyboard: [
+  const curVer = getActiveUserVer();
+  const isUp = curVer === BOT_VERSION;
+  const rows = [
     [{ text: '👮 ניהול משתמשים', callback_data: 'help_users' }, { text: '🧹 תוכן וניקוי', callback_data: 'help_content' }],
     [{ text: '🛡️ אוטומציה והגנה', callback_data: 'help_protection' }, { text: 'ℹ️ קהילה ופעילויות', callback_data: 'help_info' }],
-    [{ text: '⚙️ מערכת וגיבוי', callback_data: 'help_system' }, { text: '🎨 מדריך כפתורים ועיצוב', callback_data: 'help_format' }],
-    [{ text: '🌐 תרגום קובץ לעברית', callback_data: 'trfile_start' }, { text: '❓ שאלה ליוצר', callback_data: 'askcreator_start' }],
-    [{ text: '💡 הצעה לשיפור', callback_data: 'reqcmd_start' }, { text: '⭐ דירוג הבוט', callback_data: 'rate_start' }],
-    [{ text: `🆕 עדכון ${BOT_VERSION}`, callback_data: 'help_changelog' }]
-  ]
-  };
+    [{ text: '⚙️ מערכת וגיבוי', callback_data: 'help_system' }, { text: '🎨 מדריך כפתורים ועיצוב', callback_data: 'help_format' }]
+  ];
+  if (isUp) rows.push([{ text: '🌐 תרגום קובץ לעברית', callback_data: 'trfile_start' }, { text: '❓ שאלה ליוצר', callback_data: 'askcreator_start' }]);
+  rows.push([{ text: '💡 הצעה לשיפור', callback_data: 'reqcmd_start' }, { text: '⭐ דירוג הבוט', callback_data: 'rate_start' }]);
+  if (isUp) rows.push([{ text: '📘 מדריך ותיעוד הבוט', callback_data: 'docs_main' }, { text: '🛠️ מה בפיתוח ובתיקונים', callback_data: 'devboard_open' }]);
+  rows.push([{ text: `🆕 עדכון מספר ${curVer}`, callback_data: 'ver_current_info' }]);
+  if (!isUp) rows.push([{ text: '♻️עדכון גרסת הבוט♻️', callback_data: 'ver_upgrade_user' }]);
+  return { inline_keyboard: rows };
 }
 function getCatKb(catKey) {
   const cat = MENU_DATA[catKey];
+  const curVer = getActiveUserVer();
+  const isUp = curVer === BOT_VERSION;
   const rows = [];
+  if (!isUp) rows.push([{ text: '♻️עדכון גרסת הבוט♻️ (פתיחת פקודות חדשות)', callback_data: 'ver_upgrade_user' }]);
   if (cat && Array.isArray(cat.items)) {
-  for (let i = 0; i < cat.items.length; i += 2) {
-    const row = [{ text: cat.items[i].label, callback_data: `hcmd_${catKey}_${cat.items[i].id}` }];
-    if (cat.items[i + 1]) {
-      row.push({ text: cat.items[i + 1].label, callback_data: `hcmd_${catKey}_${cat.items[i + 1].id}` });
+    const vis = isUp ? cat.items : cat.items.filter((x) => !NEW_UPDATE_ITEM_IDS.has(x.id));
+    for (let i = 0; i < vis.length; i += 2) {
+      const row = [{ text: vis[i].label, callback_data: `hcmd_${catKey}_${vis[i].id}` }];
+      if (vis[i + 1]) row.push({ text: vis[i + 1].label, callback_data: `hcmd_${catKey}_${vis[i + 1].id}` });
+      rows.push(row);
     }
-    rows.push(row);
   }
+  if (isUp && catKey === 'protection') rows.push([{ text: '🧹 מחיקת ברוך הבא / אימות קודמים', callback_data: 'hcmd_info_cleanwelcome' }]);
+  if (isUp && catKey === 'system') {
+    rows.push([
+      { text: '📘 מדריך ותיעוד הבוט', callback_data: 'hcmd_info_docs' },
+      { text: '🛠️ מה בפיתוח ובתיקונים', callback_data: 'hcmd_info_devboard' }
+    ]);
   }
   rows.push([{ text: '🔙 חזרה', callback_data: 'help_main' }]);
   return { inline_keyboard: rows };
@@ -517,6 +551,7 @@ const saveFnd = (data) => saveGroupData(FOUNDERS_CHAT_ID, data);
 const getOwn = () => getGroupData('owner_global');
 const saveOwn = (s) => saveGroupData('owner_global', s);
 function registerSystemCommands(bot) {
+  activeBotInstance = bot;
   if (bot && bot.telegram && !bot.telegram._volticWrapped) {
   bot.telegram._volticWrapped = true;
   const origCallApi = bot.telegram.callApi.bind(bot.telegram);
@@ -587,6 +622,17 @@ function registerSystemCommands(bot) {
     } catch (e) {}
     return res;
   };
+  const tgProto = Object.getPrototypeOf(bot.telegram);
+  const apiProto = tgProto ? Object.getPrototypeOf(tgProto) : null;
+  if (apiProto && typeof apiProto.callApi === 'function' && !apiProto._volticApiDelegated) {
+    apiProto._volticApiDelegated = true;
+    apiProto.callApi = function (method, payload, ...rest) {
+      if (bot.telegram && typeof bot.telegram.callApi === 'function') {
+        return bot.telegram.callApi(method, payload, ...rest);
+      }
+      return origCallApi(method, payload, ...rest);
+    };
+  }
   }
   bot.action(/^cexp_page_(\d+)$/, async (ctx) => {
   if (!isCreator(ctx)) return ack(ctx, '⛔ תפריט זה זמין ליוצר הבוט בלבד!', true);
@@ -627,7 +673,10 @@ function registerSystemCommands(bot) {
     owner_users: { text: '⚡ פתח רשימת משתמשי הבוט', cb: 'own_users' },
     broadcast: { text: '⚡ שלח הודעה לכולם כעת', cb: 'own_bcast_all' },
     broadcast_users: { text: '⚡ שלח הודעה למשתמשים בפרטי כעת', cb: 'own_bcast_users' },
-    owner_stop: { text: '⚡ עצור כתיבה חיה כעת', cb: 'own_livechat_stop' }
+    owner_stop: { text: '⚡ עצור כתיבה חיה כעת', cb: 'own_livechat_stop' },
+    broadcast_groups: { text: '⚡ שלח הודעה לכל הקבוצות בלבד כעת', cb: 'bcast_groups_only' },
+    owner_versions: { text: '⚡ פתח היסטוריית עדכוני הבוט כעת', cb: 'ver_history_open' },
+    dev_add: { text: '⚡ פתח לוח פיתוח ותיקונים כעת', cb: 'devboard_open' }
   };
   if (directMap[cmdKey]) {
     rows.push([{ text: directMap[cmdKey].text, callback_data: directMap[cmdKey].cb }]);
@@ -1623,9 +1672,20 @@ function registerSystemCommands(bot) {
   await editMd(ctx, view.text, view.reply_markup); });
   registerAdvancedCommands(bot);
   registerFoundersCommands(bot);
+  bot.command(['cleanservice', 'clean_service', 'delservice'], async (ctx) => {
+  if (!(await requireAdmin(ctx, '/cleanservice [on | off]'))) return;
+  try {
+    const arg = arg1(ctx).toLowerCase();
+    const data = await getGroupData(ctx.chat.id);
+    data.cleanService = ['on', 'off'].includes(arg) ? arg === 'on' : !data.cleanService;
+    await saveGroupData(ctx.chat.id, data);
+    await replyMd(ctx, `🧼 ניקוי אוטומטי של הודעות שירות כעת: *${data.cleanService ? 'פעיל (ON) ✅' : 'כבוי (OFF) ❌'}*`);
+  } catch (err) {
+    await ctx.reply('❌ שגיאה בעדכון ניקוי הודעות שירות.');
+  } });
   bot.command('help', async (ctx) => {
   try {
-    await replyMd(ctx, MAIN_MENU_TEXT, getHelpKeyboard());
+    await replyMd(ctx, getDynamicMainMenuText(), getHelpKeyboard());
   } catch (err) {
     await ctx.reply('❌ שגיאה בפתיחת תפריט העזרה.');
   } });
@@ -1633,16 +1693,20 @@ function registerSystemCommands(bot) {
   try {
     const cat = ctx.match[1];
     await ack(ctx);
-    if (cat === 'main') return await editMd(ctx, MAIN_MENU_TEXT, getHelpKeyboard());
+    if (cat === 'main') return await editMd(ctx, getDynamicMainMenuText(), getHelpKeyboard());
     if (cat === 'format') return await editMd(ctx, FORMAT_GUIDE, getBackKb());
     if (cat === 'changelog') return await editMd(ctx, CHANGELOG_TEXT, getBackKb());
-    if (MENU_DATA[cat]) return await editMd(ctx, MENU_DATA[cat].title, getCatKb(cat));
+    if (MENU_DATA[cat]) {
+      const curVer = getActiveUserVer();
+      const title = curVer === BOT_VERSION ? MENU_DATA[cat].title : MENU_DATA[cat].title.replace(`(עדכון ${BOT_VERSION})`, `(עדכון מספר ${curVer})`);
+      return await editMd(ctx, title, getCatKb(cat));
+    }
   } catch (e) {} });
-  bot.action(/^hcmd_([a-z]+)_([a-z]+)$/, async (ctx) => {
+  bot.action(/^hcmd_([a-z]+)_([a-z]+)$/, async (ctx, next) => {
   try {
     const catKey = ctx.match[1];
     const item = MENU_DATA[catKey]?.items.find((x) => x.id === ctx.match[2]);
-    if (!item) return;
+    if (!item) return next ? next() : undefined;
     await ack(ctx);
     await editMd(ctx, item.info, getCmdSubKb(catKey));
   } catch (e) {} });
@@ -1691,14 +1755,23 @@ function registerSystemCommands(bot) {
     `• הצבעת הדחה (/voteban): ${adv.votebanLimit ? `✅ (${adv.votebanLimit} קולות)` : '❌ כבוי'}\n` +
     `• מערכת ערעורים (/appeal): ${status(adv.appealEnabled)}\n` +
     `• דו-קרב (/duel): ${status(adv.duelEnabled)}\n` +
+    `• מחיקת ברוך הבא/אימות קודמים (/clean_welcome): ${data.cleanPrevJoinMode && data.cleanPrevJoinMode !== 'off' ? `✅ (${data.cleanPrevJoinMode})` : '❌ כבוי'}\n` +
+    `• מצב חוקי קבוצה (/setrules): ${data.rulesMode === 'silent' ? '🤫 שקט' : '📢 פומבי'}\n` +
     `• פילטרים מוגדרים: ${(data.filters || []).length} מילים\n` +
-    `• תגובות אוטומטיות: ${Object.keys(adv.autoReplies || {}).length}`, [[{ text: '📚 פתיחת תפריט הפקודות', callback_data: 'help_main' }]]);
+    `• תגובות אוטומטיות: ${Object.keys(adv.autoReplies || {}).length}`, [
+      [{ text: '🧹 מחיקת ברוך הבא / אימות קודמים בכניסה', callback_data: 'clnjoin_open' }],
+      [{ text: '📚 פתיחת תפריט הפקודות', callback_data: 'help_main' }]
+    ]);
   } catch (err) {
     await ctx.reply('❌ שגיאה בטעינת פאנל ההגדרות. לעזרה: /help');
   } });
 }
 registerSystemCommands.BOT_VERSION = BOT_VERSION;
 registerSystemCommands.CHANGELOG_TEXT = CHANGELOG_TEXT;
-registerSystemCommands.MAIN_MENU_TEXT = MAIN_MENU_TEXT;
+Object.defineProperty(registerSystemCommands, 'MAIN_MENU_TEXT', {
+  get: getDynamicMainMenuText,
+  enumerable: true,
+  configurable: true
+});
 registerSystemCommands.getHelpKeyboard = getHelpKeyboard;
 module.exports = registerSystemCommands;
