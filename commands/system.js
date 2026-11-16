@@ -81,8 +81,8 @@ const MENU_DATA = {
   title: `🛡️ *קטגוריה 3: אוטומציה והגנה* (עדכון ${BOT_VERSION})\nבחר פעולה מהכפתורים למטה לצפייה בהסבר ובדוגמת שימוש:`,
   items: [
     mItem('raidmode', '🚨 מצב חירום מתקפות', '/raidmode on | off | auto', 'חוסם מתקפות בוטים אוטומטית או ידנית ל-30 דקות.'),
-    mItem('verify', '🔐 אימות מצטרפים', '/verify (או /verify none / 60s / off)', 'אימות אנושי בכפתורים שמאוחד עם הודעת הכניסה וכפתור החוקים.'),
-    mItem('foreigncountries', '📵 חסימת קידומות ומדינות', '/foreign_countries (או /foreign_countries +98)', 'פאנל חסימת קידומות ומדינות זרות + אימות טלפון בכניסה.'),
+    mItem('verify', '🔐 אימות מצטרפים', '/verify (או /verify none / 60s / off)', 'אימות מצטרפים בתרגיל חשבון קצר נגד בוטים שמאוחד עם הודעת הכניסה וכפתור החוקים.'),
+    mItem('foreigncountries', '📵 חסימת קידומות ומדינות', '/foreign_countries (או /foreign_countries +98)', 'פאנל חסימת קידומות ומדינות זרות + אימות בתרגיל קצר בכניסה.'),
     mItem('antiporn', '🔞 חסימת תוכן למבוגרים', '/antiporn on | /antiporn off', 'מוחק אוטומטית קישורים ומילים למבוגרים (/antiporn או /antinsfw).'),
     mItem('antibot', '🤖 חסימת הכנסת בוטים', '/antibot on | /antibot off', 'מסיר מיד כל בוט זר שמוכנס לקבוצה ע"י משתמש רגיל.'),
     mItem('antichannels', '📢 חסימת כתיבה מערוץ', '/antichannels on | /antichannels off', 'מוחק אוטומטית הודעות שנשלחות בשם ערוץ בקבוצה.'),
@@ -162,11 +162,12 @@ function getDynamicMainMenuText() {
   return (
     `שלום! 👋\nאני בוט מתקדם לניהול והגנה על קבוצות.\n🔖 *גרסה נוכחית:* עדכון מספר ${curVer}` +
     (!isUp ? `\n🔔 *גרסה חדשה (${BOT_VERSION}) זמינה! לחץ על "♻️עדכון גרסת הבוט♻️" למטה כדי לעדכן ולפתוח את הפקודות החדשות.*` : '') +
+    `\n👑 *קבוצת התמיכה של הבוט:* [צוות המייסדים](https://t.me/+v4Hrdnpg0rI3MTk0)` +
     `\n\n📚 *תפריט הפקודות הראשי – בחר קטגוריה מהכפתורים למטה:*`
   );
 }
 const MAIN_MENU_TEXT =
-`שלום! 👋\nאני בוט מתקדם לניהול והגנה על קבוצות.\n🔖 *גרסה נוכחית:* עדכון מספר ${BOT_VERSION}\n\n📚 *תפריט הפקודות הראשי – בחר קטגוריה מהכפתורים למטה:*`;
+`שלום! 👋\nאני בוט מתקדם לניהול והגנה על קבוצות.\n🔖 *גרסה נוכחית:* עדכון מספר ${BOT_VERSION}\n👑 *קבוצת התמיכה של הבוט:* [צוות המייסדים](https://t.me/+v4Hrdnpg0rI3MTk0)\n\n📚 *תפריט הפקודות הראשי – בחר קטגוריה מהכפתורים למטה:*`;
 const FOUNDERS_MENU = [
   fItem('shop', '🛒 חנות נקודות', '/shop', 'פותח קטלוג כפתורים לרכישת תואר מוזהב, הכרזת כבוד, הקפצת רעיון וכתר VIP בנקודות.'),
   fItem('daily_spin', '🎡 גלגל המזל היומי', '/daily_spin', 'מסובב את גלגל המזל פעם ביום ומזכה בין 5 ל-30 נקודות מייסד!'),
@@ -318,6 +319,7 @@ function getHelpKeyboard() {
   const curVer = getActiveUserVer();
   const isUp = curVer === BOT_VERSION;
   const rows = [
+    [{ text: '👑 קבוצת התמיכה של הבוט – צוות המייסדים', url: 'https://t.me/+v4Hrdnpg0rI3MTk0' }],
     [{ text: '👮 ניהול משתמשים', callback_data: 'help_users' }, { text: '🧹 תוכן וניקוי', callback_data: 'help_content' }],
     [{ text: '🛡️ אוטומציה והגנה', callback_data: 'help_protection' }, { text: 'ℹ️ קהילה ופעילויות', callback_data: 'help_info' }],
     [{ text: '⚙️ מערכת וגיבוי', callback_data: 'help_system' }, { text: '🎨 מדריך כפתורים ועיצוב', callback_data: 'help_format' }]
@@ -1377,7 +1379,7 @@ function registerSystemCommands(bot) {
         if (uState.mode === 'creator_reply_ask' && isCreator(ctx) && msgTxt) {
           const targetUid = uState.targetUid;
           delete userInteractiveState[String(ctx.from.id)];
-          await ctx.telegram.sendMessage(targetUid, `👑 *תשובה מיוצר וולטיק מוד לשאלתך:*\n\n${msgTxt}`, { parse_mode: 'Markdown' }).catch(noop);
+          await ctx.telegram.sendMessage(targetUid, `ההודעה מהמנהל: ${msgTxt}\n\nהגב להודעה זו כדי להגיב`).catch(noop);
           await ctx.reply(`✅ תשובתך נשלחה בהצלחה למשתמש ${targetUid}!`);
           return;
         }
@@ -1749,7 +1751,7 @@ function registerSystemCommands(bot) {
     `• הגבלת אורך הודעה (/maxlength): ${data.maxLength ? `✅ (${data.maxLength} תווים)` : '❌ כבוי'}\n` +
     `• חסימת העברות (Forward): ${status(adv.antiforward)}\n` +
     `• חסימת קידומות ומדינות (/foreign_countries): ${status(adv.foreignCountries?.enabled)}\n` +
-    `• אימות טלפון בכניסה: ${status(adv.foreignCountries?.requirePhoneVerify)}\n` +
+    `• אימות בתרגיל קצר בכניסה: ${status(adv.foreignCountries?.requirePhoneVerify)}\n` +
     `• אימות מצטרפים (/verify): ${status(adv.verifyEnabled)}\n` +
     `• נעילת לילה (שעון ישראל): ${status(adv.nightmode?.enabled)}\n` +
     `• הצבעת הדחה (/voteban): ${adv.votebanLimit ? `✅ (${adv.votebanLimit} קולות)` : '❌ כבוי'}\n` +
