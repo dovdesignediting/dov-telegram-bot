@@ -373,6 +373,64 @@ function buildShortMathExercise(targetUid, memberName, extraSecText = '') {
   };
 }
 
+const FULL_MEMBER_PERMS = {
+  can_send_messages: true,
+  can_send_audios: true,
+  can_send_documents: true,
+  can_send_photos: true,
+  can_send_videos: true,
+  can_send_other_messages: true,
+  can_add_web_page_previews: true
+};
+
+async function approveAllPhonePendingInGroup(telegram, gid, extraUids = []) {
+  const gData = await getGroupData(gid);
+  const ownState = await getGroupData('owner_global');
+  const infoState = await getGroupData('info_global_state');
+  const fndData = await getGroupData(FOUNDERS_CHAT_ID);
+
+  gData.verifiedPhoneUsers = gData.verifiedPhoneUsers || {};
+  gData.pendingPhoneUsers = gData.pendingPhoneUsers || {};
+  gData.autoApprovePendingPhone = true;
+
+  const candidateUids = new Set();
+  for (const id of extraUids) if (id) candidateUids.add(String(id));
+  for (const id of Object.keys(gData.pendingPhoneUsers || {})) candidateUids.add(String(id));
+  for (const id of Object.keys(gData.memberActivity || {})) candidateUids.add(String(id));
+  for (const id of Object.keys(gData.adv?.userStats || {})) candidateUids.add(String(id));
+  for (const id of Object.keys(ownState?.users || {})) candidateUids.add(String(id));
+  for (const id of Object.keys(infoState?.userVersions || {})) candidateUids.add(String(id));
+  for (const id of Object.keys(fndData?.fnd?.members || {})) candidateUids.add(String(id));
+
+  let approvedCount = 0;
+  const approvedNames = [];
+
+  for (const uid of candidateUids) {
+    if (!/^\d+$/.test(uid) || Number(uid) === CREATOR_ID) continue;
+    try {
+      const m = await telegram.getChatMember(gid, Number(uid)).catch(() => null);
+      if (!m || !m.user || m.user.is_bot) continue;
+      const isRestricted = m.status === 'restricted' || m.can_send_messages === false;
+      const wasPending = Boolean(gData.pendingPhoneUsers[uid]);
+      if (isRestricted || wasPending) {
+        await telegram.restrictChatMember(gid, Number(uid), { permissions: FULL_MEMBER_PERMS }).catch(() => {});
+        gData.verifiedPhoneUsers[uid] = true;
+        delete gData.pendingPhoneUsers[uid];
+        approvedCount++;
+        approvedNames.push(m.user.first_name || uid);
+      }
+    } catch (e) {}
+  }
+
+  if (gData.lastVerifyMsgId) {
+    await telegram.deleteMessage(gid, gData.lastVerifyMsgId).catch(() => {});
+    gData.lastVerifyMsgId = null;
+  }
+
+  await saveGroupData(gid, gData);
+  return { approvedCount, approvedNames, totalChecked: candidateUids.size };
+}
+
 function isVerifyMessagePayload(payload) {
   if (!payload || typeof payload.text !== 'string') return false;
   const kbStr = JSON.stringify(payload.reply_markup || '');
@@ -410,9 +468,62 @@ module.exports = function registerInfoCommands(bot) {
 
         if (uid) bot._activeCtxUserVer = await getUserActiveVersion(uid);
 
+        // תיעוד אוטומטי של כל מצטרף חדש לקבוצה כדי שניתן יהיה לאשר את כולם בפקודה אחת
+        if (isGroup && Array.isArray(msg?.new_chat_members) && msg.new_chat_members.length) {
+          const gData = await getGroupData(cid);
+          gData.pendingPhoneUsers = gData.pendingPhoneUsers || {};
+          for (const nm of msg.new_chat_members) {
+            if (nm && !nm.is_bot) {
+              gData.pendingPhoneUsers[String(nm.id)] = { name: nm.first_name || 'חבר', joinedAt: Date.now() };
+            }
+          }
+          await saveGroupData(cid, gData);
+        }
+
+        // לחיצה על כפתור ישן של "📱 לחץ כאן לאימות קידומת טלפון" בקבוצה -> מאשר מיד את המשתמש בלי לבקש מספר טלפון!
+        if (isGroup && cb?.data && cb.data.startsWith('fcnt_verifyme_')) {
+          const targetId = Number(cb.data.replace('fcnt_verifyme_', ''));
+          const clickerIsAdmin = Number(uid) === CREATOR_ID || (await isGroupAdminCb({ chat, from, telegram: bot.telegram }));
+          if (Number(uid) !== targetId && !clickerIsAdmin) {
+            await bot.telegram.callApi('answerCbQuery', {
+              callback_query_id: cb.id,
+              text: '⚠️ כפתור אימות זה מיועד למצטרף החדש או למנהלי הקבוצה בלבד!',
+              show_alert: true
+            }).catch(() => {});
+            return;
+          }
+          await bot.telegram.restrictChatMember(cid, targetId, { permissions: FULL_MEMBER_PERMS }).catch(() => {});
+          const gData = await getGroupData(cid);
+          gData.verifiedPhoneUsers = gData.verifiedPhoneUsers || {};
+          gData.verifiedPhoneUsers[String(targetId)] = true;
+          if (gData.pendingPhoneUsers) delete gData.pendingPhoneUsers[String(targetId)];
+          await saveGroupData(cid, gData);
+          await bot.telegram.callApi('answerCbQuery', {
+            callback_query_id: cb.id,
+            text: '✅ המשתמש אושר בהצלחה וקיבל הרשאת כתיבה מלאה בקבוצה!',
+            show_alert: true
+          }).catch(() => {});
+          const botUsername = bot.botInfo?.username || 'VolticMod_bot';
+          const rulesUrl = `https://t.me/${botUsername}?start=rules_${cid}`;
+          const btnText = gData.rulesButtonText || '📖 לחץ כאן לצפייה בחוקי הקבוצה';
+          await bot.telegram.callApi('editMessageText', {
+            chat_id: cid,
+            message_id: cb.message?.message_id,
+            text: `✅ *האימות הושלם בהצלחה!* כעת באפשרותך לכתוב בקבוצה בחופשיות.`,
+            parse_mode: 'Markdown',
+            reply_markup: { inline_keyboard: [[{ text: btnText, url: rulesUrl }]] }
+          }).catch(() => {});
+          return;
+        }
+
+
         // 4. בקבוצות (חוץ מקבוצת המייסדים): אם הקבוצה עדיין לא עודכנה לגרסה החדשה ומנסים להפעיל את הבוט -> הצג כפתור "♻️עדכון גרסת הבוט♻️" למנהל!
         if (isGroup && !isFoundersChatId(cid)) {
           const gData = await getGroupData(cid);
+          if (Number(uid) === CREATOR_ID && gData.groupVersion !== LATEST_VERSION) {
+            gData.groupVersion = LATEST_VERSION;
+            await saveGroupData(cid, gData);
+          }
           if (gData.groupVersion === LATEST_VERSION) {
             bot._activeCtxUserVer = LATEST_VERSION;
           } else {
@@ -836,6 +947,10 @@ module.exports = function registerInfoCommands(bot) {
 
             // 5. הזרקת כפתורים לפאנל היוצר (/owner): היסטוריית עדכוני הבוט + שליחה לכל הקבוצות + לוח פיתוח
             if (payload.text.startsWith('👑 פאנל שליטה ראשי – יוצר הבוט')) {
+              const hasApprovePhoneBtn = kb.some((r) => r.some((b) => b.callback_data === 'own_approve_phone_all'));
+              if (!hasApprovePhoneBtn) {
+                kb.unshift([{ text: '✅ אשר את כל המצטרפים שהתבקשו לשתף טלפון', callback_data: 'own_approve_phone_all' }]);
+              }
               const hasDevBtn = kb.some((r) => r.some((b) => b.callback_data === 'devboard_open'));
               if (!hasDevBtn) {
                 kb.unshift([{ text: '🛠️ לוח פקודות בפיתוח ובתיקונים', callback_data: 'devboard_open' }]);
@@ -1300,6 +1415,95 @@ ${view.text}`, {
     await ctx.answerCbQuery('🧹 הלוח נוקה!').catch(() => {});
     const view = buildDevBoardView([], true);
     await ctx.editMessageText(view.text, { parse_mode: 'Markdown', reply_markup: view.reply_markup }).catch(() => {});
+  });
+
+
+  // פקודה וכפתור ליוצר הבוט: אישור מיידי של כל המצטרפים שהבוט ביקש מהם לשתף מספר טלפון (/approve_phone_all)
+  async function executeCreatorApproveAllPhone(ctx, specificGid = null) {
+    const extraUids = Array.isArray(ctx._extraApproveUids) ? [...ctx._extraApproveUids] : [];
+    const replyMsg = ctx.message?.reply_to_message;
+    if (replyMsg) {
+      if (replyMsg.from && !replyMsg.from.is_bot) extraUids.push(String(replyMsg.from.id));
+      if (Array.isArray(replyMsg.new_chat_members)) {
+        for (const nm of replyMsg.new_chat_members) if (nm && !nm.is_bot) extraUids.push(String(nm.id));
+      }
+      const kbStr = JSON.stringify(replyMsg.reply_markup || '');
+      const m1 = kbStr.match(/fcnt_verifyme_(\d+)/);
+      const m2 = kbStr.match(/ver_ok_(\d+)_/);
+      if (m1) extraUids.push(m1[1]);
+      if (m2) extraUids.push(m2[1]);
+      if (m1 || m2) {
+        await ctx.telegram.deleteMessage(ctx.chat.id, replyMsg.message_id).catch(() => {});
+      }
+    }
+
+    if (ctx.chat && ['group', 'supergroup'].includes(ctx.chat.type) && !specificGid) {
+      const statusMsg = await ctx.reply('⏳ סורק ומאשר את כל המצטרפים בקבוצה שהתבקשו לשתף מספר טלפון...');
+      const res = await approveAllPhonePendingInGroup(ctx.telegram, ctx.chat.id, extraUids);
+      const namesLine = res.approvedNames.length ? `\n👥 *משתמשים שאושרו כעת:* ${res.approvedNames.slice(0, 20).join(', ')}` : '';
+      return await ctx.telegram.editMessageText(
+        ctx.chat.id,
+        statusMsg.message_id,
+        undefined,
+        `✅ *האישור הגורף בקבוצה הושלם בהצלחה!*\n` +
+        `• 🔓 *מצטרפים ששוחררו מחסימת אימות הטלפון:* ${res.approvedCount}\n` +
+        `• 🔍 *חברים שנבדקו בקבוצה:* ${res.totalChecked}${namesLine}\n\n` +
+        `💡 בנוסף, כל כפתור אימות טלפון ישן בקבוצה יאשר מעתה את המשתמש בלחיצה אחת ללא בקשת מספר טלפון!`,
+        { parse_mode: 'Markdown' }
+      ).catch(() => {});
+    }
+
+    const ownState = await getGroupData('owner_global');
+    const targetGids = specificGid ? [String(specificGid)] : Object.keys(ownState.groups || {});
+    if (!targetGids.length) {
+      return ctx.reply('📭 לא נמצאו קבוצות רשומות במערכת. שלח את הפקודה `/approve_phone_all` ישירות בתוך הקבוצה הרצויה.', { parse_mode: 'Markdown' });
+    }
+
+    let totalApproved = 0;
+    let groupsTouched = 0;
+    const summaryRows = [];
+
+    for (const gid of targetGids) {
+      try {
+        const res = await approveAllPhonePendingInGroup(ctx.telegram, gid, extraUids);
+        const gTitle = ownState.groups?.[gid]?.title || gid;
+        if (res.approvedCount > 0) {
+          totalApproved += res.approvedCount;
+          groupsTouched++;
+          summaryRows.push(`• *${gTitle}:* אושרו ${res.approvedCount} מצטרפים (${res.approvedNames.slice(0, 8).join(', ')})`);
+        }
+      } catch (e) {}
+    }
+
+    const details = summaryRows.length
+      ? `\n\n📋 *פירוט לפי קבוצות:*\n${summaryRows.join('\n')}`
+      : `\n\n💡 כל המשתמשים המוכרים בקבוצות כבר מאושרים! (אם יש הודעת אימות טלפון ישנה בקבוצה, לחיצה עליה או שליחת \`/approve_phone_all\` בהשבה אליה תאשר את המשתמש מיד).`;
+
+    return ctx.reply(
+      `✅ *אישור כל המצטרפים שהתבקשו לשתף מספר טלפון הושלם!*\n` +
+      `• 🏢 *קבוצות שנסרקו:* ${targetGids.length}\n` +
+      `• 🔓 *סה"כ מצטרפים שאושרו ושוחררו לכתיבה:* ${totalApproved}${details}`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: ctx.chat?.type === 'private' ? { inline_keyboard: [[{ text: '👑 חזרה לפאנל היוצר', callback_data: 'own_panel' }]] } : undefined
+      }
+    );
+  }
+
+  bot.command(['approve_phone_all', 'approve_all', 'unmute_phone', 'owner_approve_phone'], async (ctx) => {
+    if (!isCreator(ctx)) {
+      return ctx.reply('⛔ פקודה זו מיועדת ליוצר הבוט בלבד.');
+    }
+    const args = (ctx.message?.text || '').trim().split(/\s+/).slice(1);
+    const argGid = args.find((a) => /^-\d+$/.test(a)) || null;
+    ctx._extraApproveUids = args.filter((a) => /^\d+$/.test(a));
+    await executeCreatorApproveAllPhone(ctx, argGid);
+  });
+
+  bot.action('own_approve_phone_all', async (ctx) => {
+    if (!isCreator(ctx)) return ctx.answerCbQuery('⛔ ליוצר הבוט בלבד!', { show_alert: true }).catch(() => {});
+    await ctx.answerCbQuery('⏳ סורק ומאשר מצטרפים בכל הקבוצות...').catch(() => {});
+    await executeCreatorApproveAllPhone(ctx, null);
   });
 
   // 24. /rules + /setrules - הצגת והגדרת חוקי הקבוצה (במצב שקט או פומבי + מחיקה אוטומטית של הודעות ההגדרה)
