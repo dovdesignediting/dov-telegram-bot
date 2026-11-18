@@ -784,6 +784,148 @@ if (bot) {
   });
 }
 
+
+const crypto = require('crypto');
+
+function validateTelegramInitData(initDataRaw, botToken) {
+  if (!initDataRaw || !botToken) return null;
+  try {
+    const params = new URLSearchParams(initDataRaw);
+    const hash = params.get('hash');
+    if (!hash) return null;
+    params.delete('hash');
+    const authDate = Number(params.get('auth_date') || 0);
+    if (!authDate || (Math.floor(Date.now() / 1000) - authDate) > 86400) return null;
+    const pairs = Array.from(params.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${k}=${v}`)
+      .join('\n');
+    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
+    const calcHash = crypto.createHmac('sha256', secretKey).update(pairs).digest('hex');
+    if (calcHash.length !== hash.length) return null;
+    if (!crypto.timingSafeEqual(Buffer.from(calcHash, 'hex'), Buffer.from(hash, 'hex'))) return null;
+    const userStr = params.get('user');
+    return userStr ? JSON.parse(userStr) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function verifyGroupAdmin(telegram, chatId, userId) {
+  if (Number(userId) === CREATOR_ID) return true;
+  try {
+    const m = await telegram.getChatMember(chatId, userId);
+    return Boolean(m && ['creator', 'administrator'].includes(m.status));
+  } catch (e) {
+    return false;
+  }
+}
+
+async function handleWebAppApi(req, res) {
+  const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+  const user = validateTelegramInitData(body.initData, process.env.BOT_TOKEN);
+  if (!user || !user.id) {
+    return res.status(401).json({ ok: false, error: 'אימות טלגרם נכשל או פג תוקף. פתח מחדש מתוך הבוט.' });
+  }
+
+  const action = body.webappAction;
+  const uid = Number(user.id);
+
+  if (action === 'list_groups') {
+    const s = await getState();
+    const candidateIds = new Set(Object.keys(s.groups || {}));
+    if (body.startChatId && /^-\d+$/.test(String(body.startChatId))) {
+      candidateIds.add(String(body.startChatId));
+    }
+    const groups = [];
+    await Promise.all(Array.from(candidateIds).map(async (gid) => {
+      try {
+        const isAdm = await verifyGroupAdmin(bot.telegram, gid, uid);
+        if (!isAdm) return;
+        const chatInfo = await bot.telegram.getChat(gid).catch(() => null);
+        const memberCount = await bot.telegram.getChatMembersCount(gid).catch(() => 0);
+        const title = chatInfo?.title || s.groups?.[gid]?.title || gid;
+        groups.push({ id: gid, title, memberCount });
+      } catch (e) {}
+    }));
+    return res.status(200).json({ ok: true, groups });
+  }
+
+  const chatId = String(body.chatId || '');
+  if (!chatId || !(await verifyGroupAdmin(bot.telegram, chatId, uid))) {
+    return res.status(403).json({ ok: false, error: 'אין לך הרשאות ניהול בקבוצה זו.' });
+  }
+
+  if (action === 'get_group') {
+    const groupData = await getGroupData(chatId);
+    const chatInfo = await bot.telegram.getChat(chatId).catch(() => null);
+    const memberCount = await bot.telegram.getChatMembersCount(chatId).catch(() => 0);
+    return res.status(200).json({
+      ok: true,
+      groupData,
+      title: chatInfo?.title || groupData.groupTitle || chatId,
+      memberCount,
+      slowModeDelay: chatInfo?.slow_mode_delay || 0
+    });
+  }
+
+  if (action === 'save_group') {
+    const cur = await getGroupData(chatId);
+    const st = body.settings || {};
+    const merged = {
+      ...cur,
+      antispam: Boolean(st.antispam),
+      antilink: Boolean(st.antilink),
+      cleanService: Boolean(st.cleanService),
+      antiflood: Math.max(0, Math.min(50, Number(st.antiflood) || 0)),
+      locks: {
+        links: Boolean(st.locks?.links),
+        media: Boolean(st.locks?.media),
+        stickers: Boolean(st.locks?.stickers)
+      },
+      filters: Array.isArray(st.filters) ? st.filters.slice(0, 100) : (cur.filters || []),
+      customCommands: st.customCommands && typeof st.customCommands === 'object' ? st.customCommands : (cur.customCommands || {}),
+      welcomeEnabled: st.welcomeEnabled !== false,
+      welcomeText: typeof st.welcomeText === 'string' ? st.welcomeText : cur.welcomeText,
+      rulesMode: st.rulesMode === 'silent' ? 'silent' : 'public',
+      rulesButtonText: typeof st.rulesButtonText === 'string' ? st.rulesButtonText : cur.rulesButtonText,
+      rules: typeof st.rules === 'string' ? st.rules : cur.rules,
+      cleanPrevJoinMode: ['off', 'welcome', 'verify', 'both'].includes(st.cleanPrevJoinMode) ? st.cleanPrevJoinMode : (cur.cleanPrevJoinMode || 'off'),
+      blockFutureUntilVerify: Boolean(st.blockFutureUntilVerify),
+      adv: { ...(cur.adv || {}), ...(st.adv || {}) }
+    };
+    if (typeof st.slowModeDelay === 'number') {
+      await bot.telegram.callApi('setChatSlowModeDelay', { chat_id: chatId, slow_mode_delay: st.slowModeDelay }).catch(() => {});
+    }
+    await saveGroupData(chatId, merged);
+    return res.status(200).json({ ok: true });
+  }
+
+  if (action === 'quick_action') {
+    const data = await getGroupData(chatId);
+    if (body.type === 'unpin_all') {
+      await bot.telegram.unpinAllChatMessages(chatId);
+      return res.status(200).json({ ok: true, message: '🧹 כל הנעוצים הוסרו בהצלחה!' });
+    }
+    if (body.type === 'restore_pins') {
+      const ids = Array.isArray(data.lastUnpinnedAllIds) ? data.lastUnpinnedAllIds : [];
+      if (!ids.length) return res.status(200).json({ ok: false, error: 'אין הודעות נעוצות שמורות לשחזור.' });
+      for (const mid of ids) await bot.telegram.pinChatMessage(chatId, mid, { disable_notification: true }).catch(() => {});
+      return res.status(200).json({ ok: true, message: `📌 שוחזרו ${ids.length} הודעות נעוצות!` });
+    }
+    if (body.type === 'clear_warns_all') {
+      data.warns = {};
+      await saveGroupData(chatId, data);
+      return res.status(200).json({ ok: true, message: '🧼 כל האזהרות בקבוצה אופסו!' });
+    }
+    if (body.type === 'export_backup') {
+      return res.status(200).json({ ok: true, backup: JSON.stringify(data) });
+    }
+  }
+
+  return res.status(400).json({ ok: false, error: 'פעולה לא נתמכת' });
+}
+
 module.exports = async (req, res) => {
   try {
     if (!bot) return res.status(500).send('חסר BOT_TOKEN');
@@ -794,6 +936,9 @@ module.exports = async (req, res) => {
         return res.status(200).json({ ok: true, webhookUrl: host });
       }
       return res.status(200).send('הבוט פעיל ומוכן לקבל הודעות! ✅');
+    }
+    if (req.method === 'POST' && req.query && req.query.webapp === '1') {
+      return await handleWebAppApi(req, res);
     }
     if (req.method === 'POST') {
       await bot.handleUpdate(req.body);
