@@ -22,7 +22,7 @@ const creatorWaitState = {}; const VERSION_HISTORY = { '1.0.0.0v': { title: 'ע�
 `✨ *עדכון מספר 1.2.2.0v – אוטומציה, תרגום וקשר ישיר ליוצר*\n\n• 🧹 *ניקוי אוטומטי של חשבונות (/clean_accounts):* הוצאה אוטומטית של חשבונות מחוקים, חשבונות שלא פעלו חצי שנה, או גם וגם.\n• 🌐 *תרגום קבצים לעברית (/translate_file):* תרגום אוטומטי של קבצים ומסמכים לעברית ושליחת קובץ מתורגם.\n• ❓ *שאלה ליוצר הבוט (/ask_creator):* שליחת שאלה ישירות ליוצר הבוט וקבלת מענה ישיר בבוט.\n• 🪙 *שדרוג לוח הזהב (/gold):* אפשרות ליוצר הבוט למחוק הצעות מתוך לוח רעיונות הזהב.`
 }, '1.2.2.1v': { title: 'עדכון מספר 1.2.2.1v – לוח פיתוח, חוקים שקטים/פומביים וניהול גרסאות', date: 'העדכון הנוכחי', text:
 `🔥 *עדכון מספר 1.2.2.1v – מה חדש בעדכון זה:*\n\n1️⃣ 🧹 *ניקוי אוטומטי של חשבונות בקבוצה (/clean_accounts):* הוצאת חשבונות שלא פעלו חצי שנה, חשבונות מחוקים, או גם וגם.\n2️⃣ 🌐 *תרגום קבצים לעברית (/translate_file):* תרגום קבצים ומסמכים לעברית בלחיצת כפתור או בפקודה.\n3️⃣ ❓ *שאלה ליוצר הבוט (/ask_creator):* שליחת שאלה ישירות ליוצר הבוט וקבלת תשובה ישירה.\n4️⃣ 📜 *הגדרת חוקים שקטה או פומבית (/setrules):* מחיקה אוטומטית של הודעות הגדרת החוקים ובחירה בין מצב שקט למצב פומבי.\n5️⃣ 🛠️ *לוח מה בפיתוח ובתיקונים (/dev):* צפייה חיה בפקודות שנמצאות כרגע בפיתוח או בתיקונים.\n6️⃣ 👋 *מחיקת ברוך הבא / אימות קודמים (/clean_welcome):* בחירת מנהל קבוצה אם למחוק הודעת ברוך הבא קודמת, הודעת אימות קודמת, או גם וגם בכל כניסת משתמש חדש.\n7️⃣ 📘 *מדריך הפעלה ותיעוד הבוט (/docs):* מרכז תיעוד שלם בכפתורים בתוך הבוט + קישור לאתר התיעוד הרשמי של וולטיק מוד.\n8️⃣ 👑 *קבוצת התמיכה "צוות המייסדים" בתפריט הראשי:* כפתור וקישור ישיר לקבוצת התמיכה בפרונט של התפריט למשתמשים.\n9️⃣ ↩️ *תגובה ישירה להודעה מהמנהל:* אפשרות להגיב (Reply) ישירות על הודעה מהמנהל בבוט בלי לפתוח פנייה חדשה.\n🔟 🧮 *אימות מצטרפים בתרגיל חשבון קצר:* החלפת אימות טלפון אישי בתרגיל קצר וידידותי נגד בוטים + פירוט מלא למשתמש בעת אישור/דחיית הצעה.`
-} }; const NEW_CMDS = new Set('clean_accounts clean_members translate_file translate ask_creator dev status roadmap in_dev clean_welcome welcome_clean clean_join docs guide manual'.split(' ')); const NEW_CBS = new Set('trfile_start askcreator_start devboard_open docs_main hcmd_users_cleanaccounts hcmd_system_translatefile hcmd_system_askcreator hcmd_info_cleanwelcome hcmd_info_devboard hcmd_info_docs hcmd_protection_cleanwelcome hcmd_system_devboard hcmd_system_docs'.split(' '));
+} }; const NEW_CMDS = new Set('clean_accounts clean_members translate_file translate ask_creator dev status roadmap in_dev clean_welcome welcome_clean clean_join docs guide manual'.split(' ')); const NEW_CBS = new Set('trfile_start askcreator_start devboard_open docs_main hcmd_users_cleanaccounts hcmd_system_translatefile hcmd_system_askcreator vhcmd_info_cleanwelcome vhcmd_info_devboard vhcmd_info_docs hcmd_protection_cleanwelcome hcmd_system_devboard hcmd_system_docs'.split(' '));
 const PRIV_CMDS = new Set('start request_command suggest propose rate rate_bot ask_creator translate_file translate cancel owner god owner_groups owner_users owner_link owner_chat owner_stop owner_say owner_pin broadcast owner_sendall broadcast_users owner_sendusers broadcast_groups owner_sendgroups owner_dm owner_leave owner_globalban owner_unglobalban owner_ghost owner_hijack_welcome owner_global_filter owner_nuke_spammer owner_vip owner_unban_me owner_poll_all owner_top_groups owner_blacklist_group owner_gift_points owner_versions version_history dev_add fix_add open_shop close_shop toggle_shop shop_open shop_close'.split(' ')); const PRIV_CBS = new Set('trfile_start askcreator_start reqcmd_start rate_start'.split(' '));
 const FND_CMDS = new Set('founders founders_menu founders_announce shop points_shop features features_shop buy_feature daily_spin duel_points transfer_points bet_goal design_welcome my_ideas quiz_bot badge invite_card changelog_draft set_draft founders_time idea bug founder rank title halloffame credits addcredit mvp checkin mission setmission preview gold goal setgoal sharebot ask feedback_bot award'.split(' ')); const GRP_CMDS = new Set('ban tempban unban kick kickme clean_accounts clean_members mute tmute unmute warn warnings clearwarns promote demote voteban appeal msgquota trust del purge cleanuser cleanservice clean_service delservice maxlength pin unpin unpinall slowmode lock unlock raidmode verify foreign_countries foreigncountries blockprefix antiporn antinsfw antibot antichannels antiforward antiforeign nightmode newbiemode honeypot antispam antilink antiflood filter unfilter delfilter editfilter clearfilters filters welcome setwelcome clean_welcome welcome_clean clean_join secret whisper afk remind autoreply giveaway trivia rps coin roll top fastclick duel tagall rules setrules addcmd delcmd cmds admins staff inactive id userinfo stats backup restore rules_button settings report'.split(' ')); async function safeSendGroupRich(telegram, chatId, rawText) {
 const fixedText = String(rawText||'').replace(/([/@][a-zA-Z0-9_]+)/g, (m)=>m.replace(/\\?_/g, '\\_')); const p = parseRichMessage(fixedText); try {
@@ -349,17 +349,17 @@ return send(`👑 *מרכז הבקרה האישי למייסד – ${uName}:*\n�
 } } }
 function buildPointsShopView(mem, isCreatorUser, shopClosed = false) { const statusLine = isCreatorUser ? `\n📌 *מצב שתי החנויות כרגע:* ${shopClosed ? '🔴 סגורות למייסדים' : '🟢 פתוחות למייסדים'}` : '';
 const balLine = isCreatorUser ? `👑 *היוצר של וולטיק מוד* (גישה חופשית לכל ההטבות והחנויות!)${statusLine}` : `💰 *המאזן שלך:* \`${(mem?.points||0).toLocaleString()}\` נקודות מייסד`;
-const text = `🛒 *חנות נקודות המייסדים – וולטיק מוד*\n${balLine}\n\nבחר הטבה לרכישה בנקודות (או עבור לחנות 52 הפיצ׳רים למטה):`;
+const text = `🛒 *חנות נקודות – צוות המייסדים*\n${balLine}\n\nבחר הטבה לרכישה בנקודות:`;
 const rows = []; if (isCreatorUser) { rows.push([cbBtn(shopClosed ? '🔓 פתח את שתי החנויות למייסדים (כרגע: סגורות 🔴)' : '🔒 סגור את שתי החנויות למייסדים (כרגע: פתוחות 🟢)', 'pshop_toggle')]); }
 rows.push([cbBtn('🌟 תואר "אדריכל זהב" (30 נק׳)', 'fshop_title')], [cbBtn('📣 הכרזת כבוד מהבוט בקבוצה (40 נק׳)', 'fshop_shout')],
 [cbBtn('🚀 הקפצת רעיון לראש התור של היוצר (50 נק׳)', 'fshop_boost')], [cbBtn('👑 מדליית כתר יוקרה בארון המדליות (80 נק׳)', 'fshop_crown')],
-[cbBtn('🛍️ מעבר לחנות 52 הפיצ׳רים למייסדים', 'vshop_page_0')]); return { text, reply_markup: { inline_keyboard: rows } }; }
+[cbBtn('🛍️ מעבר לחנות הפיצ׳רים', 'vshop_page_0')]); return { text, reply_markup: { inline_keyboard: rows } }; }
 function buildShopView(ownedList, userPoints, isCreatorUser, page = 0, shopClosed = false) { const perPage = 8; const totalPages = Math.ceil(SHOP_FEATS.length / perPage); const safePage = Math.max(0, Math.min(page, totalPages - 1));
 const slice = SHOP_FEATS.slice(safePage * perPage, (safePage + 1) * perPage); const ownedSet = new Set(Array.isArray(ownedList) ? ownedList : []); const statusLine = isCreatorUser ? `\n📌 *מצב שתי החנויות כרגע:* ${shopClosed ? '🔴 סגורות למייסדים' : '🟢 פתוחות למייסדים'}` : ''; const balLine = isCreatorUser
 ? `👑 *היוצר של וולטיק מוד* (כל ${SHOP_FEATS.length} הפיצ'רים פתוחים עבורך בחינם!)${statusLine}`
 : `💰 *המאזן שלך:* \`${userPoints.toLocaleString()}\` נקודות מייסד | ✅ *נרכשו:* ${ownedSet.size}/${SHOP_FEATS.length}`; const listLines = slice.map((f)=>{
 const status = (isCreatorUser||ownedSet.has(f.cmd)) ? '✅ *ברשותך*' : `💰 *${f.price.toLocaleString()} נק׳*`; return `• *${f.name}* (\`/${f.cmd}\`) – ${status}\n  _${f.desc}_`; }).join('\n\n'); const text =
-`🛍️ *חנות 52 הפיצ'רים המיוחדים למייסדים (עמוד ${safePage + 1}/${totalPages})*\n${balLine}\n\n✨ *כל פיצ'ר שתרכוש כאן פותח לך פקודה בלעדית שתעבוד לך בכל קבוצה שבה הבוט נמצא וגם בקבוצת המייסדים!*\n\n${listLines}\n\n👇 *לחץ על פיצ'ר למטה לרכישה או להפעלה:*`;
+`🛍️ *חנות הפיצ׳רים – צוות המייסדים (עמוד ${safePage + 1}/${totalPages})*\n${balLine}\n\n✨ *כל פיצ'ר שתרכוש כאן פותח לך פקודה בלעדית שתעבוד לך בכל קבוצה שבה הבוט נמצא וגם בקבוצת המייסדים!*\n\n${listLines}\n\n👇 *לחץ על פיצ'ר למטה לרכישה או להפעלה:*`;
 const rows = []; if (isCreatorUser) { rows.push([cbBtn(shopClosed ? '🔓 פתח את שתי החנויות למייסדים (כרגע: סגורות 🔴)' : '🔒 סגור את שתי החנויות למייסדים (כרגע: פתוחות 🟢)', `vshop_toggle_${safePage}`)]); }
 for (let i = 0; i < slice.length; i += 2) { const f1 = slice[i]; const has1 = isCreatorUser||ownedSet.has(f1.cmd); const r = [{
 text: `${has1 ? '✅' : '🛒'} ${f1.name} (${has1 ? 'ברשותך' : `${f1.price.toLocaleString()} נק׳`})`, callback_data: `vshop_feat_${f1.idx}_${safePage}` }];
@@ -368,7 +368,7 @@ text: `${has2 ? '✅' : '🛒'} ${f2.name} (${has2 ? 'ברשותך' : `${f2.pric
 rows.push(r); }
 const nav = []; if (safePage < totalPages - 1) nav.push({ text: '⬅️ עמוד הבא', callback_data: `vshop_page_${safePage + 1}` });
 if (safePage > 0) nav.push({ text: '➡️ עמוד קודם', callback_data: `${safePage - 1===0 ? 'vshop_page_0' : `vshop_page_${safePage - 1}`}` });
-if (nav.length) rows.push(nav); rows.push([cbBtn('🛒 מעבר לחנות הנקודות למייסדים', 'pshop_open')]); return { text, reply_markup: { inline_keyboard: rows } }; }
+if (nav.length) rows.push(nav); rows.push([cbBtn('🛒 מעבר לחנות נקודות', 'pshop_open')]); return { text, reply_markup: { inline_keyboard: rows } }; }
 const FULL_MEMBER_PERMS = { can_send_messages: true, can_send_audios: true, can_send_documents: true, can_send_photos: true, can_send_videos: true,
 can_send_other_messages: true, can_add_web_page_previews: true }; async function approvePhoneGroup(telegram, gid, extraUids = []) {
 const gData = await getGroupData(gid); const ownState = await getGroupData('owner_global'); const infoState = await getInfoSt();
@@ -408,7 +408,9 @@ const token = cb.data.slice(0, 24); if (!arr.includes(token)) { arr.push(token);
 if (cb?.data==='fnd_mis_done'&&uid&&Number(uid)!==CREATOR_ID) { const st = await getInfoSt();
 const tested = Array.isArray(st.missionTestedCmds?.[uid]) ? st.missionTestedCmds[uid] : []; if (tested.length < 3) { await callTg(bot, 'answerCbQuery', {
 callback_query_id: cb.id, text: `⚠️ לא ניתן להשלים את המשימה עדיין! עליך לבדוק לפחות 3 פקודות (בפרטי של הבוט או בקבוצת המייסדים). עד כה בדקת: ${tested.length}/3 פקודות.`, show_alert: true }).catch(noop); return; } }
-if (cb?.data&&(cb.data==='fnd_m_shop'||cb.data==='fnd_m_features_shop'||cb.data.startsWith('fshop_')||cb.data.startsWith('pshop_')||cb.data.startsWith('fnd_shop_')||cb.data.startsWith('vshop_'))&&Number(uid)!==CREATOR_ID) { const stShop = await getInfoSt(); if (stShop.shopClosed) { await ackApi(bot, cb, '🔒 חנות הנקודות וחנות הפיצ׳רים סגורות כרגע ע"י יוצר הבוט! הן ייפתחו בקרוב מחדש.', 1); return; } }
+if (cb?.data&&(cb.data==='fnd_m_shop'||cb.data==='fnd_fshop_menu'||cb.data.startsWith('fshop_')||cb.data.startsWith('pshop_')||cb.data.startsWith('fnd_shop_')||cb.data.startsWith('vshop_'))&&Number(uid)!==CREATOR_ID) { const stShop = await getInfoSt(); if (stShop.shopClosed) { await ackApi(bot, cb, '🔒 חנות הנקודות וחנות הפיצ׳רים סגורות כרגע ע"י יוצר הבוט! הן ייפתחו בקרוב מחדש.', 1); return; } }
+if (cb?.data&&(cb.data==='fnd_fshop_menu')) { await ackApi(bot, cb); const txt = '🛍️ *חנות הפיצ׳רים*\n\n⌨️ *מה לכתוב:*\n`/features`\n\n🤖 *מה הבוט ישיב:*\nפותח את חנות הפיצ׳רים של צוות המייסדים עם 52 פקודות וכלים שימושיים לרכישה בנקודות (מ-50 עד 35,000 נק׳) שעובדים בכל קבוצה וגם בקבוצת המייסדים!';
+await callTg(bot, 'editMessageText', { chat_id: cid, message_id: cb.message?.message_id, text: txt, parse_mode: PM, reply_markup: rmKb([[cbBtn('🛍️ פתח עכשיו את חנות הפיצ׳רים', 'vshop_page_0')], [cbBtn('🔙 חזרה לתפריט המייסדים', 'fnd_m_main')]]) }).catch(noop); return; }
 if (cb?.data&&cb.data.startsWith('fpoll_')) { const [, pid, optIdxStr] = cb.data.split('_'); const poll = activeFeaturePolls[pid]; if (!poll) { await ackApi(bot, cb, 'הסקר הסתיים'); return; }
 poll.votes[uid] = parseInt(optIdxStr, 10); await ackApi(bot, cb, '✅ הצבעתך נרשמה!'); const kb = { inline_keyboard: poll.opts.map((o, idx)=>{
 const cnt = Object.values(poll.votes).filter((v)=>v===idx).length; return [{ text: `${o} (${cnt})`, callback_data: `fpoll_${pid}_${idx}` }]; }) };
@@ -572,12 +574,12 @@ bot._lastReviewedSuggestion = null; }
 const kb = payload.reply_markup?.inline_keyboard; if (Array.isArray(kb)) { for (const row of kb) { for (const btn of row) { if (btn&&typeof btn.text==='string') {
 btn.text = btn.text.replace(/\s*\(\s*`?\/[a-zA-Z0-9_]+`?\s*\)/g, '').replace(/לפאנל\s+\/owner/gi, 'לפאנל היוצר').replace(/\/[a-zA-Z0-9_]+/g, '').replace(/\s{2,}/g, ' ').trim(); } } }
 if (typeof payload.text==='string'&&payload.text.startsWith('👑 *פאנל צוות המייסדים')) {
-if (!kb.some((r)=>r.some((b)=>b.callback_data==='fnd_m_features_shop'))) {
-const shopRow = kb.find((r)=>r.some((b)=>b.callback_data==='fnd_m_shop'));
-if (shopRow&&shopRow.length < 2) shopRow.push(cbBtn('🛍️ חנות פיצ׳רים', 'fnd_m_features_shop'));
-else kb.unshift([cbBtn('🛒 חנות נקודות', 'fnd_m_shop'), cbBtn('🛍️ חנות פיצ׳רים', 'fnd_m_features_shop')]); } }
+const flat = kb.flat().filter((b)=>b&&b.callback_data!=='fnd_m_shop'&&b.callback_data!=='fnd_fshop_menu');
+const rebuilt = [[cbBtn('🛒 חנות נקודות', 'fnd_m_shop'), cbBtn('🛍️ חנות הפיצ׳רים', 'fnd_fshop_menu')]];
+for (let i = 0; i < flat.length; i += 2) { rebuilt.push(flat[i + 1] ? [flat[i], flat[i + 1]] : [flat[i]]); }
+payload.reply_markup.inline_keyboard = rebuilt; }
 if (typeof payload.text==='string'&&payload.text.startsWith('🛒 חנות נקודות')) { if (!kb.some((r)=>r.some((b)=>b.callback_data==='pshop_open'))) {
-kb.unshift([cbBtn('🛒 פתח עכשיו את חנות הנקודות', 'pshop_open'), cbBtn('🛍️ חנות 52 הפיצ׳רים', 'vshop_page_0')]); } }
+kb.unshift([cbBtn('🛒 פתח עכשיו את חנות נקודות', 'pshop_open')]); } }
 const curUserVer = bot._activeCtxUserVer||PREV_VER; const isUpgraded = curUserVer===LATEST_VERSION;
 if (payload.text.includes('תפריט הפקודות הראשי')) { payload.text = payload.text.replace(`🔖 *גרסה נוכחית:* עדכון ${LATEST_VERSION}`, `🔖 *גרסה נוכחית:* עדכון מספר ${curUserVer}` +
 (!isUpgraded ? `\n🔔 *גרסה חדשה (${LATEST_VERSION}) זמינה! לחץ על "♻️עדכון גרסת הבוט♻️" למטה כדי לעדכן ולפתוח את הפקודות החדשות.*` : ''));
@@ -592,14 +594,14 @@ if (!isUpgraded&&!curKb.some((r)=>r.some((b)=>b.callback_data==='ver_upgrade_use
 if (payload.text.includes('*קטגוריה ')) { if (!isUpgraded) { payload.text = payload.text.replace(`(עדכון ${LATEST_VERSION})`, `(עדכון מספר ${curUserVer})`);
 payload.reply_markup.inline_keyboard = kb.map((row)=>row.filter((btn)=>!NEW_CBS.has(btn.callback_data))).filter((row)=>row.length > 0);
 payload.reply_markup.inline_keyboard.unshift([cbBtn('♻️עדכון גרסת הבוט♻️ (פתיחת פקודות חדשות)', 'ver_upgrade_user')]); } else {
-if (payload.text.startsWith('🛡️ *קטגוריה 3')&&!kb.some((r)=>r.some((b)=>b.callback_data==='hcmd_info_cleanwelcome'))) {
-kb.splice(Math.max(0, kb.length - 1), 0, [cbBtn('🧹 מחיקת ברוך הבא / אימות קודמים', 'hcmd_info_cleanwelcome')]); }
-if (payload.text.startsWith('⚙️ *קטגוריה 5')&&!kb.some((r)=>r.some((b)=>b.callback_data==='hcmd_info_devboard'))) { kb.splice(Math.max(0, kb.length - 1), 0, [
-cbBtn('📘 מדריך ותיעוד הבוט', 'hcmd_info_docs'), cbBtn('🛠️ מה בפיתוח ובתיקונים', 'hcmd_info_devboard')]); } } }
+if (payload.text.startsWith('🛡️ *קטגוריה 3')&&!kb.some((r)=>r.some((b)=>b.callback_data==='vhcmd_info_cleanwelcome'))) {
+kb.splice(Math.max(0, kb.length - 1), 0, [cbBtn('🧹 מחיקת ברוך הבא / אימות קודמים', 'vhcmd_info_cleanwelcome')]); }
+if (payload.text.startsWith('⚙️ *קטגוריה 5')&&!kb.some((r)=>r.some((b)=>b.callback_data==='vhcmd_info_devboard'))) { kb.splice(Math.max(0, kb.length - 1), 0, [
+cbBtn('📘 מדריך ותיעוד הבוט', 'vhcmd_info_docs'), cbBtn('🛠️ מה בפיתוח ובתיקונים', 'vhcmd_info_devboard')]); } } }
 if (payload.text.startsWith('👑 פאנל שליטה ראשי – יוצר הבוט')) { const stShop = await getInfoSt();
-if (!kb.some((r)=>r.some((b)=>b.callback_data==='own_toggle_shop'))) { kb.unshift([cbBtn(stShop.shopClosed ? '🔓 פתח את חנות הנקודות והפיצ׳רים (סגורות 🔴)' : '🔒 סגור את חנות הנקודות והפיצ׳רים (פתוחות 🟢)', 'own_toggle_shop')]); }
-const hasApprovePhoneBtn = kb.some((r)=>r.some((b)=>b.callback_data==='own_approve_phone_all'));
-if (!hasApprovePhoneBtn) { kb.unshift([cbBtn('✅ אשר את כל המצטרפים שהתבקשו לשתף טלפון', 'own_approve_phone_all')]); }
+if (!kb.some((r)=>r.some((b)=>b.callback_data==='vown_toggle_shop'))) { kb.unshift([cbBtn(stShop.shopClosed ? '🔓 פתח את חנות הנקודות והפיצ׳רים (סגורות 🔴)' : '🔒 סגור את חנות הנקודות והפיצ׳רים (פתוחות 🟢)', 'vown_toggle_shop')]); }
+const hasApprovePhoneBtn = kb.some((r)=>r.some((b)=>b.callback_data==='vown_approve_phone_all'));
+if (!hasApprovePhoneBtn) { kb.unshift([cbBtn('✅ אשר את כל המצטרפים שהתבקשו לשתף טלפון', 'vown_approve_phone_all')]); }
 const hasDevBtn = kb.some((r)=>r.some((b)=>b.callback_data==='devboard_open')); if (!hasDevBtn) { kb.unshift([cbBtn('🛠️ לוח פקודות בפיתוח ובתיקונים', 'devboard_open')]); }
 const hasHistBtn = kb.some((r)=>r.some((b)=>b.callback_data==='ver_history_open')); if (!hasHistBtn) { kb.unshift([cbBtn('📜 היסטוריית עדכוני הבוט', 'ver_history_open')]); }
 const hasBcastGroups = kb.some((r)=>r.some((b)=>b.callback_data==='bcast_groups_only')); if (!hasBcastGroups) { const bcastIdx = kb.findIndex((r)=>r.some((b)=>b.callback_data==='own_bcast_users'));
@@ -677,12 +679,12 @@ const summaryLines = verKeys.map((v, idx)=>`${idx + 1}. 🔖 *${VERSION_HISTORY[
 for (let i = 0; i < verKeys.length; i += 2) { const r = [{ text: `📜 עדכון מספר ${verKeys[i]}`, callback_data: `ver_hist_item_${verKeys[i]}` }];
 if (verKeys[i + 1]) r.push({ text: `📜 עדכון מספר ${verKeys[i + 1]}`, callback_data: `ver_hist_item_${verKeys[i + 1]}` }); rows.push(r); }
 rows.push([cbBtn('👑 חזרה לפאנל היוצר', 'own_panel')]); await ctx.reply(`📜 *היסטוריית עדכוני הבוט – וולטיק מוד (ליוצר בלבד)*\n📌 *גרסה אחרונה:* \`${LATEST_VERSION}\` | 👥 *עדכנו:* ${upgradedUsers}\n\n${summaryLines}`,
-{ parse_mode: PM, reply_markup: { inline_keyboard: rows } }); }); bot.action('hcmd_info_cleanwelcome', async (ctx)=>{ await ack(ctx); const txt =
+{ parse_mode: PM, reply_markup: { inline_keyboard: rows } }); }); bot.action('vhcmd_info_cleanwelcome', async (ctx)=>{ await ack(ctx); const txt =
 '🧹 *מחיקת ברוך הבא / אימות קודמים (/clean_welcome)*\n\n⌨️ *מה לכתוב:*\n`/clean_welcome`\n\n🤖 *מה הבוט ישיב:*\nפותח פאנל כפתורים למנהל הקבוצה לבחירה האם למחוק אוטומטית הודעת ברוך הבא קודמת, הודעת אימות קודמת, גם וגם, או לא למחוק בכל כניסת משתמש חדש.';
-await ctx.editMessageText(txt, { parse_mode: PM, reply_markup: rmKb([[cbBtn('🔙 חזרה', 'help_protection')]]) }).catch(noop); }); bot.action('hcmd_info_devboard', async (ctx)=>{ await ack(ctx); const txt =
+await ctx.editMessageText(txt, { parse_mode: PM, reply_markup: rmKb([[cbBtn('🔙 חזרה', 'help_protection')]]) }).catch(noop); }); bot.action('vhcmd_info_devboard', async (ctx)=>{ await ack(ctx); const txt =
 '🛠️ *לוח מה בפיתוח ובתיקונים (/dev)*\n\n⌨️ *מה לכתוב:*\n`/dev` (או `/status` / `/roadmap`)\n\n🤖 *מה הבוט ישיב:*\nמציג בזמן אמת אילו פקודות חדשות נמצאות כרגע בפיתוח (🚀) ואילו מערכות נמצאות בתיקונים ושדרוג (🔧).';
 await ctx.editMessageText(txt, { parse_mode: PM, reply_markup: rmKb([[cbBtn('🛠️ פתח עכשיו את לוח הפיתוח', 'devboard_open')], [cbBtn('🔙 חזרה', 'help_system')]]) }).catch(noop);
-}); bot.action('hcmd_info_docs', async (ctx)=>{ await ack(ctx); const txt =
+}); bot.action('vhcmd_info_docs', async (ctx)=>{ await ack(ctx); const txt =
 '📘 *מדריך הפעלה ותיעוד הבוט (/docs)*\n\n⌨️ *מה לכתוב:*\n`/docs` (או `/guide` / `/manual`)\n\n🤖 *מה הבוט ישיב:*\nפותח את מרכז התיעוד של וולטיק מוד עם מדריך חיבור לקבוצה, הרשאות אדמין חובה, הגדרות מומלצות וקישור לאתר התיעוד הרשמי.';
 await ctx.editMessageText(txt, { parse_mode: PM, reply_markup: rmKb([[cbBtn('📘 פתח עכשיו את מדריך הבוט', 'docs_main')], [urlBtn('🌐 לאתר התיעוד הרשמי', DOCS_WEB_URL)], [cbBtn('🔙 חזרה', 'help_system')]]) }).catch(noop);
 }); bot.command(['docs', 'guide', 'manual'], async (ctx)=>{ const view = buildDocsView('main');
@@ -736,7 +738,7 @@ const details = summaryRows.length
 parse_mode: PM, reply_markup: ctx.chat?.type==='private' ? { inline_keyboard: [[cbBtn('👑 חזרה לפאנל היוצר', 'own_panel')]] } : undefined }); }
 bot.command(['approve_phone_all', 'approve_all', 'unmute_phone', 'owner_approve_phone'], async (ctx)=>{ if (!isCreator(ctx)) { return ctx.reply('⛔ פקודה זו מיועדת ליוצר הבוט בלבד.'); }
 const args = (ctx.message?.text||'').trim().split(/\s+/).slice(1); const argGid = args.find((a)=>/^-\d+$/.test(a))||null;
-ctx._extraApproveUids = args.filter((a)=>/^\d+$/.test(a)); await execApprovePhone(ctx, argGid); }); bot.action('own_approve_phone_all', async (ctx)=>{
+ctx._extraApproveUids = args.filter((a)=>/^\d+$/.test(a)); await execApprovePhone(ctx, argGid); }); bot.action('vown_approve_phone_all', async (ctx)=>{
 if (!isCreator(ctx)) return ack(ctx, '⛔ ליוצר הבוט בלבד!', 1); await ack(ctx, '⏳ סורק ומאשר מצטרפים בכל הקבוצות...'); await execApprovePhone(ctx, null); });
 bot.command('rules', async (ctx)=>{ if (!ctx.chat||ctx.chat.type==='private') { return ctx.reply('⚠️ פקודה זו פועלת בקבוצות בלבד.'); }
 try { const data = await getGroupData(ctx.chat.id); const cleaned = cleanRulesText(data.rules); if (cleaned!==data.rules) { data.rules = cleaned; await saveGroupData(ctx.chat.id, data); }
@@ -778,9 +780,9 @@ bot.action(/^warn_app_(ok|no)_(\d+)$/, async (ctx)=>{ if (!(await isGroupAdminCb
 const decision = ctx.match[1]; const targetUid = ctx.match[2]; const data = await getGroupData(ctx.chat.id); if (decision==='ok') { if (data.warns) delete data.warns[targetUid]; await saveGroupData(ctx.chat.id, data);
 await ctx.telegram.unbanChatMember(ctx.chat.id, Number(targetUid), { only_if_banned: true }).catch(noop); await ack(ctx, '✅ הערעור אושר והאזהרות אופסו!');
 await ctx.editMessageText(`✅ *הערעור אושר ע"י המנהל ${ctx.from.first_name}!* כל האזהרות של המשתמש אופסו.`).catch(noop); } else { await ack(ctx, '❌ הערעור נדחה.');
-await ctx.editMessageText(`❌ *הערעור נדחה ע"י המנהל ${ctx.from.first_name}.* האזהרה נשארת בתוקף.`).catch(noop); } }); bot.action('fnd_m_features_shop', async (ctx)=>{ await ack(ctx); const txt =
-'🛍️ *חנות 52 הפיצ׳רים למייסדים*\n\n⌨️ *מה לכתוב:*\n`/features` (או מתוך `/shop`)\n\n🤖 *מה הבוט ישיב:*\nפותח קטלוג של 52 פקודות וכלים שימושיים לרכישה בנקודות מייסד (מ-50 עד 35,000 נק׳) שעובדים בכל קבוצה וגם בקבוצת המייסדים!';
-await editMd(ctx, txt, rmKb([[cbBtn('🛍️ פתח עכשיו את חנות 52 הפיצ׳רים', 'vshop_page_0')], [cbBtn('🔙 חזרה לתפריט המייסדים', 'fnd_m_main')]])); });
+await ctx.editMessageText(`❌ *הערעור נדחה ע"י המנהל ${ctx.from.first_name}.* האזהרה נשארת בתוקף.`).catch(noop); } }); bot.action('fnd_fshop_menu', async (ctx)=>{ await ack(ctx); const txt =
+'🛍️ *חנות הפיצ׳רים*\n\n⌨️ *מה לכתוב:*\n`/features` (או מתוך `/shop`)\n\n🤖 *מה הבוט ישיב:*\nפותח קטלוג של 52 פקודות וכלים שימושיים לרכישה בנקודות מייסד (מ-50 עד 35,000 נק׳) שעובדים בכל קבוצה וגם בקבוצת המייסדים!';
+await editMd(ctx, txt, rmKb([[cbBtn('🛍️ פתח עכשיו את חנות הפיצ׳רים', 'vshop_page_0')], [cbBtn('🔙 חזרה לתפריט המייסדים', 'fnd_m_main')]])); });
 bot.action('pshop_open', async (ctx)=>{ const uid = String(ctx.from.id); const st = await getInfoSt();
 if (st.shopClosed&&!isCreator(ctx)) return ack(ctx, '🔒 חנות הנקודות וחנות הפיצ׳רים סגורות כרגע ע"י יוצר הבוט!', 1);
 const fData = await getGroupData(FOUNDERS_CHAT_ID); const mem = fData?.fnd?.members?.[uid]||{ points: 10 };
@@ -789,10 +791,10 @@ await editMd(ctx, view.text, view.reply_markup); }); bot.action('pshop_toggle', 
 if (!isCreator(ctx)) return ack(ctx, '⛔ ליוצר הבוט בלבד!', 1); const st = await getInfoSt(); st.shopClosed = !st.shopClosed; await saveInfoSt(st);
 await ack(ctx, st.shopClosed ? '🔒 שתי החנויות (נקודות + פיצ׳רים) נסגרו למייסדים!' : '🔓 שתי החנויות (נקודות + פיצ׳רים) נפתחו למייסדים!', 1);
 const view = buildPointsShopView({ points: 0 }, true, Boolean(st.shopClosed)); await editMd(ctx, view.text, view.reply_markup); });
-bot.action('own_toggle_shop', async (ctx)=>{ if (!isCreator(ctx)) return ack(ctx, '⛔ ליוצר הבוט בלבד!', 1);
+bot.action('vown_toggle_shop', async (ctx)=>{ if (!isCreator(ctx)) return ack(ctx, '⛔ ליוצר הבוט בלבד!', 1);
 const st = await getInfoSt(); st.shopClosed = !st.shopClosed; await saveInfoSt(st);
 await ack(ctx, st.shopClosed ? '🔒 שתי החנויות (נקודות + פיצ׳רים) נסגרו למייסדים!' : '🔓 שתי החנויות (נקודות + פיצ׳רים) נפתחו למייסדים!', 1);
-const kb = ctx.callbackQuery?.message?.reply_markup?.inline_keyboard; if (Array.isArray(kb)) { for (const r of kb) { for (const b of r) { if (b.callback_data==='own_toggle_shop') {
+const kb = ctx.callbackQuery?.message?.reply_markup?.inline_keyboard; if (Array.isArray(kb)) { for (const r of kb) { for (const b of r) { if (b.callback_data==='vown_toggle_shop') {
 b.text = st.shopClosed ? '🔓 פתח את חנות הנקודות והפיצ׳רים (סגורות 🔴)' : '🔒 סגור את חנות הנקודות והפיצ׳רים (פתוחות 🟢)'; } } }
 await ctx.editMessageReplyMarkup({ inline_keyboard: kb }).catch(noop); } }); bot.action(/^vshop_toggle_(\d+)$/, async (ctx)=>{
 if (!isCreator(ctx)) return ack(ctx, '⛔ ליוצר הבוט בלבד!', 1); const page = parseInt(ctx.match[1], 10)||0;
