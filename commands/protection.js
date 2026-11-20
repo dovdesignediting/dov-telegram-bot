@@ -6,15 +6,39 @@ const {
   floodTracker
 } = require('./utils');
 
+function formatWelcomeName(memberOrName) {
+  if (memberOrName && typeof memberOrName === 'object') {
+    const safeName = String(memberOrName.first_name || 'חבר').replace(/[\[\]*_`]/g, '').trim() || 'חבר';
+    if (memberOrName.username && memberOrName.id) {
+      return { display: `[${safeName}](tg://user?id=${memberOrName.id})`, isMention: true };
+    }
+    return { display: safeName, isMention: false };
+  }
+  const safeName = String(memberOrName || 'חבר').replace(/[\[\]*_`]/g, '').trim() || 'חבר';
+  return { display: safeName, isMention: false };
+}
+
+function applyWelcomeName(text, memberOrName) {
+  const { display, isMention } = formatWelcomeName(memberOrName);
+  if (isMention) {
+    return String(text || '')
+      .replace(/\*\{name\}\*/g, display)
+      .replace(/_\{name\}_/g, display)
+      .replace(/\{name\}/g, display);
+  }
+  return String(text || '').replace(/\{name\}/g, display);
+}
+
 // שליחת הודעת ברוכים הבאים עם כפתור מובנה לחוקי הקבוצה בפרטי
-async function sendWelcomeWithRulesBtn(ctx, rawText, memberName) {
+async function sendWelcomeWithRulesBtn(ctx, rawText, memberOrName) {
   const botUsername = ctx.botInfo?.username || (await ctx.telegram.getMe()).username;
   const rulesUrl = `https://t.me/${botUsername}?start=rules_${ctx.chat.id}`;
-  const cleanText = String(rawText || 'ברוך הבא לקבוצה, *{name}*! נשמח שתקרא את חוקי הקבוצה.').replace(/\s*\(\/rules\)/g, '');
+  const baseText = String(rawText || 'ברוך הבא לקבוצה, *{name}*! נשמח שתקרא את חוקי הקבוצה.').replace(/\s*\(\/rules\)/g, '');
+  const cleanText = applyWelcomeName(baseText, memberOrName);
   const fullText = cleanText.includes('start=rules_')
     ? cleanText
     : `${cleanText}\n{{📖 לחץ כאן לצפייה בחוקי הקבוצה}{${rulesUrl}}}`;
-  return await sendFormattedMessage(ctx, fullText, { name: memberName || 'חבר' });
+  return await sendFormattedMessage(ctx, fullText);
 }
 
 // בניית תצוגת פאנל המילים האסורות עם כפתורי עריכה ומחיקה לכל מילה
@@ -290,7 +314,7 @@ module.exports = function registerProtectionCommands(bot) {
       const data = await getGroupData(ctx.chat.id);
       if (!['on', 'off'].includes(arg)) {
         await ctx.reply('👋 תצוגה מקדימה של הודעת הברוכים הבאים הנוכחית:');
-        return await sendWelcomeWithRulesBtn(ctx, data.welcomeText, ctx.from.first_name || 'חבר');
+        return await sendWelcomeWithRulesBtn(ctx, data.welcomeText, ctx.from);
       }
       data.welcomeEnabled = arg === 'on';
       await saveGroupData(ctx.chat.id, data);
@@ -310,7 +334,7 @@ module.exports = function registerProtectionCommands(bot) {
           { parse_mode: 'Markdown' }
         );
       }
-      const preview = await sendWelcomeWithRulesBtn(ctx, text, ctx.from.first_name || 'חבר');
+      const preview = await sendWelcomeWithRulesBtn(ctx, text, ctx.from);
       if (!preview) return;
       const data = await getGroupData(ctx.chat.id);
       data.welcomeText = text;
@@ -345,7 +369,7 @@ module.exports = function registerProtectionCommands(bot) {
       if (msg.new_chat_members && data.welcomeEnabled && !verifyOrRaidActive) {
         for (const member of msg.new_chat_members) {
           if (!member.is_bot) {
-            await sendWelcomeWithRulesBtn(ctx, data.welcomeText, member.first_name || 'חבר');
+            await sendWelcomeWithRulesBtn(ctx, data.welcomeText, member);
           }
         }
       }
