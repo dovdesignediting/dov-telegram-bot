@@ -3,16 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>וולטיק מוד | מיני-אפליקציה לניהול קבוצה</title>
+  <title>וולטיק מוד | ניהול קבוצה</title>
   <script src="https://telegram.org/js/telegram-web-app.js?65"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --bg: var(--tg-theme-bg-color, #0b1120);
-      --bg-sec: var(--tg-theme-secondary-bg-color, #131c31);
-      --section-bg: var(--tg-theme-section-bg-color, #16213a);
+      --bg: var(--tg-theme-bg-color, #0c1220);
+      --bg-sec: var(--tg-theme-secondary-bg-color, #141c2f);
+      --section-bg: var(--tg-theme-section-bg-color, #1a243b);
       --text: var(--tg-theme-text-color, #f8fafc);
       --hint: var(--tg-theme-hint-color, #94a3b8);
       --link: var(--tg-theme-link-color, #38bdf8);
@@ -23,221 +20,730 @@
       --accent: #6366f1;
       --success: #10b981;
       --warn: #f59e0b;
-      --radius: 16px;
-      --safe-top: var(--tg-content-safe-area-inset-top, 0px);
+      --radius-lg: 18px;
+      --radius-md: 13px;
+      --safe-top: var(--tg-content-safe-area-inset-top, var(--tg-safe-area-inset-top, 0px));
       --safe-bottom: var(--tg-safe-area-inset-bottom, 0px);
+      --chrome-bg: color-mix(in srgb, var(--bg) 74%, transparent);
+      --sheet-bg: color-mix(in srgb, var(--bg-sec) 90%, transparent);
+      --edge-highlight: rgba(255, 255, 255, 0.12);
+      --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.12);
+      --shadow-lg: 0 18px 44px rgba(0, 0, 0, 0.34);
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html {
+      font-size: 100%;
+      touch-action: manipulation;
+      -webkit-text-size-adjust: 100%;
+    }
 
     body {
-      font-family: 'Heebo', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
       background: var(--bg);
       color: var(--text);
-      line-height: 1.5;
+      font-size: 0.9375rem;
+      line-height: 1.48;
+      letter-spacing: 0;
       padding-top: var(--safe-top);
-      padding-bottom: calc(88px + var(--safe-bottom));
+      padding-bottom: calc(92px + var(--safe-bottom));
       min-height: 100vh;
       overflow-x: hidden;
+      transition: background-color 220ms ease, color 220ms ease;
     }
 
+    /* Translucent Floating Header + Scroll Edge Fade */
     .app-header {
       position: sticky;
       top: 0;
-      z-index: 50;
-      background: color-mix(in srgb, var(--bg) 88%, transparent);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-      border-bottom: 1px solid var(--sep);
-      padding: 12px 16px;
+      z-index: 60;
+      background: var(--chrome-bg);
+      backdrop-filter: blur(22px) saturate(180%);
+      -webkit-backdrop-filter: blur(22px) saturate(180%);
+      padding: 0.75rem 1rem;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
+      gap: 0.75rem;
+      transition: box-shadow 200ms ease, background-color 220ms ease;
     }
 
-    .brand-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
-    .brand-icon {
-      width: 38px; height: 38px; border-radius: 12px;
-      background: linear-gradient(135deg, var(--btn), var(--accent));
-      display: grid; place-items: center; font-size: 1.2rem; flex-shrink: 0;
-      box-shadow: 0 4px 14px rgba(14, 165, 233, 0.3);
+    .app-header::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: -14px;
+      height: 14px;
+      pointer-events: none;
+      background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 65%, transparent), transparent);
+      opacity: 0;
+      transition: opacity 180ms ease;
     }
-    .brand-title { font-weight: 800; font-size: 1.02rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .brand-sub { font-size: 0.78rem; color: var(--hint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .app-header.scrolled {
+      box-shadow: 0 1px 0 var(--sep), 0 8px 24px rgba(0, 0, 0, 0.16);
+    }
+
+    .app-header.scrolled::after {
+      opacity: 1;
+    }
+
+    .brand-row {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      min-width: 0;
+    }
+
+    .brand-icon {
+      width: 2.35rem;
+      height: 2.35rem;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--btn), var(--accent));
+      display: grid;
+      place-items: center;
+      font-size: 1.15rem;
+      flex-shrink: 0;
+      box-shadow: 0 4px 14px color-mix(in srgb, var(--btn) 34%, transparent);
+    }
+
+    .brand-title {
+      font-weight: 800;
+      font-size: 1.05rem;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-optical-sizing: auto;
+    }
+
+    .brand-sub {
+      font-size: 0.78rem;
+      line-height: 1.3;
+      letter-spacing: 0.01em;
+      color: var(--hint);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
 
     .status-pill {
-      font-size: 0.72rem; font-weight: 700; padding: 4px 10px; border-radius: 999px;
-      background: color-mix(in srgb, var(--success) 16%, transparent); color: var(--success);
-      border: 1px solid color-mix(in srgb, var(--success) 35%, transparent); flex-shrink: 0;
+      font-size: 0.73rem;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      padding: 0.28rem 0.68rem;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--success) 16%, transparent);
+      color: var(--success);
+      border: 1px solid color-mix(in srgb, var(--success) 34%, transparent);
+      flex-shrink: 0;
+      transform-origin: center;
+      will-change: transform, opacity;
+      transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease;
     }
 
-    .container { max-width: 720px; margin: 0 auto; padding: 14px 14px 24px; }
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 0.9rem 0.9rem 1.6rem;
+    }
+
+    /* Instant Press Feedback (Pointer Down) */
+    .pressable {
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      will-change: transform;
+      transition: transform 100ms cubic-bezier(0.2, 0.9, 0.3, 1), opacity 100ms ease;
+    }
+    .pressable.is-pressed,
+    .pressable:active {
+      transform: scale(0.97);
+    }
 
     .card {
       background: var(--bg-sec);
       border: 1px solid var(--sep);
-      border-radius: var(--radius);
-      padding: 14px;
-      margin-bottom: 12px;
+      border-radius: var(--radius-lg);
+      padding: 0.95rem;
+      margin-bottom: 0.8rem;
+      box-shadow: var(--shadow-sm);
     }
 
     .card-title {
-      font-size: 0.86rem; font-weight: 800; color: var(--hint);
-      margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: -0.005em;
+      color: var(--hint);
+      margin-bottom: 0.65rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
 
     /* Group Selector */
     .group-item {
-      display: flex; align-items: center; justify-content: space-between; gap: 12px;
-      padding: 13px 14px; border-radius: 14px; background: var(--section-bg);
-      border: 1px solid var(--sep); margin-bottom: 10px; cursor: pointer;
-      transition: transform 0.15s ease, border-color 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.85rem 0.9rem;
+      border-radius: 15px;
+      background: var(--section-bg);
+      border: 1px solid var(--sep);
+      margin-bottom: 0.6rem;
+      transform-origin: center;
     }
-    .group-item:active { transform: scale(0.985); }
-    .group-avatar {
-      width: 42px; height: 42px; border-radius: 12px;
-      background: linear-gradient(135deg, var(--btn), var(--accent));
-      color: #fff; font-weight: 800; font-size: 1.05rem;
-      display: grid; place-items: center; flex-shrink: 0;
-    }
-    .group-meta { flex: 1; min-width: 0; }
-    .group-name { font-weight: 700; font-size: 0.98rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .group-id { font-size: 0.76rem; color: var(--hint); }
+    .group-item:last-child { margin-bottom: 0; }
 
-    /* Tabs */
+    .group-avatar {
+      width: 2.6rem;
+      height: 2.6rem;
+      border-radius: 13px;
+      background: linear-gradient(135deg, var(--btn), var(--accent));
+      color: #fff;
+      font-weight: 800;
+      font-size: 1.05rem;
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+
+    .group-meta { flex: 1; min-width: 0; }
+    .group-name {
+      font-weight: 700;
+      font-size: 0.98rem;
+      line-height: 1.25;
+      letter-spacing: -0.015em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .group-id {
+      font-size: 0.76rem;
+      letter-spacing: 0.01em;
+      color: var(--hint);
+      margin-top: 2px;
+    }
+
+    /* Floating Segmented Tabs with Live Spring Pill */
+    .tabs-shell {
+      position: relative;
+      background: var(--bg-sec);
+      border: 1px solid var(--sep);
+      border-radius: 999px;
+      padding: 4px;
+      margin-bottom: 0.85rem;
+      overflow: hidden;
+    }
+
     .tabs-bar {
-      display: flex; gap: 6px; overflow-x: auto; padding: 4px 0 12px;
-      scrollbar-width: none; -ms-overflow-style: none;
+      position: relative;
+      display: flex;
+      gap: 2px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      scroll-behavior: smooth;
     }
     .tabs-bar::-webkit-scrollbar { display: none; }
-    .tab-btn {
-      flex-shrink: 0; border: 1px solid var(--sep); background: var(--bg-sec);
-      color: var(--hint); font-family: inherit; font-weight: 700; font-size: 0.84rem;
-      padding: 8px 13px; border-radius: 999px; cursor: pointer; transition: all 0.18s ease;
-      display: inline-flex; align-items: center; gap: 6px;
-    }
-    .tab-btn.active {
-      background: var(--btn); color: var(--btn-text); border-color: transparent;
-      box-shadow: 0 4px 12px color-mix(in srgb, var(--btn) 35%, transparent);
+
+    .tab-pill-bg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      border-radius: 999px;
+      background: var(--btn);
+      box-shadow: 0 3px 10px color-mix(in srgb, var(--btn) 35%, transparent);
+      pointer-events: none;
+      will-change: transform;
+      transform-origin: left center;
+      z-index: 0;
     }
 
-    /* Toggle Row */
+    .tab-btn {
+      position: relative;
+      z-index: 1;
+      flex-shrink: 0;
+      border: none;
+      background: transparent;
+      color: var(--hint);
+      font-family: inherit;
+      font-weight: 700;
+      font-size: 0.84rem;
+      letter-spacing: -0.005em;
+      padding: 0.52rem 0.85rem;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      transition: color 180ms ease, transform 100ms ease;
+    }
+    .tab-btn.active {
+      color: var(--btn-text);
+    }
+
+    /* Swipeable Tab Stage */
+    .panels-stage {
+      position: relative;
+      touch-action: pan-y;
+      will-change: transform, opacity;
+    }
+
+    .tab-panel {
+      will-change: transform, opacity;
+    }
+
+    /* Setting Rows */
     .setting-row {
-      display: flex; align-items: center; justify-content: space-between; gap: 12px;
-      padding: 11px 0; border-bottom: 1px solid var(--sep);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.72rem 0;
+      border-bottom: 1px solid var(--sep);
     }
     .setting-row:last-child { border-bottom: none; padding-bottom: 2px; }
     .setting-row:first-child { padding-top: 2px; }
     .setting-info { flex: 1; min-width: 0; }
-    .setting-name { font-weight: 700; font-size: 0.93rem; }
-    .setting-desc { font-size: 0.77rem; color: var(--hint); margin-top: 1px; }
+    .setting-name {
+      font-weight: 700;
+      font-size: 0.93rem;
+      line-height: 1.3;
+      letter-spacing: -0.01em;
+    }
+    .setting-desc {
+      font-size: 0.78rem;
+      line-height: 1.4;
+      color: var(--hint);
+      margin-top: 2px;
+    }
 
-    /* Switch */
-    .switch { position: relative; display: inline-block; width: 48px; height: 28px; flex-shrink: 0; }
-    .switch input { opacity: 0; width: 0; height: 0; }
+    /* Fluid Spring Switch */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 50px;
+      height: 30px;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
     .slider {
-      position: absolute; cursor: pointer; inset: 0;
-      background: rgba(148, 163, 184, 0.28); border-radius: 999px; transition: 0.22s;
+      position: absolute;
+      inset: 0;
+      background: rgba(148, 163, 184, 0.28);
+      border-radius: 999px;
+      transition: background-color 220ms ease;
     }
-    .slider:before {
-      position: absolute; content: ""; height: 22px; width: 22px;
-      left: 3px; bottom: 3px; background: #fff; border-radius: 50%;
-      transition: 0.22s; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
+    .slider::before {
+      position: absolute;
+      content: "";
+      height: 24px;
+      width: 24px;
+      left: 3px;
+      bottom: 3px;
+      background: #ffffff;
+      border-radius: 50%;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.26);
+      will-change: transform;
+      transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1), width 120ms ease;
     }
+    .switch:active .slider::before { width: 27px; }
     input:checked + .slider { background: var(--btn); }
-    input:checked + .slider:before { transform: translateX(20px); }
+    input:checked + .slider::before { transform: translateX(20px); }
+    .switch:active input:checked + .slider::before { transform: translateX(17px); }
 
     /* Inputs & Selects */
-    .field { margin-bottom: 12px; }
+    .field { margin-bottom: 0.8rem; }
     .field:last-child { margin-bottom: 0; }
-    .field label { display: block; font-size: 0.82rem; font-weight: 700; color: var(--hint); margin-bottom: 6px; }
-    .input, .textarea, .select {
-      width: 100%; background: var(--bg); color: var(--text);
-      border: 1px solid var(--sep); border-radius: 12px;
-      padding: 10px 12px; font-family: inherit; font-size: 0.92rem;
-      outline: none; transition: border-color 0.15s;
+    .field label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--hint);
+      margin-bottom: 0.4rem;
     }
-    .input:focus, .textarea:focus, .select:focus { border-color: var(--btn); }
-    .textarea { min-height: 86px; resize: vertical; }
+    .input, .textarea, .select {
+      width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--sep);
+      border-radius: var(--radius-md);
+      padding: 0.65rem 0.8rem;
+      font-family: inherit;
+      font-size: 0.93rem;
+      line-height: 1.45;
+      outline: none;
+      transition: border-color 160ms ease, box-shadow 160ms ease;
+    }
+    .input:focus, .textarea:focus, .select:focus {
+      border-color: var(--btn);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--btn) 18%, transparent);
+    }
+    .textarea { min-height: 88px; resize: vertical; }
 
-    .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .row-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
 
-    /* Chips */
-    .chips-wrap { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
+    /* Custom 1:1 Pointer-Captured Fluid Slider */
+    .fluid-slider-wrap {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .fluid-slider {
+      position: relative;
+      flex: 1;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      touch-action: none;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .fluid-slider-track {
+      position: relative;
+      width: 100%;
+      height: 7px;
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.24);
+      overflow: hidden;
+      will-change: transform;
+    }
+    .fluid-slider-fill {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      background: var(--btn);
+      border-radius: 999px;
+      transform-origin: left center;
+      will-change: transform;
+    }
+    .fluid-slider-thumb {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      width: 24px;
+      height: 24px;
+      margin-top: -12px;
+      margin-left: -12px;
+      border-radius: 50%;
+      background: #ffffff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.06);
+      will-change: transform;
+      pointer-events: none;
+    }
+    .fluid-slider.dragging .fluid-slider-thumb {
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.36), 0 0 0 4px color-mix(in srgb, var(--btn) 24%, transparent);
+    }
+    .range-val {
+      min-width: 3.8rem;
+      text-align: center;
+      font-weight: 800;
+      font-size: 0.86rem;
+      color: var(--btn);
+      font-variant-numeric: tabular-nums;
+    }
+    .sr-range {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* Chips & Buttons */
+    .chips-wrap { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 0.55rem; }
     .chip {
-      display: inline-flex; align-items: center; gap: 6px;
-      background: var(--bg); border: 1px solid var(--sep); border-radius: 999px;
-      padding: 5px 11px; font-size: 0.82rem; font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: var(--bg);
+      border: 1px solid var(--sep);
+      border-radius: 999px;
+      padding: 0.32rem 0.72rem;
+      font-size: 0.82rem;
+      font-weight: 600;
     }
     .chip-del {
-      background: none; border: none; color: var(--danger); font-weight: 800;
-      cursor: pointer; font-size: 0.9rem; line-height: 1; padding: 0 2px;
+      background: none;
+      border: none;
+      color: var(--danger);
+      font-weight: 800;
+      cursor: pointer;
+      font-size: 0.92rem;
+      line-height: 1;
+      padding: 2px 4px;
     }
 
-    .add-bar { display: flex; gap: 8px; }
+    .add-bar { display: flex; gap: 0.5rem; }
     .btn-sm {
-      background: var(--btn); color: var(--btn-text); border: none; border-radius: 12px;
-      padding: 0 15px; font-family: inherit; font-weight: 700; font-size: 0.88rem;
-      cursor: pointer; white-space: nowrap; min-height: 40px;
+      background: var(--btn);
+      color: var(--btn-text);
+      border: none;
+      border-radius: var(--radius-md);
+      padding: 0 1rem;
+      font-family: inherit;
+      font-weight: 700;
+      font-size: 0.88rem;
+      white-space: nowrap;
+      min-height: 42px;
     }
     .btn-outline {
-      background: transparent; color: var(--text); border: 1px solid var(--sep);
-      border-radius: 12px; padding: 9px 12px; font-family: inherit; font-weight: 700;
-      font-size: 0.84rem; cursor: pointer; width: 100%;
+      background: var(--section-bg);
+      color: var(--text);
+      border: 1px solid var(--sep);
+      border-radius: var(--radius-md);
+      padding: 0.65rem 0.75rem;
+      font-family: inherit;
+      font-weight: 700;
+      font-size: 0.84rem;
+      width: 100%;
     }
     .btn-danger {
       background: color-mix(in srgb, var(--danger) 14%, transparent);
-      color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
-      border-radius: 12px; padding: 10px 12px; font-family: inherit; font-weight: 700;
-      font-size: 0.85rem; cursor: pointer; width: 100%;
+      color: var(--danger);
+      border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+      border-radius: var(--radius-md);
+      padding: 0.65rem 0.75rem;
+      font-family: inherit;
+      font-weight: 700;
+      font-size: 0.84rem;
+      width: 100%;
     }
 
     /* Stats Grid */
-    .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 12px; }
+    .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.6rem; margin-bottom: 0.8rem; }
     .stat-box {
-      background: var(--bg-sec); border: 1px solid var(--sep); border-radius: 14px;
-      padding: 12px; text-align: center;
+      background: var(--bg-sec);
+      border: 1px solid var(--sep);
+      border-radius: 16px;
+      padding: 0.85rem;
+      text-align: center;
     }
-    .stat-num { font-size: 1.45rem; font-weight: 900; color: var(--btn); }
-    .stat-lbl { font-size: 0.77rem; color: var(--hint); font-weight: 600; }
-
-    .range-row { display: flex; align-items: center; gap: 10px; }
-    .range-row input[type="range"] { flex: 1; accent-color: var(--btn); }
-    .range-val { min-width: 58px; text-align: center; font-weight: 800; font-size: 0.88rem; color: var(--btn); }
+    .stat-num {
+      font-size: 1.55rem;
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.025em;
+      color: var(--btn);
+      font-variant-numeric: tabular-nums;
+    }
+    .stat-lbl {
+      font-size: 0.77rem;
+      color: var(--hint);
+      font-weight: 600;
+      margin-top: 3px;
+    }
 
     .hidden { display: none !important; }
 
-    .center-state { text-align: center; padding: 48px 18px; }
+    .center-state { text-align: center; padding: 3.2rem 1.2rem; }
     .spinner {
-      width: 36px; height: 36px; border: 3px solid var(--sep); border-top-color: var(--btn);
-      border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 14px;
+      width: 34px;
+      height: 34px;
+      border: 3px solid var(--sep);
+      border-top-color: var(--btn);
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+      margin: 0 auto 0.9rem;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* Fluid Toast Pill (Symmetric Bottom In/Out) */
     .toast {
-      position: fixed; bottom: calc(20px + var(--safe-bottom)); left: 50%; transform: translateX(-50%);
-      background: #10b981; color: #fff; font-weight: 700; font-size: 0.88rem;
-      padding: 10px 18px; border-radius: 999px; box-shadow: 0 8px 24px rgba(0,0,0,0.35);
-      z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+      position: fixed;
+      bottom: calc(20px + var(--safe-bottom));
+      left: 50%;
+      background: color-mix(in srgb, var(--section-bg) 90%, #10b981 10%);
+      backdrop-filter: blur(18px) saturate(170%);
+      -webkit-backdrop-filter: blur(18px) saturate(170%);
+      border: 1px solid color-mix(in srgb, var(--success) 42%, var(--sep));
+      color: var(--text);
+      font-weight: 700;
+      font-size: 0.86rem;
+      padding: 0.65rem 1.15rem;
+      border-radius: 999px;
+      box-shadow: var(--shadow-lg);
+      z-index: 220;
+      pointer-events: none;
+      opacity: 0;
+      transform: translate3d(-50%, 28px, 0) scale(0.95);
+      will-change: transform, opacity;
+      white-space: nowrap;
     }
-    .toast.show { opacity: 1; }
 
+    /* Fallback Save Bar (Translucent Chrome) */
     .fallback-save {
-      position: fixed; bottom: 0; left: 0; right: 0; padding: 12px 16px calc(12px + var(--safe-bottom));
-      background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(10px);
-      border-top: 1px solid var(--sep); z-index: 90;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 0.75rem 1rem calc(0.75rem + var(--safe-bottom));
+      background: var(--chrome-bg);
+      backdrop-filter: blur(22px) saturate(180%);
+      -webkit-backdrop-filter: blur(22px) saturate(180%);
+      border-top: 1px solid var(--edge-highlight);
+      z-index: 90;
+      will-change: transform, opacity;
     }
     .fallback-save button {
-      width: 100%; background: var(--btn); color: var(--btn-text); border: none;
-      border-radius: 14px; padding: 13px; font-family: inherit; font-weight: 800; font-size: 0.98rem;
-      cursor: pointer;
+      width: 100%;
+      background: var(--btn);
+      color: var(--btn-text);
+      border: none;
+      border-radius: 14px;
+      padding: 0.82rem;
+      font-family: inherit;
+      font-weight: 800;
+      font-size: 0.96rem;
+    }
+
+    /* Interruptible Physical Bottom Sheet */
+    .sheet-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.48);
+      z-index: 150;
+      opacity: 0;
+      pointer-events: none;
+      will-change: opacity;
+    }
+    .sheet-backdrop.open {
+      pointer-events: auto;
+    }
+
+    .bottom-sheet {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      max-width: 720px;
+      margin: 0 auto;
+      background: var(--sheet-bg);
+      backdrop-filter: blur(26px) saturate(190%);
+      -webkit-backdrop-filter: blur(26px) saturate(190%);
+      border-top: 1px solid var(--edge-highlight);
+      border-radius: 24px 24px 0 0;
+      padding: 0.6rem 1.1rem calc(1.2rem + var(--safe-bottom));
+      box-shadow: var(--shadow-lg);
+      z-index: 160;
+      transform: translate3d(0, 100%, 0);
+      will-change: transform;
+      touch-action: none;
+    }
+
+    .sheet-handle-zone {
+      padding: 0.3rem 0 0.85rem;
+      display: flex;
+      justify-content: center;
+      cursor: grab;
+    }
+    .sheet-handle {
+      width: 40px;
+      height: 5px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--hint) 45%, transparent);
+    }
+    .sheet-title {
+      font-size: 1.08rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.25;
+      margin-bottom: 0.35rem;
+    }
+    .sheet-desc {
+      font-size: 0.86rem;
+      color: var(--hint);
+      margin-bottom: 0.95rem;
+      line-height: 1.48;
+    }
+    .sheet-code {
+      width: 100%;
+      max-height: 150px;
+      overflow: auto;
+      background: var(--bg);
+      border: 1px solid var(--sep);
+      border-radius: 12px;
+      padding: 0.7rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.76rem;
+      direction: ltr;
+      text-align: left;
+      color: var(--text);
+      margin-bottom: 0.9rem;
+      user-select: all;
+    }
+    .sheet-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.6rem;
+    }
+
+    /* Accessibility: Reduced Motion */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+      }
+      .pressable.is-pressed, .pressable:active {
+        transform: none;
+        opacity: 0.82;
+      }
+      .bottom-sheet {
+        transition: opacity 160ms ease !important;
+      }
+      .toast {
+        transition: opacity 160ms ease !important;
+      }
+    }
+
+    /* Accessibility: Reduced Transparency */
+    @media (prefers-reduced-transparency: reduce) {
+      :root {
+        --chrome-bg: var(--bg);
+        --sheet-bg: var(--bg-sec);
+      }
+      .app-header, .fallback-save, .bottom-sheet, .toast {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+      }
+      .app-header {
+        border-bottom: 1px solid var(--sep);
+      }
+      .app-header::after {
+        display: none;
+      }
+    }
+
+    /* Accessibility: High Contrast */
+    @media (prefers-contrast: more) {
+      :root {
+        --chrome-bg: var(--bg);
+        --sheet-bg: var(--bg-sec);
+        --sep: rgba(148, 163, 184, 0.45);
+      }
+      .card, .group-item, .stat-box, .tabs-shell {
+        border-width: 1.5px;
+      }
     }
   </style>
 </head>
 <body>
-  <header class="app-header">
+  <header class="app-header" id="appHeader">
     <div class="brand-row">
       <div class="brand-icon">⚡</div>
       <div style="min-width:0">
@@ -276,229 +782,254 @@
 
     <!-- Group Dashboard -->
     <div id="viewDash" class="hidden">
-      <div class="tabs-bar" id="tabsBar">
-        <button class="tab-btn active" data-tab="protect">🛡️ הגנות</button>
-        <button class="tab-btn" data-tab="verify">🔐 אימות וכניסה</button>
-        <button class="tab-btn" data-tab="filters">🚫 פילטרים ופקודות</button>
-        <button class="tab-btn" data-tab="night">🌙 לילה וקידומות</button>
-        <button class="tab-btn" data-tab="stats">📊 סטטיסטיקה</button>
+      <div class="tabs-shell">
+        <div class="tabs-bar" id="tabsBar">
+          <div class="tab-pill-bg" id="tabPillBg"></div>
+          <button class="tab-btn pressable active" data-tab="protect">🛡️ הגנות</button>
+          <button class="tab-btn pressable" data-tab="verify">🔐 אימות וכניסה</button>
+          <button class="tab-btn pressable" data-tab="filters">🚫 פילטרים ופקודות</button>
+          <button class="tab-btn pressable" data-tab="night">🌙 לילה וקידומות</button>
+          <button class="tab-btn pressable" data-tab="stats">📊 סטטיסטיקה</button>
+        </div>
       </div>
 
-      <!-- TAB 1: Protection -->
-      <section id="tab-protect" class="tab-panel">
-        <div class="card">
-          <div class="card-title"><span>🛡️ מערכות הגנה אוטומטיות</span></div>
-          <div id="protectSwitches"></div>
-        </div>
+      <div class="panels-stage" id="panelsStage">
+        <!-- TAB 1: Protection -->
+        <section id="tab-protect" class="tab-panel">
+          <div class="card">
+            <div class="card-title"><span>🛡️ מערכות הגנה אוטומטיות</span></div>
+            <div id="protectSwitches"></div>
+          </div>
 
-        <div class="card">
-          <div class="card-title"><span>🔒 נעילות תוכן</span></div>
-          <div id="lockSwitches"></div>
-        </div>
+          <div class="card">
+            <div class="card-title"><span>🔒 נעילות תוכן</span></div>
+            <div id="lockSwitches"></div>
+          </div>
 
-        <div class="card">
-          <div class="card-title"><span>⚡ בקרת קצב ואורך הודעות</span></div>
-          <div class="field">
-            <label>🌊 הגנת הצפה (מקסימום הודעות ב-15 שניות, 0 = כבוי)</label>
-            <div class="range-row">
-              <input type="range" id="rngFlood" min="0" max="20" step="1" />
-              <span class="range-val" id="valFlood">0</span>
-            </div>
-          </div>
-          <div class="field">
-            <label>📏 הגבלת אורך הודעה בתווים (0 = ללא הגבלה)</label>
-            <div class="range-row">
-              <input type="range" id="rngMaxLen" min="0" max="2000" step="100" />
-              <span class="range-val" id="valMaxLen">ללא</span>
-            </div>
-          </div>
-          <div class="field">
-            <label>🐢 מצב איטי בקבוצה (Slow Mode)</label>
-            <select class="select" id="selSlowMode">
-              <option value="0">⚡ כבוי (ללא השהיה)</option>
-              <option value="10">10 שניות</option>
-              <option value="30">30 שניות</option>
-              <option value="60">דקה אחת</option>
-              <option value="300">5 דקות</option>
-              <option value="900">15 דקות</option>
-              <option value="3600">שעה אחת</option>
-            </select>
-          </div>
-        </div>
-      </section>
-
-      <!-- TAB 2: Verification & Welcome -->
-      <section id="tab-verify" class="tab-panel hidden">
-        <div class="card">
-          <div class="card-title"><span>🔐 אימות מצטרפים חדשים</span></div>
-          <div class="setting-row">
-            <div class="setting-info">
-              <div class="setting-name">🧮 אימות בתרגיל חשבון קצר</div>
-              <div class="setting-desc">מצטרפים חדשים מושתקים עד לפתרון תרגיל קצר נגד בוטים</div>
-            </div>
-            <label class="switch"><input type="checkbox" id="chkVerify" /><span class="slider"></span></label>
-          </div>
-          <div class="setting-row">
-            <div class="setting-info">
-              <div class="setting-name">🔒 חסימת תוכן עתידי עד פתרון החידה</div>
-              <div class="setting-desc">מסתיר הודעות חדשות ממצטרף שטרם פתר ומציג אותן מיד לאחר הפתרון</div>
-            </div>
-            <label class="switch"><input type="checkbox" id="chkBlockFuture" /><span class="slider"></span></label>
-          </div>
-          <div class="field" style="margin-top:10px">
-            <label>⏱️ זמן מרבי לאימות</label>
-            <select class="select" id="selVerifySec">
-              <option value="0">♾️ ללא הגבלת זמן</option>
-              <option value="60">60 שניות</option>
-              <option value="180">3 דקות</option>
-              <option value="300">5 דקות</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>🧹 מחיקת הודעות כניסה קודמות</label>
-            <select class="select" id="selCleanJoin">
-              <option value="off">❌ אל תמחק הודעות קודמות</option>
-              <option value="welcome">👋 מחק הודעת ברוך הבא קודמת בלבד</option>
-              <option value="verify">🔐 מחק הודעת אימות קודמת בלבד</option>
-              <option value="both">🧹 מחק גם וגם (ברוך הבא + אימות)</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-title"><span>👋 הודעת ברוכים הבאים וחוקים</span></div>
-          <div class="setting-row">
-            <div class="setting-info">
-              <div class="setting-name">👋 הפעלת הודעת ברוכים הבאים</div>
-              <div class="setting-desc">נשלחת עם כפתור חוקי הקבוצה בעת הצטרפות או אימות</div>
-            </div>
-            <label class="switch"><input type="checkbox" id="chkWelcome" /><span class="slider"></span></label>
-          </div>
-          <div class="field" style="margin-top:10px">
-            <label>✍️ טקסט ברוכים הבאים (תומך ב-<code>{name}</code>)</label>
-            <textarea class="textarea" id="txtWelcome"></textarea>
-          </div>
-          <div class="row-2">
+          <div class="card">
+            <div class="card-title"><span>⚡ בקרת קצב ואורך הודעות</span></div>
             <div class="field">
-              <label>📜 מצב תצוגת חוקים</label>
-              <select class="select" id="selRulesMode">
-                <option value="public">📢 פומבי בקבוצה</option>
-                <option value="silent">🤫 שקט (הודעת פקודה נמחקת)</option>
+              <label for="rngFlood">🌊 הגנת הצפה (מקסימום הודעות ב-15 שניות, 0 = כבוי)</label>
+              <div class="fluid-slider-wrap">
+                <input type="range" class="sr-range" id="rngFlood" min="0" max="20" step="1" />
+                <div class="fluid-slider" id="sliderFlood" role="slider" aria-label="הגנת הצפה">
+                  <div class="fluid-slider-track"><div class="fluid-slider-fill"></div></div>
+                  <div class="fluid-slider-thumb"></div>
+                </div>
+                <span class="range-val" id="valFlood">כבוי</span>
+              </div>
+            </div>
+            <div class="field">
+              <label for="rngMaxLen">📏 הגבלת אורך הודעה בתווים (0 = ללא הגבלה)</label>
+              <div class="fluid-slider-wrap">
+                <input type="range" class="sr-range" id="rngMaxLen" min="0" max="2000" step="100" />
+                <div class="fluid-slider" id="sliderMaxLen" role="slider" aria-label="הגבלת אורך הודעה">
+                  <div class="fluid-slider-track"><div class="fluid-slider-fill"></div></div>
+                  <div class="fluid-slider-thumb"></div>
+                </div>
+                <span class="range-val" id="valMaxLen">ללא</span>
+              </div>
+            </div>
+            <div class="field">
+              <label for="selSlowMode">🐢 מצב איטי בקבוצה (Slow Mode)</label>
+              <select class="select" id="selSlowMode">
+                <option value="0">⚡ כבוי (ללא השהיה)</option>
+                <option value="10">10 שניות</option>
+                <option value="30">30 שניות</option>
+                <option value="60">דקה אחת</option>
+                <option value="300">5 דקות</option>
+                <option value="900">15 דקות</option>
+                <option value="3600">שעה אחת</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <!-- TAB 2: Verification & Welcome -->
+        <section id="tab-verify" class="tab-panel hidden">
+          <div class="card">
+            <div class="card-title"><span>🔐 אימות מצטרפים חדשים</span></div>
+            <div class="setting-row">
+              <div class="setting-info">
+                <div class="setting-name">🧮 אימות בתרגיל חשבון קצר</div>
+                <div class="setting-desc">מצטרפים חדשים מושתקים עד לפתרון תרגיל קצר נגד בוטים</div>
+              </div>
+              <label class="switch"><input type="checkbox" id="chkVerify" /><span class="slider"></span></label>
+            </div>
+            <div class="setting-row">
+              <div class="setting-info">
+                <div class="setting-name">🔒 חסימת תוכן עתידי עד פתרון החידה</div>
+                <div class="setting-desc">מסתיר הודעות חדשות ממצטרף שטרם פתר ומציג אותן מיד לאחר הפתרון</div>
+              </div>
+              <label class="switch"><input type="checkbox" id="chkBlockFuture" /><span class="slider"></span></label>
+            </div>
+            <div class="field" style="margin-top:10px">
+              <label for="selVerifySec">⏱️ זמן מרבי לאימות</label>
+              <select class="select" id="selVerifySec">
+                <option value="0">♾️ ללא הגבלת זמן</option>
+                <option value="60">60 שניות</option>
+                <option value="180">3 דקות</option>
+                <option value="300">5 דקות</option>
               </select>
             </div>
             <div class="field">
-              <label>🔘 טקסט כפתור חוקים</label>
-              <input class="input" id="txtRulesBtn" placeholder="📖 לחץ כאן לצפייה בחוקי הקבוצה" />
+              <label for="selCleanJoin">🧹 מחיקת הודעות כניסה קודמות</label>
+              <select class="select" id="selCleanJoin">
+                <option value="off">❌ אל תמחק הודעות קודמות</option>
+                <option value="welcome">👋 מחק הודעת ברוך הבא קודמת בלבד</option>
+                <option value="verify">🔐 מחק הודעת אימות קודמת בלבד</option>
+                <option value="both">🧹 מחק גם וגם (ברוך הבא + אימות)</option>
+              </select>
             </div>
           </div>
-          <div class="field">
-            <label>📖 תקנון וחוקי הקבוצה</label>
-            <textarea class="textarea" id="txtRules"></textarea>
-          </div>
-        </div>
-      </section>
 
-      <!-- TAB 3: Filters & Custom Commands -->
-      <section id="tab-filters" class="tab-panel hidden">
-        <div class="card">
-          <div class="card-title"><span>🚫 מילים אסורות בקבוצה</span><span id="filtersCount">0</span></div>
-          <div class="add-bar">
-            <input class="input" id="inpFilter" placeholder="הוסף מילה או ביטוי לחסימה..." />
-            <button class="btn-sm" id="btnAddFilter">הוסף</button>
-          </div>
-          <div class="chips-wrap" id="filtersList"></div>
-        </div>
-
-        <div class="card">
-          <div class="card-title"><span>➕ פקודות מותאמות אישית</span><span id="cmdsCount">0</span></div>
-          <div class="field">
-            <input class="input" id="inpCmdQ" placeholder="שאלה / שם פקודה (לדוגמה: מחירון)" />
-          </div>
-          <div class="field">
-            <textarea class="textarea" id="inpCmdA" style="min-height:64px" placeholder="תשובת הבוט..."></textarea>
-          </div>
-          <button class="btn-sm" style="width:100%" id="btnAddCmd">➕ הוסף פקודה מותאמת</button>
-          <div id="cmdsList" style="margin-top:10px"></div>
-        </div>
-      </section>
-
-      <!-- TAB 4: Nightmode, Languages & Prefixes -->
-      <section id="tab-night" class="tab-panel hidden">
-        <div class="card">
-          <div class="card-title"><span>🌙 נעילת לילה אוטומטית (שעון ישראל)</span></div>
-          <div class="setting-row">
-            <div class="setting-info">
-              <div class="setting-name">🌙 הפעל נעילת לילה</div>
-              <div class="setting-desc">מוחק הודעות של חברים רגילים בשעות שנבחרו</div>
+          <div class="card">
+            <div class="card-title"><span>👋 הודעת ברוכים הבאים וחוקים</span></div>
+            <div class="setting-row">
+              <div class="setting-info">
+                <div class="setting-name">👋 הפעלת הודעת ברוכים הבאים</div>
+                <div class="setting-desc">נשלחת עם כפתור חוקי הקבוצה בעת הצטרפות או אימות</div>
+              </div>
+              <label class="switch"><input type="checkbox" id="chkWelcome" /><span class="slider"></span></label>
             </div>
-            <label class="switch"><input type="checkbox" id="chkNight" /><span class="slider"></span></label>
-          </div>
-          <div class="row-2" style="margin-top:10px">
-            <div class="field"><label>🕒 שעת התחלה</label><input type="time" class="input" id="inpNightStart" /></div>
-            <div class="field"><label>☀️ שעת סיום</label><input type="time" class="input" id="inpNightEnd" /></div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-title"><span>🌍 חסימת שפות זרות</span></div>
-          <div id="langSwitches"></div>
-        </div>
-
-        <div class="card">
-          <div class="card-title"><span>📵 חסימת קידומות ומדינות זרות</span></div>
-          <div class="setting-row">
-            <div class="setting-info">
-              <div class="setting-name">📵 הפעל סינון קידומות</div>
-              <div class="setting-desc">חוסם מספרי טלפון עם קידומות חסומות בהודעות</div>
+            <div class="field" style="margin-top:10px">
+              <label for="txtWelcome">✍️ טקסט ברוכים הבאים (תומך ב-<code>{name}</code>)</label>
+              <textarea class="textarea" id="txtWelcome"></textarea>
             </div>
-            <label class="switch"><input type="checkbox" id="chkPrefixEn" /><span class="slider"></span></label>
-          </div>
-          <div class="setting-row">
-            <div class="setting-info">
-              <div class="setting-name">🚪 חסימה אוטומטית בכניסה</div>
-              <div class="setting-desc">חוסם מצטרפים החשודים מאותן מדינות</div>
+            <div class="row-2">
+              <div class="field">
+                <label for="selRulesMode">📜 מצב תצוגת חוקים</label>
+                <select class="select" id="selRulesMode">
+                  <option value="public">📢 פומבי בקבוצה</option>
+                  <option value="silent">🤫 שקט (הודעת פקודה נמחקת)</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="txtRulesBtn">🔘 טקסט כפתור חוקים</label>
+                <input class="input" id="txtRulesBtn" placeholder="📖 לחץ כאן לצפייה בחוקי הקבוצה" />
+              </div>
             </div>
-            <label class="switch"><input type="checkbox" id="chkPrefixJoin" /><span class="slider"></span></label>
+            <div class="field">
+              <label for="txtRules">📖 תקנון וחוקי הקבוצה</label>
+              <textarea class="textarea" id="txtRules"></textarea>
+            </div>
           </div>
-          <div class="add-bar" style="margin-top:10px">
-            <input class="input" id="inpPrefix" placeholder="הוסף קידומת (לדוגמה +98)" />
-            <button class="btn-sm" id="btnAddPrefix">הוסף</button>
-          </div>
-          <div class="chips-wrap" id="prefixList"></div>
-        </div>
-      </section>
+        </section>
 
-      <!-- TAB 5: Stats & Quick Actions -->
-      <section id="tab-stats" class="tab-panel hidden">
-        <div class="stats-grid">
-          <div class="stat-box"><div class="stat-num" id="stMsgs">0</div><div class="stat-lbl">הודעות שנוטרו</div></div>
-          <div class="stat-box"><div class="stat-num" id="stMembers">0</div><div class="stat-lbl">חברים בקבוצה</div></div>
-          <div class="stat-box"><div class="stat-num" id="stWarns">0</div><div class="stat-lbl">אזהרות שנרשמו</div></div>
-          <div class="stat-box"><div class="stat-num" id="stBans">0</div><div class="stat-lbl">חסימות שבוצעו</div></div>
-        </div>
-
-        <div class="card">
-          <div class="card-title"><span>🏆 5 החברים הפעילים בקבוצה</span></div>
-          <div id="topUsersList"></div>
-        </div>
-
-        <div class="card">
-          <div class="card-title"><span>⚡ פעולות ניהול מהירות</span></div>
-          <div class="row-2" style="margin-bottom:8px">
-            <button class="btn-outline" id="actUnpinAll">🧹 הסר כל הנעוצים</button>
-            <button class="btn-outline" id="actRestorePins">📌 שחזר נעוצים</button>
+        <!-- TAB 3: Filters & Custom Commands -->
+        <section id="tab-filters" class="tab-panel hidden">
+          <div class="card">
+            <div class="card-title"><span>🚫 מילים אסורות בקבוצה</span><span id="filtersCount">0</span></div>
+            <div class="add-bar">
+              <input class="input" id="inpFilter" placeholder="הוסף מילה או ביטוי לחסימה..." />
+              <button class="btn-sm pressable" id="btnAddFilter">הוסף</button>
+            </div>
+            <div class="chips-wrap" id="filtersList"></div>
           </div>
-          <div class="row-2">
-            <button class="btn-outline" id="actBackup">💾 העתק גיבוי הגדרות</button>
-            <button class="btn-danger" id="actClearWarns">🧼 אפס אזהרות לכולם</button>
+
+          <div class="card">
+            <div class="card-title"><span>➕ פקודות מותאמות אישית</span><span id="cmdsCount">0</span></div>
+            <div class="field">
+              <input class="input" id="inpCmdQ" placeholder="שאלה / שם פקודה (לדוגמה: מחירון)" />
+            </div>
+            <div class="field">
+              <textarea class="textarea" id="inpCmdA" style="min-height:64px" placeholder="תשובת הבוט..."></textarea>
+            </div>
+            <button class="btn-sm pressable" style="width:100%" id="btnAddCmd">➕ הוסף פקודה מותאמת</button>
+            <div id="cmdsList" style="margin-top:10px"></div>
           </div>
-        </div>
-      </section>
+        </section>
+
+        <!-- TAB 4: Nightmode, Languages & Prefixes -->
+        <section id="tab-night" class="tab-panel hidden">
+          <div class="card">
+            <div class="card-title"><span>🌙 נעילת לילה אוטומטית (שעון ישראל)</span></div>
+            <div class="setting-row">
+              <div class="setting-info">
+                <div class="setting-name">🌙 הפעל נעילת לילה</div>
+                <div class="setting-desc">מוחק הודעות של חברים רגילים בשעות שנבחרו</div>
+              </div>
+              <label class="switch"><input type="checkbox" id="chkNight" /><span class="slider"></span></label>
+            </div>
+            <div class="row-2" style="margin-top:10px">
+              <div class="field"><label for="inpNightStart">🕒 שעת התחלה</label><input type="time" class="input" id="inpNightStart" /></div>
+              <div class="field"><label for="inpNightEnd">☀️ שעת סיום</label><input type="time" class="input" id="inpNightEnd" /></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title"><span>🌍 חסימת שפות זרות</span></div>
+            <div id="langSwitches"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-title"><span>📵 חסימת קידומות ומדינות זרות</span></div>
+            <div class="setting-row">
+              <div class="setting-info">
+                <div class="setting-name">📵 הפעל סינון קידומות</div>
+                <div class="setting-desc">חוסם מספרי טלפון עם קידומות חסומות בהודעות</div>
+              </div>
+              <label class="switch"><input type="checkbox" id="chkPrefixEn" /><span class="slider"></span></label>
+            </div>
+            <div class="setting-row">
+              <div class="setting-info">
+                <div class="setting-name">🚪 חסימה אוטומטית בכניסה</div>
+                <div class="setting-desc">חוסם מצטרפים החשודים מאותן מדינות</div>
+              </div>
+              <label class="switch"><input type="checkbox" id="chkPrefixJoin" /><span class="slider"></span></label>
+            </div>
+            <div class="add-bar" style="margin-top:10px">
+              <input class="input" id="inpPrefix" placeholder="הוסף קידומת (לדוגמה +98)" />
+              <button class="btn-sm pressable" id="btnAddPrefix">הוסף</button>
+            </div>
+            <div class="chips-wrap" id="prefixList"></div>
+          </div>
+        </section>
+
+        <!-- TAB 5: Stats & Quick Actions -->
+        <section id="tab-stats" class="tab-panel hidden">
+          <div class="stats-grid">
+            <div class="stat-box"><div class="stat-num" id="stMsgs">0</div><div class="stat-lbl">הודעות שנוטרו</div></div>
+            <div class="stat-box"><div class="stat-num" id="stMembers">0</div><div class="stat-lbl">חברים בקבוצה</div></div>
+            <div class="stat-box"><div class="stat-num" id="stWarns">0</div><div class="stat-lbl">אזהרות שנרשמו</div></div>
+            <div class="stat-box"><div class="stat-num" id="stBans">0</div><div class="stat-lbl">חסימות שבוצעו</div></div>
+          </div>
+
+          <div class="card">
+            <div class="card-title"><span>🏆 5 החברים הפעילים בקבוצה</span></div>
+            <div id="topUsersList"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-title"><span>⚡ פעולות ניהול מהירות</span></div>
+            <div class="row-2" style="margin-bottom:8px">
+              <button class="btn-outline pressable" id="actUnpinAll">🧹 הסר כל הנעוצים</button>
+              <button class="btn-outline pressable" id="actRestorePins">📌 שחזר נעוצים</button>
+            </div>
+            <div class="row-2">
+              <button class="btn-outline pressable" id="actBackup">💾 גיבוי הגדרות</button>
+              <button class="btn-danger pressable" id="actClearWarns">🧼 אפס אזהרות לכולם</button>
+            </div>
+          </div>
+        </section>
+      </div>
     </div>
   </main>
 
   <div class="fallback-save hidden" id="fallbackSaveBar">
-    <button id="btnFallbackSave">💾 שמור שינויים בקבוצה</button>
+    <button class="pressable" id="btnFallbackSave">💾 שמור שינויים בקבוצה</button>
+  </div>
+
+  <!-- Interruptible Physical Bottom Sheet -->
+  <div class="sheet-backdrop" id="sheetBackdrop"></div>
+  <div class="bottom-sheet hidden" id="bottomSheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div class="sheet-handle-zone" id="sheetHandleZone">
+      <div class="sheet-handle"></div>
+    </div>
+    <div class="sheet-title" id="sheetTitle"></div>
+    <div class="sheet-desc" id="sheetDesc"></div>
+    <pre class="sheet-code hidden" id="sheetCode"></pre>
+    <div class="sheet-actions" id="sheetActions"></div>
   </div>
 
   <div class="toast" id="toast">✅ השינויים נשמרו בהצלחה!</div>
@@ -506,22 +1037,530 @@
   <script>
     const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
     const API_URL = '/api/bot?webapp=1';
+    const TAB_ORDER = ['protect', 'verify', 'filters', 'night', 'stats'];
+    const reduceMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const prefersReducedMotion = () => reduceMotionQuery.matches;
+
     let groupsCache = [];
     let currentChatId = null;
     let groupState = null;
     let isDirty = false;
+    let currentTabIndex = 0;
 
     const $ = (id) => document.getElementById(id);
-    const haptic = (type = 'light') => { try { tg?.HapticFeedback?.impactOccurred(type); } catch (e) {} };
-    const notifyHaptic = (type = 'success') => { try { tg?.HapticFeedback?.notificationOccurred(type); } catch (e) {} };
+
+    /* =====================================================================
+       Synchronized Telegram Haptics (Causality, Harmony, Restraint)
+       ===================================================================== */
+    const Haptics = {
+      select() { try { tg?.HapticFeedback?.selectionChanged(); } catch (e) {} },
+      impact(style = 'light') { try { tg?.HapticFeedback?.impactOccurred(style); } catch (e) {} },
+      notify(type = 'success') { try { tg?.HapticFeedback?.notificationOccurred(type); } catch (e) {} }
+    };
+
+    /* =====================================================================
+       Apple Fluid Physics: Interruptible Springs, Projection, Rubber-Banding
+       ===================================================================== */
+    function projectMomentum(velocityPxPerSec, decelerationRate = 0.998) {
+      return (velocityPxPerSec / 1000) * decelerationRate / (1 - decelerationRate);
+    }
+
+    function rubberband(overshoot, dimension, constant = 0.55) {
+      if (dimension <= 0) return 0;
+      return (overshoot * dimension * constant) / (dimension + constant * Math.abs(overshoot));
+    }
+
+    class SpringValue {
+      constructor(initial = 0, onUpdate = null) {
+        this.value = initial;
+        this.target = initial;
+        this.velocity = 0;
+        this.damping = 1.0;
+        this.response = 0.34;
+        this.onUpdate = onUpdate;
+        this.onComplete = null;
+        this._raf = null;
+        this._lastTime = 0;
+      }
+
+      setImmediate(val) {
+        this.stop();
+        this.value = val;
+        this.target = val;
+        this.velocity = 0;
+        if (this.onUpdate) this.onUpdate(val);
+      }
+
+      animateTo(target, { damping = 1.0, response = 0.34, velocity = null, onComplete = null } = {}) {
+        this.target = target;
+        this.damping = damping;
+        this.response = Math.max(0.08, response);
+        if (velocity !== null) this.velocity = velocity;
+        this.onComplete = onComplete;
+
+        if (prefersReducedMotion()) {
+          this.setImmediate(target);
+          if (onComplete) onComplete();
+          return;
+        }
+
+        if (!this._raf) {
+          this._lastTime = performance.now();
+          this._raf = requestAnimationFrame((t) => this._step(t));
+        }
+      }
+
+      stop() {
+        if (this._raf) {
+          cancelAnimationFrame(this._raf);
+          this._raf = null;
+        }
+      }
+
+      _step(now) {
+        const dt = Math.min(0.032, Math.max(0.001, (now - this._lastTime) / 1000));
+        this._lastTime = now;
+
+        const omega = (2 * Math.PI) / this.response;
+        const stiffness = omega * omega;
+        const dampingCoeff = 2 * this.damping * omega;
+
+        const displacement = this.value - this.target;
+        const accel = -stiffness * displacement - dampingCoeff * this.velocity;
+        this.velocity += accel * dt;
+        this.value += this.velocity * dt;
+
+        if (this.onUpdate) this.onUpdate(this.value);
+
+        if (Math.abs(this.value - this.target) < 0.08 && Math.abs(this.velocity) < 0.5) {
+          this.value = this.target;
+          this.velocity = 0;
+          this._raf = null;
+          if (this.onUpdate) this.onUpdate(this.value);
+          const done = this.onComplete;
+          this.onComplete = null;
+          if (done) done();
+          return;
+        }
+
+        this._raf = requestAnimationFrame((t) => this._step(t));
+      }
+    }
+
+    /* =====================================================================
+       Instant Pointer-Down Feedback with ~10px Hysteresis
+       ===================================================================== */
+    function bindPressFeedback(root = document) {
+      root.addEventListener('pointerdown', (e) => {
+        const el = e.target.closest('.pressable');
+        if (!el) return;
+        const startX = e.clientX;
+        const startY = e.clientY;
+        el.classList.add('is-pressed');
+
+        const onMove = (mv) => {
+          if (Math.hypot(mv.clientX - startX, mv.clientY - startY) > 10) {
+            el.classList.remove('is-pressed');
+            cleanup();
+          }
+        };
+        const cleanup = () => {
+          el.classList.remove('is-pressed');
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', cleanup);
+          window.removeEventListener('pointercancel', cleanup);
+        };
+        window.addEventListener('pointermove', onMove, { passive: true });
+        window.addEventListener('pointerup', cleanup, { passive: true });
+        window.addEventListener('pointercancel', cleanup, { passive: true });
+      }, { passive: true });
+    }
+
+    /* =====================================================================
+       Scroll-Edge Header Elevation
+       ===================================================================== */
+    window.addEventListener('scroll', () => {
+      $('appHeader').classList.toggle('scrolled', window.scrollY > 6);
+    }, { passive: true });
+
+    /* =====================================================================
+       Fluid Spring Toast (Symmetric Bottom In/Out, Interruptible)
+       ===================================================================== */
+    let toastTimer = null;
+    const toastSpring = new SpringValue(1, (p) => {
+      const t = $('toast');
+      const y = p * 28;
+      const scale = 1 - p * 0.05;
+      t.style.opacity = String(Math.max(0, 1 - p));
+      t.style.transform = `translate3d(-50%, ${y.toFixed(2)}px, 0) scale(${scale.toFixed(3)})`;
+    });
 
     function showToast(msg) {
       const t = $('toast');
       t.textContent = msg;
-      t.classList.add('show');
-      setTimeout(() => t.classList.remove('show'), 2400);
+      clearTimeout(toastTimer);
+      toastSpring.animateTo(0, { damping: 0.9, response: 0.32 });
+      toastTimer = setTimeout(() => {
+        toastSpring.animateTo(1, { damping: 1.0, response: 0.3 });
+      }, 2300);
     }
 
+    /* =====================================================================
+       Interruptible Physical Bottom Sheet (1:1 Drag + Momentum + Rubberband)
+       ===================================================================== */
+    const BottomSheet = (() => {
+      const backdrop = $('sheetBackdrop');
+      const sheet = $('bottomSheet');
+      const handleZone = $('sheetHandleZone');
+      let isOpen = false;
+      let sheetHeight = 320;
+      let dragging = false;
+      let grabStartY = 0;
+      let sheetStartY = 0;
+      let history = [];
+
+      const ySpring = new SpringValue(1000, (y) => {
+        const progress = Math.max(0, Math.min(1, 1 - y / Math.max(1, sheetHeight)));
+        sheet.style.transform = `translate3d(0, ${y.toFixed(2)}px, 0)`;
+        backdrop.style.opacity = String(progress.toFixed(3));
+      });
+
+      function open({ title, desc, code = '', actions = [] }) {
+        $('sheetTitle').textContent = title || '';
+        $('sheetDesc').textContent = desc || '';
+        const codeEl = $('sheetCode');
+        if (code) {
+          codeEl.textContent = code;
+          codeEl.classList.remove('hidden');
+        } else {
+          codeEl.classList.add('hidden');
+        }
+        const actEl = $('sheetActions');
+        actEl.innerHTML = '';
+        actions.forEach((a) => {
+          const btn = document.createElement('button');
+          btn.className = `${a.cls || 'btn-outline'} pressable`;
+          btn.textContent = a.label;
+          btn.addEventListener('click', () => {
+            if (a.onClick) a.onClick();
+            if (a.closeOnClick !== false) close();
+          });
+          actEl.appendChild(btn);
+        });
+
+        sheet.classList.remove('hidden');
+        backdrop.classList.add('open');
+        sheetHeight = Math.max(180, sheet.getBoundingClientRect().height);
+        if (!isOpen) ySpring.setImmediate(sheetHeight);
+        isOpen = true;
+        Haptics.impact('light');
+        ySpring.animateTo(0, { damping: 0.88, response: 0.34 });
+      }
+
+      function close(releaseVelocity = 0) {
+        if (!isOpen) return;
+        isOpen = false;
+        backdrop.classList.remove('open');
+        ySpring.animateTo(sheetHeight + 24, {
+          damping: 1.0,
+          response: 0.3,
+          velocity: Math.max(0, releaseVelocity),
+          onComplete: () => {
+            if (!isOpen) sheet.classList.add('hidden');
+          }
+        });
+      }
+
+      backdrop.addEventListener('click', () => close());
+
+      function onPointerDown(e) {
+        if (!isOpen && sheet.classList.contains('hidden')) return;
+        if (e.target.closest('button, pre, input, textarea')) return;
+        dragging = true;
+        ySpring.stop(); // Interrupt mid-flight from current live value
+        sheetHeight = Math.max(180, sheet.getBoundingClientRect().height);
+        grabStartY = e.clientY;
+        sheetStartY = ySpring.value;
+        history = [{ y: e.clientY, t: performance.now() }];
+        sheet.setPointerCapture(e.pointerId);
+      }
+
+      function onPointerMove(e) {
+        if (!dragging) return;
+        const dy = e.clientY - grabStartY;
+        let nextY = sheetStartY + dy;
+        if (nextY < 0) {
+          nextY = rubberband(nextY, sheetHeight * 0.45, 0.45);
+        }
+        ySpring.setImmediate(nextY);
+        const now = performance.now();
+        history.push({ y: e.clientY, t: now });
+        while (history.length > 6 && now - history[0].t > 120) history.shift();
+      }
+
+      function onPointerUp(e) {
+        if (!dragging) return;
+        dragging = false;
+        try { sheet.releasePointerCapture(e.pointerId); } catch (err) {}
+        let velocity = 0;
+        if (history.length >= 2) {
+          const first = history[0];
+          const last = history[history.length - 1];
+          const dt = Math.max(8, last.t - first.t);
+          velocity = ((last.y - first.y) / dt) * 1000;
+        }
+        const projectedY = ySpring.value + projectMomentum(velocity, 0.996);
+        if (projectedY > sheetHeight * 0.42 || velocity > 650) {
+          Haptics.impact('light');
+          close(velocity);
+        } else {
+          isOpen = true;
+          backdrop.classList.add('open');
+          ySpring.animateTo(0, { damping: 0.8, response: 0.32, velocity });
+        }
+      }
+
+      sheet.addEventListener('pointerdown', onPointerDown);
+      sheet.addEventListener('pointermove', onPointerMove);
+      sheet.addEventListener('pointerup', onPointerUp);
+      sheet.addEventListener('pointercancel', onPointerUp);
+      handleZone.addEventListener('pointerdown', onPointerDown);
+
+      return { open, close };
+    })();
+
+    /* =====================================================================
+       1:1 Pointer-Captured Fluid Slider with Rubber-Banding & Step Haptics
+       ===================================================================== */
+    function createFluidSlider(sliderEl, inputEl, onValueChange) {
+      const track = sliderEl.querySelector('.fluid-slider-track');
+      const fill = sliderEl.querySelector('.fluid-slider-fill');
+      const thumb = sliderEl.querySelector('.fluid-slider-thumb');
+      const min = Number(inputEl.min) || 0;
+      const max = Number(inputEl.max) || 100;
+      const step = Number(inputEl.step) || 1;
+
+      let dragging = false;
+      let grabOffsetX = 0;
+      let lastCommitted = Number(inputEl.value) || min;
+
+      const posSpring = new SpringValue(0, (ratio) => {
+        const clamped = Math.max(0, Math.min(1, ratio));
+        const width = track.clientWidth || 1;
+        let overshootPx = 0;
+        if (ratio < 0) overshootPx = rubberband(ratio * width, 36, 0.4);
+        else if (ratio > 1) overshootPx = rubberband((ratio - 1) * width, 36, 0.4);
+
+        const x = clamped * width + overshootPx;
+        fill.style.transform = `scaleX(${Math.max(0.001, clamped)})`;
+        thumb.style.transform = `translate3d(${x.toFixed(2)}px, 0, 0) scale(${dragging ? 1.12 : 1})`;
+        track.style.transform = overshootPx ? `translate3d(${(overshootPx * 0.25).toFixed(2)}px, 0, 0)` : 'translate3d(0, 0, 0)';
+      });
+
+      function syncFromInput(animate = false) {
+        const val = Number(inputEl.value) || min;
+        lastCommitted = val;
+        const ratio = (val - min) / Math.max(1, max - min);
+        if (animate) posSpring.animateTo(ratio, { damping: 1.0, response: 0.28 });
+        else posSpring.setImmediate(ratio);
+      }
+
+      function updateFromClientX(clientX) {
+        const rect = track.getBoundingClientRect();
+        const rawRatio = (clientX - grabOffsetX - rect.left) / Math.max(1, rect.width);
+        posSpring.setImmediate(rawRatio);
+
+        const clamped = Math.max(0, Math.min(1, rawRatio));
+        const rawVal = min + clamped * (max - min);
+        const stepped = Math.round(rawVal / step) * step;
+        const bounded = Math.max(min, Math.min(max, stepped));
+        if (bounded !== lastCommitted) {
+          lastCommitted = bounded;
+          inputEl.value = String(bounded);
+          Haptics.select();
+          onValueChange(bounded);
+        }
+      }
+
+      sliderEl.addEventListener('pointerdown', (e) => {
+        dragging = true;
+        sliderEl.classList.add('dragging');
+        sliderEl.setPointerCapture(e.pointerId);
+        posSpring.stop();
+        const thumbRect = thumb.getBoundingClientRect();
+        const thumbCenterX = thumbRect.left + thumbRect.width / 2;
+        grabOffsetX = Math.abs(e.clientX - thumbCenterX) <= 22 ? (e.clientX - thumbCenterX) : 0;
+        updateFromClientX(e.clientX);
+      });
+
+      sliderEl.addEventListener('pointermove', (e) => {
+        if (!dragging) return;
+        updateFromClientX(e.clientX);
+      });
+
+      const endDrag = (e) => {
+        if (!dragging) return;
+        dragging = false;
+        sliderEl.classList.remove('dragging');
+        try { sliderEl.releasePointerCapture(e.pointerId); } catch (err) {}
+        const ratio = (lastCommitted - min) / Math.max(1, max - min);
+        posSpring.animateTo(ratio, { damping: 0.85, response: 0.28 });
+      };
+      sliderEl.addEventListener('pointerup', endDrag);
+      sliderEl.addEventListener('pointercancel', endDrag);
+      window.addEventListener('resize', () => syncFromInput(false));
+
+      return { syncFromInput };
+    }
+
+    const floodSlider = createFluidSlider($('sliderFlood'), $('rngFlood'), (v) => {
+      $('valFlood').textContent = v ? `${v} הוד׳` : 'כבוי';
+      markDirty(true);
+    });
+    const maxLenSlider = createFluidSlider($('sliderMaxLen'), $('rngMaxLen'), (v) => {
+      $('valMaxLen').textContent = v ? `${v}` : 'ללא';
+      markDirty(true);
+    });
+
+    /* =====================================================================
+       Interruptible Spring Tab Indicator + Horizontal Swipe Gestures
+       ===================================================================== */
+    const pillX = new SpringValue(0, renderTabPill);
+    const pillW = new SpringValue(80, renderTabPill);
+    function renderTabPill() {
+      const bg = $('tabPillBg');
+      bg.style.transform = `translate3d(${pillX.value.toFixed(2)}px, 0, 0)`;
+      bg.style.width = `${Math.max(24, pillW.value).toFixed(2)}px`;
+    }
+
+    function positionTabPill(btn, animate = true) {
+      if (!btn) return;
+      const bar = $('tabsBar');
+      const left = btn.offsetLeft;
+      const width = btn.offsetWidth;
+      if (animate) {
+        pillX.animateTo(left, { damping: 1.0, response: 0.34 });
+        pillW.animateTo(width, { damping: 1.0, response: 0.34 });
+      } else {
+        pillX.setImmediate(left);
+        pillW.setImmediate(width);
+      }
+      const targetScroll = left - (bar.clientWidth - width) / 2;
+      bar.scrollTo({ left: targetScroll, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+    }
+
+    const stageX = new SpringValue(0, (x) => {
+      $('panelsStage').style.transform = `translate3d(${x.toFixed(2)}px, 0, 0)`;
+    });
+
+    function switchToTab(index, { animate = true, fromSwipeVelocity = 0 } = {}) {
+      const clamped = Math.max(0, Math.min(TAB_ORDER.length - 1, index));
+      const changed = clamped !== currentTabIndex;
+      const dir = clamped > currentTabIndex ? 1 : -1;
+      currentTabIndex = clamped;
+
+      const tabName = TAB_ORDER[clamped];
+      const btns = Array.from($('tabsBar').querySelectorAll('.tab-btn'));
+      btns.forEach((b, i) => b.classList.toggle('active', i === clamped));
+      document.querySelectorAll('.tab-panel').forEach((p) => p.classList.add('hidden'));
+      const activePanel = $(`tab-${tabName}`);
+      activePanel.classList.remove('hidden');
+
+      positionTabPill(btns[clamped], animate);
+
+      if (changed) Haptics.select();
+
+      if (animate && !prefersReducedMotion()) {
+        if (Math.abs(fromSwipeVelocity) > 10) {
+          stageX.animateTo(0, { damping: 0.85, response: 0.32, velocity: fromSwipeVelocity });
+        } else if (changed) {
+          stageX.setImmediate(dir * -24);
+          stageX.animateTo(0, { damping: 1.0, response: 0.32 });
+        }
+      } else {
+        stageX.setImmediate(0);
+      }
+
+      if (tabName === 'protect') {
+        requestAnimationFrame(() => {
+          floodSlider.syncFromInput(false);
+          maxLenSlider.syncFromInput(false);
+        });
+      }
+    }
+
+    // Horizontal swipe across panels with 10px hysteresis & edge rubber-banding
+    (() => {
+      const stage = $('panelsStage');
+      let tracking = false;
+      let locked = null; // 'x' | 'y' | null
+      let startX = 0;
+      let startY = 0;
+      let history = [];
+
+      stage.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('.fluid-slider, input, textarea, select, button')) return;
+        tracking = true;
+        locked = null;
+        startX = e.clientX;
+        startY = e.clientY;
+        history = [{ x: e.clientX, t: performance.now() }];
+        stageX.stop();
+      });
+
+      stage.addEventListener('pointermove', (e) => {
+        if (!tracking) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        if (!locked) {
+          if (Math.hypot(dx, dy) < 12) return;
+          locked = Math.abs(dx) > Math.abs(dy) * 1.15 ? 'x' : 'y';
+        }
+        if (locked !== 'x') return;
+
+        // In RTL: swiping right (dx > 0) goes to next tab; swiping left (dx < 0) goes to previous tab
+        const atStart = currentTabIndex === 0 && dx < 0;
+        const atEnd = currentTabIndex === TAB_ORDER.length - 1 && dx > 0;
+        const visualX = (atStart || atEnd) ? rubberband(dx, stage.clientWidth || 320, 0.35) : dx * 0.72;
+        stageX.setImmediate(visualX);
+
+        const now = performance.now();
+        history.push({ x: e.clientX, t: now });
+        while (history.length > 5 && now - history[0].t > 120) history.shift();
+      });
+
+      const endSwipe = () => {
+        if (!tracking) return;
+        tracking = false;
+        if (locked !== 'x') {
+          stageX.animateTo(0, { damping: 1.0, response: 0.3 });
+          return;
+        }
+        let velocity = 0;
+        if (history.length >= 2) {
+          const a = history[0], b = history[history.length - 1];
+          velocity = ((b.x - a.x) / Math.max(8, b.t - a.t)) * 1000;
+        }
+        const projected = stageX.value + projectMomentum(velocity, 0.994);
+        const threshold = (stage.clientWidth || 320) * 0.28;
+        if (projected > threshold && currentTabIndex < TAB_ORDER.length - 1) {
+          stageX.setImmediate(-32);
+          switchToTab(currentTabIndex + 1, { animate: true, fromSwipeVelocity: velocity * 0.3 });
+        } else if (projected < -threshold && currentTabIndex > 0) {
+          stageX.setImmediate(32);
+          switchToTab(currentTabIndex - 1, { animate: true, fromSwipeVelocity: velocity * 0.3 });
+        } else {
+          stageX.animateTo(0, { damping: 0.85, response: 0.32, velocity: velocity * 0.4 });
+        }
+      };
+
+      stage.addEventListener('pointerup', endSwipe);
+      stage.addEventListener('pointercancel', endSwipe);
+    })();
+
+    /* =====================================================================
+       Dirty State & Telegram MainButton Sync
+       ===================================================================== */
     function markDirty(dirty = true) {
       isDirty = dirty;
       const badge = $('saveBadge');
@@ -560,7 +1599,30 @@
 
     function showView(viewId) {
       ['viewLoading', 'viewError', 'viewGroups', 'viewDash'].forEach((id) => $(id).classList.add('hidden'));
-      $(viewId).classList.remove('hidden');
+      const target = $(viewId);
+      target.classList.remove('hidden');
+      if (!prefersReducedMotion()) {
+        target.style.opacity = '0';
+        target.style.transform = 'translate3d(0, 8px, 0)';
+        requestAnimationFrame(() => {
+          const vSpring = new SpringValue(0, (p) => {
+            target.style.opacity = String(Math.min(1, p));
+            target.style.transform = `translate3d(0, ${((1 - p) * 8).toFixed(2)}px, 0)`;
+          });
+          vSpring.animateTo(1, {
+            damping: 1.0,
+            response: 0.3,
+            onComplete: () => {
+              target.style.opacity = '';
+              target.style.transform = '';
+            }
+          });
+        });
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
 
     function renderGroupsList(groups) {
@@ -571,8 +1633,8 @@
         return;
       }
       list.innerHTML = groups.map((g) => `
-        <div class="group-item" data-gid="${g.id}">
-          <div class="group-avatar">${(g.title || 'ק').slice(0, 1)}</div>
+        <div class="group-item pressable" data-gid="${g.id}">
+          <div class="group-avatar">${escapeHtml((g.title || 'ק').slice(0, 1))}</div>
           <div class="group-meta">
             <div class="group-name">${escapeHtml(g.title || g.id)}</div>
             <div class="group-id">${g.memberCount ? `${g.memberCount} חברים • ` : ''}מזהה: ${g.id}</div>
@@ -581,12 +1643,11 @@
         </div>
       `).join('');
       list.querySelectorAll('.group-item').forEach((el) => {
-        el.addEventListener('click', () => { haptic('medium'); openGroup(el.dataset.gid); });
+        el.addEventListener('click', () => {
+          Haptics.impact('medium');
+          openGroup(el.dataset.gid);
+        });
       });
-    }
-
-    function escapeHtml(s) {
-      return String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
 
     async function openGroup(chatId) {
@@ -608,8 +1669,13 @@
         renderDashboard();
         markDirty(false);
         showView('viewDash');
+        requestAnimationFrame(() => {
+          switchToTab(currentTabIndex, { animate: false });
+          floodSlider.syncFromInput(false);
+          maxLenSlider.syncFromInput(false);
+        });
       } catch (err) {
-        notifyHaptic('error');
+        Haptics.notify('error');
         $('errTitle').textContent = 'לא ניתן לטעון את הקבוצה';
         $('errMsg').textContent = err.message;
         showView('viewError');
@@ -626,7 +1692,11 @@
         </div>
         <label class="switch"><input type="checkbox" id="${id}" ${checked ? 'checked' : ''} /><span class="slider"></span></label>
       `;
-      row.querySelector('input').addEventListener('change', (e) => { haptic('light'); onChange(e.target.checked); markDirty(true); });
+      row.querySelector('input').addEventListener('change', (e) => {
+        Haptics.select();
+        onChange(e.target.checked);
+        markDirty(true);
+      });
       return row;
     }
 
@@ -704,7 +1774,7 @@
 
       const top = Object.values(a.userStats || {}).sort((x, y) => (y.count || 0) - (x.count || 0)).slice(0, 5);
       $('topUsersList').innerHTML = top.length
-        ? top.map((u, i) => `<div class="setting-row"><div class="setting-name">${['🥇','🥈','🥉','4️⃣','5️⃣'][i]} ${escapeHtml(u.name || 'חבר')}</div><div style="font-weight:800;color:var(--btn)">${u.count || 0} הוד׳</div></div>`).join('')
+        ? top.map((u, i) => `<div class="setting-row"><div class="setting-name">${['🥇','🥈','🥉','4️⃣','5️⃣'][i]} ${escapeHtml(u.name || 'חבר')}</div><div style="font-weight:800;color:var(--btn);font-variant-numeric:tabular-nums">${u.count || 0} הוד׳</div></div>`).join('')
         : '<div style="color:var(--hint);font-size:0.86rem">אין עדיין נתוני פעילות בקבוצה.</div>';
     }
 
@@ -712,11 +1782,11 @@
       const list = Array.isArray(groupState.filters) ? groupState.filters : [];
       $('filtersCount').textContent = `${list.length} מילים`;
       $('filtersList').innerHTML = list.length
-        ? list.map((w, i) => `<span class="chip">${escapeHtml(w)} <button class="chip-del" data-idx="${i}">✕</button></span>`).join('')
+        ? list.map((w, i) => `<span class="chip">${escapeHtml(w)} <button class="chip-del pressable" data-idx="${i}">✕</button></span>`).join('')
         : '<span style="color:var(--hint);font-size:0.84rem">אין מילים חסומות בקבוצה.</span>';
       $('filtersList').querySelectorAll('.chip-del').forEach((btn) => {
         btn.addEventListener('click', () => {
-          haptic('light');
+          Haptics.select();
           groupState.filters.splice(Number(btn.dataset.idx), 1);
           renderFilters();
           markDirty(true);
@@ -735,12 +1805,12 @@
               <div class="setting-name">/${escapeHtml(k)}</div>
               <div class="setting-desc">${escapeHtml(String(cmds[k]).slice(0, 60))}</div>
             </div>
-            <button class="chip-del" data-cmd="${escapeHtml(k)}" style="font-size:1.05rem">🗑️</button>
+            <button class="chip-del pressable" data-cmd="${escapeHtml(k)}" style="font-size:1.05rem">🗑️</button>
           </div>`).join('')
         : '<div style="color:var(--hint);font-size:0.84rem">אין עדיין פקודות מותאמות בקבוצה.</div>';
       $('cmdsList').querySelectorAll('.chip-del').forEach((btn) => {
         btn.addEventListener('click', () => {
-          haptic('light');
+          Haptics.select();
           delete groupState.customCommands[btn.dataset.cmd];
           renderCustomCmds();
           markDirty(true);
@@ -751,11 +1821,11 @@
     function renderPrefixes() {
       const pfxs = groupState.adv?.foreignCountries?.prefixes || [];
       $('prefixList').innerHTML = pfxs.length
-        ? pfxs.map((p, i) => `<span class="chip" dir="ltr">${escapeHtml(p)} <button class="chip-del" data-idx="${i}">✕</button></span>`).join('')
+        ? pfxs.map((p, i) => `<span class="chip" dir="ltr">${escapeHtml(p)} <button class="chip-del pressable" data-idx="${i}">✕</button></span>`).join('')
         : '<span style="color:var(--hint);font-size:0.84rem">אין קידומות חסומות.</span>';
       $('prefixList').querySelectorAll('.chip-del').forEach((btn) => {
         btn.addEventListener('click', () => {
-          haptic('light');
+          Haptics.select();
           groupState.adv.foreignCountries.prefixes.splice(Number(btn.dataset.idx), 1);
           renderPrefixes();
           markDirty(true);
@@ -804,40 +1874,31 @@
             }
           }
         });
-        notifyHaptic('success');
+        Haptics.notify('success');
         markDirty(false);
         showToast('✅ כל הגדרות הקבוצה נשמרו!');
       } catch (err) {
-        notifyHaptic('error');
-        tg?.showAlert ? tg.showAlert('שגיאה בשמירה: ' + err.message) : alert(err.message);
+        Haptics.notify('error');
+        tg?.showAlert ? tg.showAlert('שגיאה בשמירה: ' + err.message) : showToast('❌ ' + err.message);
       } finally {
         tg?.MainButton?.hideProgress?.();
       }
     }
 
-    // Event bindings
-    $('tabsBar').querySelectorAll('.tab-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        haptic('light');
-        $('tabsBar').querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
-        document.querySelectorAll('.tab-panel').forEach((p) => p.classList.add('hidden'));
-        btn.classList.add('active');
-        $(`tab-${btn.dataset.tab}`).classList.remove('hidden');
-      });
+    // Tab clicks
+    $('tabsBar').querySelectorAll('.tab-btn').forEach((btn, idx) => {
+      btn.addEventListener('click', () => switchToTab(idx, { animate: true }));
+    });
+    window.addEventListener('resize', () => {
+      const activeBtn = $('tabsBar').querySelector('.tab-btn.active');
+      if (activeBtn) positionTabPill(activeBtn, false);
     });
 
-    $('rngFlood').addEventListener('input', (e) => {
-      const v = Number(e.target.value);
-      $('valFlood').textContent = v ? `${v} הוד׳` : 'כבוי';
-      markDirty(true);
-    });
-    $('rngMaxLen').addEventListener('input', (e) => {
-      const v = Number(e.target.value);
-      $('valMaxLen').textContent = v ? `${v}` : 'ללא';
-      markDirty(true);
-    });
     ['selSlowMode', 'chkVerify', 'chkBlockFuture', 'selVerifySec', 'selCleanJoin', 'chkWelcome', 'txtWelcome', 'selRulesMode', 'txtRulesBtn', 'txtRules', 'chkNight', 'inpNightStart', 'inpNightEnd', 'chkPrefixEn', 'chkPrefixJoin'].forEach((id) => {
-      $(id).addEventListener('change', () => markDirty(true));
+      $(id).addEventListener('change', (e) => {
+        if (e.target.type === 'checkbox') Haptics.select();
+        markDirty(true);
+      });
     });
 
     $('btnAddFilter').addEventListener('click', () => {
@@ -846,7 +1907,7 @@
       groupState.filters = groupState.filters || [];
       if (!groupState.filters.includes(w)) groupState.filters.push(w);
       $('inpFilter').value = '';
-      haptic('light');
+      Haptics.impact('light');
       renderFilters();
       markDirty(true);
     });
@@ -857,8 +1918,9 @@
       if (!q || !a) return;
       groupState.customCommands = groupState.customCommands || {};
       groupState.customCommands[q] = a;
-      $('inpCmdQ').value = ''; $('inpCmdA').value = '';
-      haptic('light');
+      $('inpCmdQ').value = '';
+      $('inpCmdA').value = '';
+      Haptics.impact('light');
       renderCustomCmds();
       markDirty(true);
     });
@@ -870,50 +1932,86 @@
       groupState.adv.foreignCountries.prefixes = groupState.adv.foreignCountries.prefixes || [];
       if (!groupState.adv.foreignCountries.prefixes.includes(p)) groupState.adv.foreignCountries.prefixes.push(p);
       $('inpPrefix').value = '';
-      haptic('light');
+      Haptics.impact('light');
       renderPrefixes();
       markDirty(true);
     });
 
-    async function runQuickAction(type, confirmMsg) {
+    async function runQuickAction(type, confirmTitle, confirmDesc) {
       const exec = async () => {
         try {
           const res = await apiCall({ webappAction: 'quick_action', chatId: currentChatId, type });
-          notifyHaptic('success');
+          Haptics.notify('success');
           if (type === 'export_backup' && res.backup) {
-            await navigator.clipboard?.writeText(res.backup).catch(() => {});
-            showToast('💾 קוד הגיבוי הועתק!');
+            BottomSheet.open({
+              title: '💾 גיבוי הגדרות הקבוצה',
+              desc: 'אפשר להעתיק את קוד הגיבוי ולשמור אותו בצד. ניתן לגרור מטה לסגירה.',
+              code: res.backup,
+              actions: [
+                {
+                  label: '📋 העתק גיבוי',
+                  cls: 'btn-sm',
+                  onClick: () => {
+                    navigator.clipboard?.writeText(res.backup).catch(() => {});
+                    Haptics.notify('success');
+                    showToast('💾 קוד הגיבוי הועתק!');
+                  }
+                },
+                { label: 'סגור', cls: 'btn-outline' }
+              ]
+            });
           } else {
             showToast(res.message || '✅ הפעולה בוצעה!');
-            if (type === 'clear_warns_all') { $('stWarns').textContent = '0'; }
+            if (type === 'clear_warns_all') $('stWarns').textContent = '0';
           }
         } catch (err) {
-          notifyHaptic('error');
-          tg?.showAlert ? tg.showAlert(err.message) : alert(err.message);
+          Haptics.notify('error');
+          tg?.showAlert ? tg.showAlert(err.message) : showToast('❌ ' + err.message);
         }
       };
-      if (confirmMsg && tg?.showConfirm) {
-        tg.showConfirm(confirmMsg, (ok) => { if (ok) exec(); });
+
+      if (confirmTitle) {
+        BottomSheet.open({
+          title: confirmTitle,
+          desc: confirmDesc,
+          actions: [
+            { label: 'אישור וביצוע', cls: 'btn-danger', onClick: exec },
+            { label: 'ביטול', cls: 'btn-outline' }
+          ]
+        });
       } else {
         exec();
       }
     }
 
-    $('actUnpinAll').addEventListener('click', () => runQuickAction('unpin_all', 'האם להסיר את כל ההודעות הנעוצות בקבוצה?'));
+    $('actUnpinAll').addEventListener('click', () =>
+      runQuickAction('unpin_all', '🧹 הסרת כל הנעוצים', 'האם להסיר את כל ההודעות הנעוצות בקבוצה? תמיד ניתן לשחזר אותן מיד לאחר מכן.')
+    );
     $('actRestorePins').addEventListener('click', () => runQuickAction('restore_pins'));
     $('actBackup').addEventListener('click', () => runQuickAction('export_backup'));
-    $('actClearWarns').addEventListener('click', () => runQuickAction('clear_warns_all', 'לאפס את כל האזהרות בקבוצה לכולם?'));
+    $('actClearWarns').addEventListener('click', () =>
+      runQuickAction('clear_warns_all', '🧼 איפוס כל האזהרות', 'פעולה זו תאפס את מונה האזהרות של כל חברי הקבוצה.')
+    );
     $('btnFallbackSave').addEventListener('click', saveCurrentGroup);
+
+    function syncTelegramTheme() {
+      if (!tg) return;
+      if (tg.themeParams?.bg_color) tg.setHeaderColor?.(tg.themeParams.bg_color);
+      if (tg.themeParams?.bg_color) tg.setBackgroundColor?.(tg.themeParams.bg_color);
+    }
 
     // Boot
     (async function init() {
+      bindPressFeedback(document);
+
       if (tg) {
         tg.ready();
         tg.expand();
-        if (tg.themeParams?.bg_color) tg.setHeaderColor?.(tg.themeParams.bg_color);
+        syncTelegramTheme();
+        tg.onEvent?.('themeChanged', syncTelegramTheme);
         tg.MainButton?.onClick(saveCurrentGroup);
         tg.BackButton?.onClick(() => {
-          haptic('light');
+          Haptics.impact('light');
           currentChatId = null;
           markDirty(false);
           tg.BackButton.hide();
