@@ -27,10 +27,13 @@ txt=txt.replace(/^📜\s*\*?חוקי הקבוצה[^:\n]*:\*?\s*/i,'').trim();whi
 async function isGroupAdminCb(ctx) {if(!ctx.chat||ctx.chat.type==='private'||!ctx.from) return false;if(isCreator(ctx)) return true;
 try {const m=await ctx.telegram.getChatMember(ctx.chat.id,ctx.from.id);return Boolean(m&&['creator','administrator'].includes(m.status));
 }catch(e) {return false;}}
-function getEffectiveUpdateText(s,ver=LATEST_VERSION) {const custom=s?.customUpdateText?.[ver];if(custom&&typeof custom==='string'&&custom.trim()) return custom;
-return (VERSION_HISTORY[ver]||VERSION_HISTORY[LATEST_VERSION]).text;}
-function buildEditUpdatePanel(s) {const curTxt=getEffectiveUpdateText(s,LATEST_VERSION);const isCustom=Boolean(s?.customUpdateText?.[LATEST_VERSION]);
-const text=`✏️ *עריכת הודעת העדכון הנוכחי (${LATEST_VERSION})*\n📌 *מצב נוכחי:* ${isCustom ? '📝 טקסט מותאם אישית ע"י היוצר' : '📦 טקסט ברירת מחדל של הגרסה'}\n\n📄 *תצוגה מקדימה של הודעת העדכון כרגע:*\n────────────────────\n${curTxt}\n────────────────────\n\n✍️ *איך לערוך?*\n• שלח עכשיו בצ׳אט את הטקסט החדש שתרצה שיופיע כהודעת העדכון (או שלח הודעה שמתחילה ב-*"עדכון חדש:"* והטקסט יוחלף מיד כעדכון חדש ולא יתווסף לעדכון הקודם).\n• אם תרצה דווקא *להוסיף סעיף* לטקסט הקיים, לחץ על הכפתור למטה:`;
+function getLatestVer(s) {return (s&&typeof s.dynamicLatestVersion==='string'&&s.dynamicLatestVersion.trim())?s.dynamicLatestVersion.trim():LATEST_VERSION;}
+function bumpVersionNumber(ver) {const m=String(ver||LATEST_VERSION).match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)(v?)$/i);if(!m) return `${ver}.1`;let a=+m[1],b=+m[2],c=+m[3],d=+m[4]+1;if(d>=10){d=0;c+=1;}if(c>=10){c=0;b+=1;}return `${a}.${b}.${c}.${d}${m[5]||'v'}`;}
+function getAllVersionsMap(s) {const all={...VERSION_HISTORY};if(s&&s.customVersions&&typeof s.customVersions==='object'){for(const [k,v] of Object.entries(s.customVersions)){all[k]=v;}}return all;}
+function getEffectiveUpdateText(s,ver) {const v=ver||getLatestVer(s);const custom=s?.customUpdateText?.[v];if(custom&&typeof custom==='string'&&custom.trim()) return custom;
+const allV=getAllVersionsMap(s);return (allV[v]||VERSION_HISTORY[LATEST_VERSION]).text;}
+function buildEditUpdatePanel(s) {const curVer=getLatestVer(s);const curTxt=getEffectiveUpdateText(s,curVer);const isCustom=Boolean(s?.customUpdateText?.[curVer]);
+const text=`✏️ *עריכת הודעת העדכון הנוכחי (${curVer})*\n📌 *מצב נוכחי:* ${isCustom ? '📝 טקסט מותאם אישית ע"י היוצר' : '📦 טקסט ברירת מחדל של הגרסה'}\n\n📄 *תצוגה מקדימה של הודעת העדכון כרגע:*\n────────────────────\n${curTxt}\n────────────────────\n\n✍️ *איך לערוך?*\n• שלח עכשיו בצ׳אט את הטקסט החדש לעדכון הנוכחי, או שלח הודעה שמתחילה ב-*"עדכון חדש:"* כדי להעלות אוטומטית את מספר הגרסה ולשמור כעדכון חדש!\n• אם תרצה דווקא *להוסיף סעיף* לטקסט הקיים, לחץ על הכפתור למטה:`;
 const rows=[[cbBtn('➕ הוסף סעיף להודעת העדכון הקיימת','vown_append_update')],...(isCustom?[[cbBtn('🔄 איפוס הודעת העדכון לברירת מחדל','vown_reset_update')]] :[]),[cbBtn('👑 חזרה לפאנל היוצר','own_panel')]];
 return {text,reply_markup:rmKb(rows)};}
 function hasActiveUnverified(gData) {if(!gData||!gData.pendingPhoneUsers) return false;const now=Date.now();let active=false;
@@ -451,12 +454,13 @@ gData.heldUnverifiedMsgs.push({sender:from?.first_name||'חבר',time:ilTime,tex
 if(gData.heldUnverifiedMsgs.length > 40) gData.heldUnverifiedMsgs.shift();await saveGD(cid,gData);await bot.telegram.deleteMessage(cid,msg.message_id).catch(noop);return;}}
 if(chat?.type==='private'&&isCrId(uid)&&msg?.text&&!msg.text.trim().startsWith('/')) {const rawIn=msg.text.trim();
 const wMode=creatorWaitState[uid];if(/^עדכון חדש\s*:/i.test(rawIn)||wMode==='edit_update_replace'||wMode==='edit_update_append') {delete creatorWaitState[uid];
-const st=await getInfoSt();st.customUpdateText=st.customUpdateText||{};const isDirectNewUpdate=/^עדכון חדש\s*:/i.test(rawIn);
+const st=await getInfoSt();st.customUpdateText=st.customUpdateText||{};st.customVersions=st.customVersions||{};const isDirectNewUpdate=/^עדכון חדש\s*:/i.test(rawIn);
 const cleanBody=rawIn.replace(/^עדכון חדש\s*:\s*/i,'').trim();
-if(wMode==='edit_update_append'&&!isDirectNewUpdate) {const prev=getEffectiveUpdateText(st,LATEST_VERSION);st.customUpdateText[LATEST_VERSION]=`${prev}\n• ${cleanBody}`;}
-else {st.customUpdateText[LATEST_VERSION]=cleanBody.startsWith('🔥')||cleanBody.startsWith('📦')?cleanBody :`🔥 *עדכון מספר ${LATEST_VERSION} – מה חדש בעדכון זה:*\n\n${cleanBody}`;
-}
-await saveInfoSt(st);const pView=buildEditUpdatePanel(st);await sendApi(bot,cid,`✅ *הודעת העדכון (${LATEST_VERSION}) עודכנה בהצלחה!*\n${isDirectNewUpdate||wMode!=='edit_update_append' ? '📌 הטקסט נשמר כעדכון חדש (החליף את הטקסט הקודם).' : '📌 הסעיף נוסף להודעת העדכון הקיימת.'}\n\n${pView.text}`,pView.reply_markup.inline_keyboard);
+let targetVer=getLatestVer(st);
+if(isDirectNewUpdate) {targetVer=bumpVersionNumber(targetVer);st.dynamicLatestVersion=targetVer;}
+if(wMode==='edit_update_append'&&!isDirectNewUpdate) {const prev=getEffectiveUpdateText(st,targetVer);st.customUpdateText[targetVer]=`${prev}\n• ${cleanBody}`;}
+else {const formatted=cleanBody.startsWith('🔥')||cleanBody.startsWith('📦')?cleanBody :`🔥 *עדכון מספר ${targetVer} – מה חדש בעדכון זה:*\n\n${cleanBody}`;st.customUpdateText[targetVer]=formatted;if(isDirectNewUpdate){st.customVersions[targetVer]={title:`עדכון מספר ${targetVer}`,date:new Date().toISOString().slice(0,10),text:formatted};}}
+await saveInfoSt(st);const pView=buildEditUpdatePanel(st);await sendApi(bot,cid,`✅ *הודעת העדכון (${targetVer}) עודכנה בהצלחה!*\n${isDirectNewUpdate ? `🚀 מספר העדכון עלה אוטומטית לגרסה *${targetVer}* ונשמר כעדכון חדש.` : (wMode!=='edit_update_append' ? '📌 הטקסט נשמר כהודעת העדכון הנוכחית.' : '📌 הסעיף נוסף להודעת העדכון הקיימת.')}\n\n${pView.text}`,pView.reply_markup.inline_keyboard);
 return;}}
 if(chat?.type==='private'&&msg?.reply_to_message&&msg?.text&&!msg.text.trim().startsWith('/')) {const repliedTxt=String(msg.reply_to_message.text||msg.reply_to_message.caption||'');
 if(!isCrId(uid)&&(repliedTxt.includes('ההודעה מהמנהל:')||repliedTxt.includes('הגב להודעה זו כדי להגיב')||repliedTxt.includes('תשובה מיוצר וולטיק מוד'))) {const uName=from?.first_name||'משתמש';
@@ -514,6 +518,7 @@ const opts=[
 const header=(cmdName==='quiz_bot'||isFoundersChatId(cid))?`🧠 *חידון מומחי וולטיק מוד (שאלה #${chosenIdx + 1} מתוך ${VOLTIC_QUIZ_POOL.length})!*\nהמייסד הראשון שעונה נכון מקבל *+10 נקודות מייסד* (משתמש שענה על שאלה זו בשעה האחרונה יוכל לענות עליה שוב רק אחרי שעה):`
 :`🧠 *אתגר טריוויה – וולטיק מוד (שאלה #${chosenIdx + 1} מתוך ${VOLTIC_QUIZ_POOL.length})!*\nהראשון שלוחץ על התשובה הנכונה מנצח:`;
 await callTg(bot,'sendMessage',{chat_id:cid,text:`${header}\n\n❓ *${qText}*`,parse_mode:PM,reply_markup:{inline_keyboard:opts.map((o)=>[o])}}).catch(noop);return;}
+if(chat?.type==='private'&&cmdName==='start'&&cmdArg.startsWith('webapp_')) {const targetCid=cmdArg.replace('webapp_','').trim();const appUrl=targetCid?`https://dov-telegram-bot.vercel.app/webapp.html?chatId=${encodeURIComponent(targetCid)}` :'https://dov-telegram-bot.vercel.app/webapp.html';await callTg(bot,'sendMessage',{chat_id:cid,text:'📱 *לוח הניהול החכם של וולטיק מוד מוכן עבורך!*\nלחץ על הכפתור למטה לפתיחת המיני-אפליקציה לניהול הקבוצה:',parse_mode:PM,reply_markup:rmKb([[{text:'📱 פתח עכשיו את המיני-אפליקציה',web_app:{url:appUrl}}]])}).catch(noop);return;}
 if(chat?.type==='private') {if(cmdName==='start'&&(cmdArg==='ask_creator'||cmdArg==='translate_file')) {msg.text=`/${cmdArg}`;
 if(Array.isArray(msg.entities)) msg.entities=[{offset:0,length:msg.text.length,type:'bot_command'}];}else if(cmdName==='rate'||cmdName==='rate_bot') {msg.text='/start rate_bot';
 if(Array.isArray(msg.entities)) msg.entities=[{offset:0,length:6,type:'bot_command'}];}else if(cmdName==='suggest'||cmdName==='propose') {msg.text='/request_command';
@@ -609,7 +614,7 @@ if(!payload.text.includes('צוות המייסדים')) {payload.text=payload.te
 if(!hasDevBtn) {kb.splice(kb.length-1,0,[cbBtn('📘 מדריך ותיעוד הבוט','docs_main'),cbBtn('🛠️ מה בפיתוח ובתיקונים','devboard_open')]);}}
 const curKb=payload.reply_markup.inline_keyboard;for(const row of curKb) {for(const btn of row) {if(btn.callback_data==='help_changelog'||btn.callback_data==='ver_current_info') {btn.text=`🆕 עדכון מספר ${curUserVer}`;
 btn.callback_data='ver_current_info';}}}
-if(!curKb.some((r)=>r.some((b)=>b.url&&b.url.includes('v4Hrdnpg0rI3MTk0')))) {curKb.unshift([urlBtn('👑 קבוצת התמיכה של הבוט – צוות המייסדים','https://t.me/+v4Hrdnpg0rI3MTk0')]);}
+if(!curKb.some((r)=>r.some((b)=>b.url&&b.url.includes('v4Hrdnpg0rI3MTk0')))) {curKb.unshift([urlBtn('👑 קבוצת התמיכה של הבוט – צוות המייסדים','https://t.me/+v4Hrdnpg0rI3MTk0')]);} if(payload.chat_id&&!String(payload.chat_id).startsWith('-')&&!curKb.some((r)=>r.some((b)=>b.web_app))) {curKb.unshift([{text:'📱 מיני-אפליקציה לניהול קבוצות',web_app:{url:'${WEBAPP_URL}'}}]);}
 if(!isUpgraded&&!curKb.some((r)=>r.some((b)=>b.callback_data==='ver_upgrade_user'))) {curKb.push([cbBtn('♻️עדכון גרסת הבוט♻️','ver_upgrade_user')]);}}
 if(payload.text.includes('*קטגוריה ')) {if(!isUpgraded) {payload.text=payload.text.replace(`(עדכון ${LATEST_VERSION})`,`(עדכון מספר ${curUserVer})`);
 payload.reply_markup.inline_keyboard=kb.map((row)=>row.filter((btn)=>!NEW_CBS.has(btn.callback_data))).filter((row)=>row.length > 0);
@@ -631,7 +636,7 @@ if(payload.text.startsWith('🔐 *אימות אנושי למצטרפים')||payl
 const bfOn=Boolean(gData.blockFutureUntilVerify);if(payload.text.startsWith('🔐 *אימות אנושי למצטרפים')&&!payload.text.includes('חסימת תוכן עתידי')) {payload.text=payload.text.replace('\n\nבחר אפשרות',`\n• חסימת תוכן עתידי עד פתרון החידה: *${bfOn ? 'פעיל ✅' : 'כבוי ❌'}*\n\nבחר אפשרות`);
 }if(!kb.some((r)=>r.some((b)=>b.callback_data==='ver_toggle_hidefuture'))) {kb.push([cbBtn(`${bfOn ? '🔒' : '🔓'} חסימת תוכן עתידי עד פתרון החידה: ${bfOn ? 'פעיל ✅' : 'כבוי ❌'}`,'ver_toggle_hidefuture')]);
 }
-const hasClnJoin=kb.some((r)=>r.some((b)=>b.callback_data==='clnjoin_open'));if(!hasClnJoin) {kb.push([cbBtn('🧹 מחיקת ברוך הבא / אימות קודמים בכניסה','clnjoin_open')]);}}}
+const hasClnJoin=kb.some((r)=>r.some((b)=>b.callback_data==='clnjoin_open'));if(!hasClnJoin) {kb.push([cbBtn('🧹 מחיקת ברוך הבא / אימות קודמים בכניסה','clnjoin_open')]);} if(payload.text.startsWith('⚙️ *פאנל הגדרות קבוצה')&&payload.chat_id&&!kb.some((r)=>r.some((b)=>b.url&&b.url.includes('start=webapp_')))) {const bUser=bot.botInfo?.username||'VolticMod_bot';kb.unshift([urlBtn('📱 פתח מיני-אפליקציה לניהול הקבוצה',`https://t.me/${bUser}?start=webapp_${payload.chat_id}`)]);}}}
 if(payload.chat_id&&String(payload.chat_id).startsWith('-')) {detectedVerify=method==='sendMessage'&&isVerifyMessagePayload(payload);
 detectedWelcome=isWelcomeMessagePayload(payload);
 if(detectedVerify||detectedWelcome) {const gData=await getGD(payload.chat_id);const mode=gData.cleanPrevJoinMode||'off';
@@ -644,10 +649,10 @@ if(detectedVerify) gData.lastVerifyMsgId=res.message_id;if(detectedWelcome) {gDa
 if(gData.lastVerifyMsgId===res.message_id) gData.lastVerifyMsgId=null;}await saveGD(payload.chat_id,gData);}}}catch(e) {}
 return res;};bot.telegram.callApi=wrappedCallApi;const tgProto=Object.getPrototypeOf(bot.telegram);if(tgProto&&!tgProto._volticProtoWrapped) {tgProto._volticProtoWrapped=true;
 tgProto.callApi=wrappedCallApi;}}
-bot.action('ver_current_info',async (ctx)=>{await ack(ctx);let curVer=LATEST_VERSION;if(ctx.chat&&['group','supergroup'].includes(ctx.chat.type)) {const gData=await getGD(ctx.chat.id);
-curVer=isFoundersChatId(ctx.chat.id)?LATEST_VERSION :(gData.groupVersion||PREV_VER);}else if(ctx.from) {curVer=await getUserActiveVersion(ctx.from.id);}
-const st=await getInfoSt();const verText=getEffectiveUpdateText(st,curVer);const rows=[];if(curVer!==LATEST_VERSION) {rows.push([cbBtn('♻️עדכון גרסת הבוט♻️',ctx.chat?.type==='private'?'ver_upgrade_user' :'grp_upgrade_ver')]);
-}if(isCreator(ctx)&&curVer===LATEST_VERSION) {rows.push([cbBtn('✏️ עריכת הודעת העדכון הנוכחי','vown_edit_update')]);}
+bot.action('ver_current_info',async (ctx)=>{await ack(ctx);const st=await getInfoSt();const curLat=getLatestVer(st);let curVer=curLat;if(ctx.chat&&['group','supergroup'].includes(ctx.chat.type)) {const gData=await getGD(ctx.chat.id);
+curVer=isFoundersChatId(ctx.chat.id)?curLat :(gData.groupVersion||PREV_VER);}else if(ctx.from) {curVer=isCreator(ctx)?curLat:(await getUserActiveVersion(ctx.from.id));}
+const verText=getEffectiveUpdateText(st,curVer);const rows=[];if(curVer!==curLat) {rows.push([cbBtn('♻️עדכון גרסת הבוט♻️',ctx.chat?.type==='private'?'ver_upgrade_user' :'grp_upgrade_ver')]);
+}if(isCreator(ctx)&&curVer===curLat) {rows.push([cbBtn('✏️ עריכת הודעת העדכון הנוכחי','vown_edit_update')]);}
 rows.push([cbBtn('🔙 חזרה לתפריט הראשי','help_main')]);await ctx.editMessageText(verText,mdKb(rows)).catch(()=>ctx.reply(verText,mdKb(rows)));
 });bot.action('ver_upgrade_user',async (ctx)=>{if(!ctx.from) return;await setUserActiveVersion(ctx.from.id,LATEST_VERSION);
 bot._activeCtxUserVer=LATEST_VERSION;await ack(ctx,`🎉 הבוט עודכן בהצלחה לגרסה ${LATEST_VERSION}!`,1);const st=await getInfoSt();
@@ -660,15 +665,15 @@ bot._activeCtxUserVer=LATEST_VERSION;}await ack(ctx,`🎉 הקבוצה עודכ�
 `✅ *גרסת הבוט בקבוצה עודכנה בהצלחה ל-${LATEST_VERSION} ע"י המנהל ${ctx.from.first_name}!*\nכל הפקודות והמערכות של העדכון החדש פעילות כעת בקבוצה.`,{parse_mode:PM,reply_markup:{inline_keyboard:[[{text:`🆕 עדכון מספר ${LATEST_VERSION} (מה חדש?)`,callback_data:'ver_current_info'}],
 [cbBtn('📚 פתיחת תפריט הבוט','help_main')]]}}).catch(noop);});bot.action('ver_history_open',async (ctx)=>{if(!isCreator(ctx)) return ack(ctx,'⛔ ליוצר הבוט בלבד!',1);
 await ack(ctx);const s=await getInfoSt();const uVers=Object.values(s.userVersions||{});
-const upgradedUsers=uVers.filter((v)=>v===LATEST_VERSION).length+1;const verKeys=Object.keys(VERSION_HISTORY).reverse();
-const summaryLines=verKeys.map((v,idx)=>`${idx + 1}. 🔖 *${VERSION_HISTORY[v].title}* (${VERSION_HISTORY[v].date})`).join('\n');
-const text=`📜 *היסטוריית עדכוני הבוט – וולטיק מוד (ליוצר בלבד)*\n📌 *גרסה אחרונה במערכת:* \`${LATEST_VERSION}\`\n👥 *משתמשים שעדכנו לגרסה האחרונה:* ${upgradedUsers}\n\n📚 *רשימת כל עדכוני הבוט:*\n${summaryLines}\n\n👇 *לחץ על כל גרסה למטה כדי לצפות בפירוט המלא של אותו עדכון:*`;
+const curLat=getLatestVer(s);const allVers=getAllVersionsMap(s);const upgradedUsers=uVers.filter((v)=>v===curLat).length+1;const verKeys=Object.keys(allVers).reverse();
+const summaryLines=verKeys.map((v,idx)=>`${idx + 1}. 🔖 *${allVers[v].title}* (${allVers[v].date})`).join('\n');
+const text=`📜 *היסטוריית עדכוני הבוט – וולטיק מוד (ליוצר בלבד)*\n📌 *גרסה אחרונה במערכת:* \`${curLat}\`\n👥 *משתמשים שעדכנו לגרסה האחרונה:* ${upgradedUsers}\n\n📚 *רשימת כל עדכוני הבוט:*\n${summaryLines}\n\n👇 *לחץ על כל גרסה למטה כדי לצפות בפירוט המלא של אותו עדכון:*`;
 const rows=[];for(let i=0;i < verKeys.length;i+=2) {const v1=verKeys[i];const r=[{text:`📜 עדכון מספר ${v1}`,callback_data:`ver_hist_item_${v1}`}];
 if(verKeys[i+1]) {const v2=verKeys[i+1];r.push({text:`📜 עדכון מספר ${v2}`,callback_data:`ver_hist_item_${v2}`});}rows.push(r);}
 rows.push([cbBtn('✏️ עריכת הודעת העדכון הנוכחי','vown_edit_update')]);rows.push([cbBtn('👑 חזרה לפאנל היוצר','own_panel')]);await ctx.editMessageText(text,mdKb(rows))
 .catch(()=>ctx.reply(text,mdKb(rows)));});bot.action(/^ver_hist_item_(.+)$/,async (ctx)=>{if(!isCreator(ctx)) return ack(ctx,'⛔ ליוצר הבוט בלבד!',1);
-const ver=ctx.match[1];const item=VERSION_HISTORY[ver];if(!item) return ack(ctx,'גרסה לא נמצאה');await ack(ctx);const st=await getInfoSt();
-const verText=getEffectiveUpdateText(st,ver);const rows=[];if(ver===LATEST_VERSION) rows.push([cbBtn('✏️ עריכת הודעת העדכון הנוכחי','vown_edit_update')]);
+const ver=ctx.match[1];const st=await getInfoSt();const allVers=getAllVersionsMap(st);const item=allVers[ver];if(!item) return ack(ctx,'גרסה לא נמצאה');await ack(ctx);
+const verText=getEffectiveUpdateText(st,ver);const rows=[];if(ver===getLatestVer(st)) rows.push([cbBtn('✏️ עריכת הודעת העדכון הנוכחי','vown_edit_update')]);
 rows.push([cbBtn('🔙 חזרה להיסטוריית העדכונים','ver_history_open')],
 [cbBtn('👑 חזרה לפאנל היוצר','own_panel')]);await editMd(ctx,verText,{inline_keyboard:rows});});bot.use(async (ctx,next)=>{if(isCreator(ctx)&&ctx.chat?.type==='private'&&ctx.message?.text) {const uid=String(ctx.from.id);
 const waitMode=creatorWaitState[uid];const txt=ctx.message.text.trim();if(waitMode&&txt.startsWith('/')) {delete creatorWaitState[uid];
@@ -695,8 +700,8 @@ await editMd(ctx,view.text,view.reply_markup);});bot.action(/^clnjoin_set_(welco
 }const mode=ctx.match[1];const data=await getGD(ctx.chat.id);data.cleanPrevJoinMode=mode;await saveGD(ctx.chat.id,data);
 await ack(ctx,'✅ ההגדרה נשמרה!');const view=buildCleanJoinPanel(mode);
 await editMd(ctx,view.text,view.reply_markup);});bot.command(['owner_versions','version_history'],async (ctx)=>{if(!isCreator(ctx)) return;
-const s=await getInfoSt();const upgradedUsers=Object.values(s.userVersions||{}).filter((v)=>v===LATEST_VERSION).length+1;
-const verKeys=Object.keys(VERSION_HISTORY).reverse();const summaryLines=verKeys.map((v,idx)=>`${idx + 1}. 🔖 *${VERSION_HISTORY[v].title}* (${VERSION_HISTORY[v].date})`).join('\n');
+const s=await getInfoSt();const curLat=getLatestVer(s);const allVers=getAllVersionsMap(s);const upgradedUsers=Object.values(s.userVersions||{}).filter((v)=>v===curLat).length+1;
+const verKeys=Object.keys(allVers).reverse();const summaryLines=verKeys.map((v,idx)=>`${idx + 1}. 🔖 *${allVers[v].title}* (${allVers[v].date})`).join('\n');
 const rows=[];for(let i=0;i < verKeys.length;i+=2) {const r=[{text:`📜 עדכון מספר ${verKeys[i]}`,callback_data:`ver_hist_item_${verKeys[i]}`}];
 if(verKeys[i+1]) r.push({text:`📜 עדכון מספר ${verKeys[i + 1]}`,callback_data:`ver_hist_item_${verKeys[i + 1]}`});rows.push(r);}
 rows.push([cbBtn('👑 חזרה לפאנל היוצר','own_panel')]);await ctx.reply(`📜 *היסטוריית עדכוני הבוט – וולטיק מוד (ליוצר בלבד)*\n📌 *גרסה אחרונה:* \`${LATEST_VERSION}\` | 👥 *עדכנו:* ${upgradedUsers}\n\n${summaryLines}`,mdKb(rows));
@@ -704,17 +709,20 @@ rows.push([cbBtn('👑 חזרה לפאנל היוצר','own_panel')]);await ctx.
 const raw=(ctx.message?.text||'').replace(/^\/(edit_update|set_update)(@\S+)?\s*/i,'').trim();
 const st=await getInfoSt();st.customUpdateText=st.customUpdateText||{};if(!raw) {creatorWaitState[String(ctx.from.id)]='edit_update_replace';const pView=buildEditUpdatePanel(st);
 return await ctx.reply(pView.text,{parse_mode:PM,reply_markup:pView.reply_markup});}
-if(/^(reset|default|איפוס)$/i.test(raw)) {delete st.customUpdateText[LATEST_VERSION];await saveInfoSt(st);const pView=buildEditUpdatePanel(st);
-return await ctx.reply(`🔄 הודעת העדכון (${LATEST_VERSION}) אופסה לברירת המחדל!\n\n${pView.text}`,{parse_mode:PM,reply_markup:pView.reply_markup});}
-const cleanBody=raw.replace(/^עדכון חדש\s*:\s*/i,'').trim();st.customUpdateText[LATEST_VERSION]=cleanBody.startsWith('🔥')||cleanBody.startsWith('📦')?cleanBody :`🔥 *עדכון מספר ${LATEST_VERSION} – מה חדש בעדכון זה:*\n\n${cleanBody}`;
-await saveInfoSt(st);const pView=buildEditUpdatePanel(st);await ctx.reply(`✅ *הודעת העדכון (${LATEST_VERSION}) עודכנה בהצלחה!*\n\n${pView.text}`,{parse_mode:PM,reply_markup:pView.reply_markup});
+const isNewUpd=/^עדכון חדש\s*:/i.test(raw);let targetVer=getLatestVer(st);
+if(/^(reset|default|איפוס)$/i.test(raw)) {delete st.customUpdateText[targetVer];await saveInfoSt(st);const pView=buildEditUpdatePanel(st);
+return await ctx.reply(`🔄 הודעת העדכון (${targetVer}) אופסה לברירת המחדל!\n\n${pView.text}`,{parse_mode:PM,reply_markup:pView.reply_markup});}
+if(isNewUpd) {targetVer=bumpVersionNumber(targetVer);st.dynamicLatestVersion=targetVer;st.customVersions=st.customVersions||{};}
+const cleanBody=raw.replace(/^עדכון חדש\s*:\s*/i,'').trim();const formatted=cleanBody.startsWith('🔥')||cleanBody.startsWith('📦')?cleanBody :`🔥 *עדכון מספר ${targetVer} – מה חדש בעדכון זה:*\n\n${cleanBody}`;
+st.customUpdateText[targetVer]=formatted;if(isNewUpd){st.customVersions[targetVer]={title:`עדכון מספר ${targetVer}`,date:new Date().toISOString().slice(0,10),text:formatted};}
+await saveInfoSt(st);const pView=buildEditUpdatePanel(st);await ctx.reply(`✅ *הודעת העדכון (${targetVer}) עודכנה בהצלחה!*${isNewUpd?`\n🚀 מספר העדכון עלה אוטומטית לגרסה *${targetVer}*.`:''}\n\n${pView.text}`,{parse_mode:PM,reply_markup:pView.reply_markup});
 });bot.action('vown_edit_update',async (ctx)=>{if(!isCreator(ctx)) return ack(ctx,'⛔ ליוצר הבוט בלבד!',1);creatorWaitState[String(ctx.from.id)]='edit_update_replace';
 await ack(ctx,'✍️ שלח עכשיו בצ׳אט את הטקסט החדש להודעת העדכון');
 const st=await getInfoSt();const pView=buildEditUpdatePanel(st);await editMd(ctx,pView.text,pView.reply_markup);
 });bot.action('vown_append_update',async (ctx)=>{if(!isCreator(ctx)) return ack(ctx,'⛔ ליוצר הבוט בלבד!',1);
 creatorWaitState[String(ctx.from.id)]='edit_update_append';await ack(ctx);await editMd(ctx,`➕ *הוספת סעיף להודעת העדכון הנוכחית (${LATEST_VERSION})*\n\nכתוב עכשיו בצ׳אט את הסעיף שתרצה להוסיף לתחתית הודעת העדכון הקיימת:\n_(אם תכתוב בראש ההודעה "עדכון חדש:" זה יחליף את כל הודעת העדכון לטקסט חדש)_`,rmKb([[cbBtn('🔙 חזרה לעריכת העדכון','vown_edit_update')],
 [cbBtn('👑 חזרה לפאנל היוצר','own_panel')]]));});bot.action('vown_reset_update',async (ctx)=>{if(!isCreator(ctx)) return ack(ctx,'⛔ ליוצר הבוט בלבד!',1);
-delete creatorWaitState[String(ctx.from.id)];const st=await getInfoSt();if(st.customUpdateText) delete st.customUpdateText[LATEST_VERSION];await saveInfoSt(st);
+delete creatorWaitState[String(ctx.from.id)];const st=await getInfoSt();const curLat=getLatestVer(st);if(st.customUpdateText) delete st.customUpdateText[curLat];await saveInfoSt(st);
 await ack(ctx,'🔄 הודעת העדכון אופסה לברירת המחדל!',1);const pView=buildEditUpdatePanel(st);
 await editMd(ctx,pView.text,pView.reply_markup);});bot.command(['block_future','hide_future'],async (ctx)=>{if(!(await requireAdmin(ctx,'/block_future [on | off]'))) return;
 const arg=((ctx.message.text||'').trim().split(/\s+/)[1]||'').toLowerCase();
@@ -794,7 +802,7 @@ return ctx.reply(
 bot.command(['approve_phone_all','approve_all','unmute_phone','owner_approve_phone'],async (ctx)=>{if(!isCreator(ctx)) {return ctx.reply('⛔ פקודה זו מיועדת ליוצר הבוט בלבד.');}
 const args=(ctx.message?.text||'').trim().split(/\s+/).slice(1);const argGid=args.find((a)=>/^-\d+$/.test(a))||null;
 ctx._extraApproveUids=args.filter((a)=>/^\d+$/.test(a));await execApprovePhone(ctx,argGid);});bot.action('vown_approve_phone_all',async (ctx)=>{if(!isCreator(ctx)) return ack(ctx,'⛔ ליוצר הבוט בלבד!',1);
-would:1;await ack(ctx,'⏳ סורק ומאשר מצטרפים בכל הקבוצות...');await execApprovePhone(ctx,null);});bot.command('rules',async (ctx)=>{if(!ctx.chat||ctx.chat.type==='private') {return ctx.reply('⚠️ פקודה זו פועלת בקבוצות בלבד.');
+await ack(ctx,'⏳ סורק ומאשר מצטרפים בכל הקבוצות...');await execApprovePhone(ctx,null);});bot.command('rules',async (ctx)=>{if(!ctx.chat||ctx.chat.type==='private') {return ctx.reply('⚠️ פקודה זו פועלת בקבוצות בלבד.');
 }try {const data=await getGD(ctx.chat.id);const cleaned=cleanRulesText(data.rules);if(cleaned!==data.rules) {data.rules=cleaned;await saveGD(ctx.chat.id,data);}
 const mode=data.rulesMode||'public';const botUsername=ctx.botInfo?.username||(await ctx.telegram.getMe()).username;
 const rulesUrl=`https://t.me/${botUsername}?start=rules_${ctx.chat.id}`;
@@ -901,6 +909,8 @@ try {const target=getTarget(ctx)||{id:ctx.from.id,name:ctx.from.first_name||'מ�
 const member=await ctx.telegram.getChatMember(ctx.chat.id,target.id).catch(()=>({status:'לא ידוע'}));const data=await getGD(ctx.chat.id);
 const warns=(data.warns[target.id]||[]).length;await ctx.reply(
 `👤 *מידע על משתמש:*\n• שם: ${target.name}\n• מזהה: \`${target.id}\`\n• מעמד: ${member.status}\n• אזהרות: ${warns}/3\n• מזהה קבוצה: \`${ctx.chat.id}\``,{parse_mode:PM}
-);}catch(err) {await ctx.reply('❌ שגיאה בשליפת פרטי משתמש. לעזרה: /help');}});bot.command('stats',async (ctx)=>{if(!(await requireAdmin(ctx,'/stats'))) return;
+);}catch(err) {await ctx.reply('❌ שגיאה בשליפת פרטי משתמש. לעזרה: /help');}});bot.command(['app','panel','dashboard','miniapp'],async (ctx)=>{if(!ctx.chat) return;const botUsername=ctx.botInfo?.username||'VolticMod_bot';if(ctx.chat.type==='private') {return await ctx.reply('📱 *מיני-אפליקציה לניהול מקסימלי של קבוצות*\nלחץ על הכפתור למטה לפתיחת ממשק הניהול החכם:',{parse_mode:PM,reply_markup:rmKb([[{text:'📱 פתח מיני-אפליקציה לניהול קבוצות',web_app:{url:'https://dov-telegram-bot.vercel.app/webapp.html'}}]])});}
+if(!(await requireAdmin(ctx,'/panel'))) return;return await repMd(ctx,'📱 *ניהול הקבוצה במיני-אפליקציה החדשה*\nלחץ על הכפתור למטה לפתיחת לוח הבקרה המלא של הקבוצה:',[[urlBtn('📱 פתח עכשיו מיני-אפליקציה לניהול הקבוצה',`https://t.me/${botUsername}?start=webapp_${ctx.chat.id}`)]]);});
+bot.command('stats',async (ctx)=>{if(!(await requireAdmin(ctx,'/stats'))) return;
 try {const count=await ctx.telegram.getChatMembersCount(ctx.chat.id);const data=await getGD(ctx.chat.id);await repMd(ctx,`📊 *סטטיסטיקות קבוצה:*\n• חברים: ${count}\n• הודעות שנוטרו: ${data.stats.messages||0}\n• אזהרות: ${data.stats.warnsCount||0}\n• חסימות: ${data.stats.bans||0}\n• פילטרים: ${data.filters.length}`);
 }catch(err) {await ctx.reply(`❌ שגיאה בשליפת סטטיסטיקות. לעזרה: /help`);}});};
