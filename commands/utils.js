@@ -2,6 +2,8 @@ const fs = require('fs');
 const TMP_FILE = '/tmp/telegram_bot_state.json';
 const memoryCache = {};
 const floodTracker = {};
+let tursoClient = null;
+let tursoReady = false;
 
 const FORMAT_GUIDE =
   '⚠️ *שגיאה בעיצוב הטקסט – מדריך עיצוב וכפתורים:*\n' +
@@ -39,8 +41,86 @@ function createDefaultGroup() {
   };
 }
 
-// קריאה ושמירה תקינה מול מסד הנתונים Upstash Redis (Vercel KV) שהגדרת ב-Vercel
+// חיבור אוטומטי למסד הנתונים Turso (גיבוי ו-Fallback ל-Upstash)
+function getTursoClient() {
+  if (tursoClient) return tursoClient;
+  const url =
+    process.env.TURSO_DATABASE_URL ||
+    process.env.STORAGE_TURSO_DATABASE_URL ||
+    process.env.STORAGE_DATABASE_URL ||
+    process.env.STORAGE_URL;
+  const authToken =
+    process.env.TURSO_AUTH_TOKEN ||
+    process.env.STORAGE_TURSO_AUTH_TOKEN ||
+    process.env.STORAGE_AUTH_TOKEN;
+
+  if (!url || !authToken) return null;
+  try {
+    const { createClient } = require('@libsql/client');
+    tursoClient = createClient({ url, authToken });
+    return tursoClient;
+  } catch (err) {
+    console.error('Turso Init Error:', err.message);
+    return null;
+  }
+}
+
+async function ensureTursoTable(client) {
+  if (tursoReady) return;
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS bot_kv (
+      k TEXT PRIMARY KEY,
+      v TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `);
+  tursoReady = true;
+}
+
+async function tursoGet(key) {
+  const client = getTursoClient();
+  if (!client) return null;
+  try {
+    await ensureTursoTable(client);
+    const res = await client.execute({
+      sql: 'SELECT v FROM bot_kv WHERE k = ?',
+      args: [key]
+    });
+    if (res.rows && res.rows.length > 0 && res.rows[0].v) {
+      let parsed = JSON.parse(String(res.rows[0].v));
+      if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+      if (parsed && typeof parsed === 'object') return parsed;
+    }
+  } catch (err) {
+    console.error('Turso Read Error:', err.message);
+  }
+  return null;
+}
+
+async function tursoSet(key, value) {
+  const client = getTursoClient();
+  if (!client) return false;
+  try {
+    await ensureTursoTable(client);
+    await client.execute({
+      sql: 'INSERT OR REPLACE INTO bot_kv (k, v, updated_at) VALUES (?, ?, ?)',
+      args: [key, JSON.stringify(value), new Date().toISOString()]
+    });
+    return true;
+  } catch (err) {
+    console.error('Turso Write Error:', err.message);
+    return false;
+  }
+}
+
+// קריאה ושמירה תקינה מול Turso ומול Upstash Redis (Vercel KV) שהגדרת ב-Vercel
 async function rawGet(key) {
+  const fromTurso = await tursoGet(key);
+  if (fromTurso) {
+    memoryCache[key] = fromTurso;
+    return fromTurso;
+  }
+
   const kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
   const kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
 
@@ -54,11 +134,17 @@ async function rawGet(key) {
         },
         body: JSON.stringify(['GET', key])
       });
-      const data = await res.json();
-      if (data && data.result) {
-        let parsed = JSON.parse(data.result);
-        if (typeof parsed === 'string') parsed = JSON.parse(parsed);
-        if (parsed && typeof parsed === 'object') return parsed;
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.result) {
+          let parsed = JSON.parse(data.result);
+          if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+          if (parsed && typeof parsed === 'object') {
+            memoryCache[key] = parsed;
+            await tursoSet(key, parsed);
+            return parsed;
+          }
+        }
       }
     } catch (err) {
       console.error('KV Read Error:', err.message);
@@ -77,6 +163,9 @@ async function rawGet(key) {
 
 async function rawSet(key, value) {
   memoryCache[key] = value;
+
+  await tursoSet(key, value);
+
   const kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
   const kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
 
