@@ -11,6 +11,7 @@ const registerContentCommands = require('../commands/content');
 const registerProtectionCommands = require('../commands/protection');
 const registerInfoCommands = require('../commands/info');
 const registerSystemCommands = require('../commands/system');
+const registerAiCommands = require('../commands/ai');
 
 const token = process.env.BOT_TOKEN;
 const bot = token ? new Telegraf(token) : null;
@@ -777,6 +778,7 @@ if (bot) {
   registerUsersCommands(bot);
   registerContentCommands(bot);
   registerInfoCommands(bot);
+  registerAiCommands(bot);
   registerProtectionCommands(bot);
 
   bot.catch((err, ctx) => {
