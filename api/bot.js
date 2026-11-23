@@ -1,4 +1,3 @@
-// VolticMod api/bot.js - Typing Indicator for Commands & Buttons (2s)
 const fs = require('fs');
 const { Telegraf } = require('telegraf');
 const {
@@ -13,6 +12,7 @@ const registerProtectionCommands = require('../commands/protection');
 const registerInfoCommands = require('../commands/info');
 const registerSystemCommands = require('../commands/system');
 const registerAiCommands = require('../commands/ai');
+const registerI18n = require('../commands/i18n');
 
 const token = process.env.BOT_TOKEN;
 const bot = token ? new Telegraf(token) : null;
@@ -775,12 +775,14 @@ if (bot) {
     await ctx.reply(getMainMenuText(), { parse_mode: 'Markdown', reply_markup: getMainMenuKeyboard() });
   });
 
+  registerI18n(bot);
   registerSystemCommands(bot);
   registerUsersCommands(bot);
   registerContentCommands(bot);
   registerInfoCommands(bot);
   registerAiCommands(bot);
   registerProtectionCommands(bot);
+  registerI18n.wrapUpdates(bot);
 
   bot.catch((err, ctx) => {
     console.error(`Bot error in update ${ctx.update.update_id}:`, err);
@@ -851,7 +853,8 @@ async function handleWebAppApi(req, res) {
         groups.push({ id: gid, title, memberCount });
       } catch (e) {}
     }));
-    return res.status(200).json({ ok: true, groups });
+    const userLang = (await registerI18n.getUserLang(uid)) || 'he';
+    return res.status(200).json({ ok: true, groups, userLang });
   }
 
   const chatId = String(body.chatId || '');
@@ -863,9 +866,12 @@ async function handleWebAppApi(req, res) {
     const groupData = await getGroupData(chatId);
     const chatInfo = await bot.telegram.getChat(chatId).catch(() => null);
     const memberCount = await bot.telegram.getChatMembersCount(chatId).catch(() => 0);
+    const userLang = (await registerI18n.getUserLang(uid)) || 'he';
+    const lang = groupData.lang || userLang || 'he';
     return res.status(200).json({
       ok: true,
       groupData,
+      lang,
       title: chatInfo?.title || groupData.groupTitle || chatId,
       memberCount,
       slowModeDelay: chatInfo?.slow_mode_delay || 0
@@ -895,6 +901,7 @@ async function handleWebAppApi(req, res) {
       rules: typeof st.rules === 'string' ? st.rules : cur.rules,
       cleanPrevJoinMode: ['off', 'welcome', 'verify', 'both'].includes(st.cleanPrevJoinMode) ? st.cleanPrevJoinMode : (cur.cleanPrevJoinMode || 'off'),
       blockFutureUntilVerify: Boolean(st.blockFutureUntilVerify),
+      lang: ['he', 'en', 'es'].includes(st.lang) ? st.lang : (cur.lang || 'he'),
       adv: { ...(cur.adv || {}), ...(st.adv || {}) }
     };
     if (typeof st.slowModeDelay === 'number') {

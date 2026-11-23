@@ -740,6 +740,38 @@
         border-width: 1.5px;
       }
     }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .lang-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      padding: 3px;
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.14);
+      border: 1px solid var(--sep);
+    }
+    .lang-opt {
+      border: 0;
+      background: transparent;
+      color: var(--hint);
+      font-size: 0.7rem;
+      font-weight: 800;
+      padding: 4px 7px;
+      border-radius: 999px;
+      cursor: pointer;
+      line-height: 1;
+      transition: background 0.18s ease, color 0.18s ease;
+    }
+    .lang-opt.active {
+      background: var(--btn);
+      color: var(--btn-text);
+    }
   </style>
 </head>
 <body>
@@ -751,7 +783,14 @@
         <div class="brand-sub" id="headerSub">מיני-אפליקציה רשמית</div>
       </div>
     </div>
-    <span class="status-pill" id="saveBadge">מסונכרן</span>
+    <div class="header-actions">
+      <div class="lang-pill" id="langSwitcher" role="group" aria-label="Language">
+        <button type="button" class="lang-opt active" data-lang="he">עב</button>
+        <button type="button" class="lang-opt" data-lang="en">EN</button>
+        <button type="button" class="lang-opt" data-lang="es">ES</button>
+      </div>
+      <span class="status-pill" id="saveBadge">מסונכרן</span>
+    </div>
   </header>
 
   <main class="container">
@@ -1048,6 +1087,387 @@
     let currentTabIndex = 0;
 
     const $ = (id) => document.getElementById(id);
+
+    /* =====================================================================
+       3-Language Support Engine (Hebrew / English / Spanish) + RTL/LTR Sync
+       ===================================================================== */
+    const I18N = {
+      en: {
+        'וולטיק מוד | ניהול קבוצה': 'Voltic Mod | Group Manager',
+        'וולטיק מוד • ניהול קבוצה': 'Voltic Mod • Group Manager',
+        'מיני-אפליקציה רשמית': 'Official Mini App',
+        'מסונכרן': 'Synced',
+        'מסונכרן ✓': 'Synced ✓',
+        'יש שינויים לשמירה': 'Unsaved changes',
+        'טוען נתונים מאובטחים מטלגרם...': 'Loading secure data from Telegram...',
+        'מאמת הרשאות ניהול מול השרת': 'Verifying admin permissions...',
+        'יש לפתוח מתוך טלגרם': 'Open inside Telegram',
+        'נדרשת פתיחה מתוך טלגרם': 'Open inside Telegram',
+        'פתח את הבוט @VolticMod_bot בטלגרם ולחץ על כפתור המיני-אפליקציה.': 'Open @VolticMod_bot in Telegram and tap the Mini App button.',
+        'פתח את המיני-אפליקציה מתוך @VolticMod_bot בטלגרם.': 'Open the Mini App from @VolticMod_bot in Telegram.',
+        '🏢 בחר קבוצה לניהול': '🏢 Select a group to manage',
+        'בחר קבוצה לניהול': 'Select a group to manage',
+        '🛡️ הגנות': '🛡️ Protection',
+        '🔐 אימות וכניסה': '🔐 Verify & Join',
+        '🚫 פילטרים ופקודות': '🚫 Filters & Cmds',
+        '🌙 לילה וקידומות': '🌙 Night & Prefixes',
+        '📊 סטטיסטיקה': '📊 Statistics',
+        '🛡️ מערכות הגנה אוטומטיות': '🛡️ Automatic Protection Systems',
+        '🔒 נעילות תוכן': '🔒 Content Locks',
+        '⚡ בקרת קצב ואורך הודעות': '⚡ Rate & Message Length Control',
+        '🌊 הגנת הצפה (מקסימום הודעות ב-15 שניות, 0 = כבוי)': '🌊 Anti-Flood (max messages in 15s, 0 = off)',
+        'הגנת הצפה': 'Anti-Flood',
+        'כבוי': 'Off',
+        '📏 הגבלת אורך הודעה בתווים (0 = ללא הגבלה)': '📏 Max Message Length in chars (0 = unlimited)',
+        'הגבלת אורך הודעה': 'Max Message Length',
+        'ללא': 'None',
+        '🐢 מצב איטי בקבוצה (Slow Mode)': '🐢 Group Slow Mode',
+        '⚡ כבוי (ללא השהיה)': '⚡ Off (no delay)',
+        '10 שניות': '10 seconds',
+        '30 שניות': '30 seconds',
+        'דקה אחת': '1 minute',
+        '5 דקות': '5 minutes',
+        '15 דקות': '15 minutes',
+        'שעה אחת': '1 hour',
+        '🔐 אימות מצטרפים חדשים': '🔐 New Member Verification',
+        '🧮 אימות בתרגיל חשבון קצר': '🧮 Math Captcha Verification',
+        'מצטרפים חדשים מושתקים עד לפתרון תרגיל קצר נגד בוטים': 'New members are muted until they solve a short anti-bot math challenge',
+        '🔒 חסימת תוכן עתידי עד פתרון החידה': '🔒 Block Future Content Until Verified',
+        'מסתיר הודעות חדשות ממצטרף שטרם פתר ומציג אותן מיד לאחר הפתרון': 'Hides new messages from unverified members until solved',
+        '⏱️ זמן מרבי לאימות': '⏱️ Max Verification Time',
+        '♾️ ללא הגבלת זמן': '♾️ No time limit',
+        '60 שניות': '60 seconds',
+        '3 דקות': '3 minutes',
+        '🧹 מחיקת הודעות כניסה קודמות': '🧹 Clean Previous Join Messages',
+        '❌ אל תמחק הודעות קודמות': '❌ Do not delete previous messages',
+        '👋 מחק הודעת ברוך הבא קודמת בלבד': '👋 Delete previous welcome message only',
+        '🔐 מחק הודעת אימות קודמת בלבד': '🔐 Delete previous verification message only',
+        '🧹 מחק גם וגם (ברוך הבא + אימות)': '🧹 Delete both (welcome + verification)',
+        '👋 הודעת ברוכים הבאים וחוקים': '👋 Welcome Message & Rules',
+        '👋 הפעלת הודעת ברוכים הבאים': '👋 Enable Welcome Message',
+        'נשלחת עם כפתור חוקי הקבוצה בעת הצטרפות או אימות': 'Sent with a group rules button on join or verification',
+        '✍️ טקסט ברוכים הבאים (תומך ב-': '✍️ Welcome text (supports ',
+        '📜 מצב תצוגת חוקים': '📜 Rules Display Mode',
+        '📢 פומבי בקבוצה': '📢 Public in group',
+        '🤫 שקט (הודעת פקודה נמחקת)': '🤫 Silent (command message deleted)',
+        '🔘 טקסט כפתור חוקים': '🔘 Rules Button Text',
+        '📖 לחץ כאן לצפייה בחוקי הקבוצה': '📖 Tap here to view group rules',
+        '📖 תקנון וחוקי הקבוצה': '📖 Group Rules & Guidelines',
+        '🚫 מילים אסורות בקבוצה': '🚫 Blocked Words in Group',
+        'הוסף מילה או ביטוי לחסימה...': 'Add a word or phrase to block...',
+        'הוסף': 'Add',
+        '➕ פקודות מותאמות אישית': '➕ Custom Commands',
+        'שאלה / שם פקודה (לדוגמה: מחירון)': 'Trigger / command name (e.g. pricing)',
+        'תשובת הבוט...': 'Bot reply...',
+        '➕ הוסף פקודה מותאמת': '➕ Add Custom Command',
+        '🌙 נעילת לילה אוטומטית (שעון ישראל)': '🌙 Automatic Night Mode (Israel Time)',
+        '🌙 הפעל נעילת לילה': '🌙 Enable Night Mode',
+        'מוחק הודעות של חברים רגילים בשעות שנבחרו': 'Deletes messages from regular members during selected hours',
+        '🕒 שעת התחלה': '🕒 Start Time',
+        '☀️ שעת סיום': '☀️ End Time',
+        '🌍 חסימת שפות זרות': '🌍 Block Foreign Languages',
+        '📵 חסימת קידומות ומדינות זרות': '📵 Block Foreign Phone Prefixes',
+        '📵 הפעל סינון קידומות': '📵 Enable Prefix Filter',
+        'חוסם מספרי טלפון עם קידומות חסומות בהודעות': 'Blocks phone numbers with forbidden prefixes in messages',
+        '🚪 חסימה אוטומטית בכניסה': '🚪 Auto-Block on Join',
+        'חוסם מצטרפים החשודים מאותן מדינות': 'Blocks joiners suspected from those countries',
+        'הוסף קידומת (לדוגמה +98)': 'Add prefix (e.g. +98)',
+        'הודעות שנוטרו': 'Messages Monitored',
+        'חברים בקבוצה': 'Group Members',
+        'אזהרות שנרשמו': 'Warnings Issued',
+        'חסימות שבוצעו': 'Bans Executed',
+        '🏆 5 החברים הפעילים בקבוצה': '🏆 Top 5 Active Members',
+        '⚡ פעולות ניהול מהירות': '⚡ Quick Admin Actions',
+        '🧹 הסר כל הנעוצים': '🧹 Unpin All',
+        '📌 שחזר נעוצים': '📌 Restore Pins',
+        '💾 גיבוי הגדרות': '💾 Backup Settings',
+        '🧼 אפס אזהרות לכולם': '🧼 Reset All Warnings',
+        '💾 שמור שינויים בקבוצה': '💾 Save Group Changes',
+        '✅ השינויים נשמרו בהצלחה!': '✅ Changes saved successfully!',
+        '✅ כל הגדרות הקבוצה נשמרו!': '✅ All group settings saved!',
+        'שגיאת שרת': 'Server error',
+        'לא ניתן לטעון את הקבוצה': 'Unable to load group',
+        '🛡️ אנטי-ספאם אוטומטי': '🛡️ Automatic Anti-Spam',
+        'מסנן הודעות ספאם והודעות ארוכות מדי': 'Filters spam and overly long messages',
+        '🔗 חסימת קישורים': '🔗 Anti-Link',
+        'מוחק קישורים מחברים שאינם מנהלים': 'Deletes links sent by non-admin members',
+        '🧼 ניקוי הודעות שירות': '🧼 Clean Service Messages',
+        'מוחק הודעות "הצטרף / עזב" באופן אוטומטי': 'Automatically deletes join/leave service messages',
+        '🔄 חסימת העברות (Forward)': '🔄 Block Forwards',
+        'מוחק הודעות מועברות מערוצים וקבוצות': 'Deletes forwarded messages from channels and groups',
+        '🤖 חסימת הכנסת בוטים': '🤖 Anti-Bot',
+        'מסיר בוטים זרים שמוכנסים ע"י משתמשים': 'Removes unauthorized bots added by users',
+        '📢 חסימת כתיבה בשם ערוץ': '📢 Block Channel Posting',
+        'מוחק הודעות שנשלחות בשם ערוץ': 'Deletes messages sent on behalf of a channel',
+        '🔞 חסימת תוכן למבוגרים': '🔞 Anti-NSFW',
+        'מסנן מילים וקישורים פוגעניים': 'Filters explicit words and offensive links',
+        '🔗 נעילת קישורים': '🔗 Lock Links',
+        'חוסם את כל הקישורים בקבוצה': 'Blocks all links in the group',
+        '🖼️ נעילת מדיה': '🖼️ Lock Media',
+        'חוסם תמונות, סרטונים וקבצים': 'Blocks photos, videos, and files',
+        '🎭 נעילת סטיקרים': '🎭 Lock Stickers',
+        'חוסם שליחת סטיקרים בקבוצה': 'Blocks sending stickers in the group',
+        'חסימת ערבית / פרסית': 'Block Arabic / Persian',
+        'מוחק הודעות באותיות ערביות': 'Deletes messages with Arabic script',
+        'חסימת רוסית (קירילית)': 'Block Russian (Cyrillic)',
+        'מוחק הודעות באותיות קיריליות': 'Deletes messages with Cyrillic script',
+        'חסימת סינית / יפנית': 'Block Chinese / Japanese',
+        'מוחק הודעות בכתב מזרח-אסיאתי': 'Deletes messages with East Asian script',
+        'חסימת הודית / תאילנדית': 'Block Hindi / Thai',
+        'מוחק הודעות בכתב דבנגארי/תאי': 'Deletes messages with Devanagari/Thai script',
+        'אין עדיין נתוני פעילות בקבוצה.': 'No activity data in this group yet.',
+        'אין מילים חסומות בקבוצה.': 'No blocked words in this group.',
+        'אין עדיין פקודות מותאמות בקבוצה.': 'No custom commands in this group yet.',
+        'אין קידומות חסומות.': 'No blocked prefixes.',
+        '💾 גיבוי הגדרות הקבוצה': '💾 Group Settings Backup',
+        'אפשר להעתיק את קוד הגיבוי ולשמור אותו בצד. ניתן לגרור מטה לסגירה.': 'Copy the backup code and save it safely. Swipe down to close.',
+        '📋 העתק גיבוי': '📋 Copy Backup',
+        '💾 קוד הגיבוי הועתק!': '💾 Backup code copied!',
+        'סגור': 'Close',
+        '✅ הפעולה בוצעה!': '✅ Action completed!',
+        'אישור וביצוע': 'Confirm',
+        'ביטול': 'Cancel',
+        '🧹 הסרת כל הנעוצים': '🧹 Unpin All Messages',
+        'האם להסיר את כל ההודעות הנעוצות בקבוצה? תמיד ניתן לשחזר אותן מיד לאחר מכן.': 'Remove all pinned messages in this group? You can restore them right after.',
+        '🧼 איפוס כל האזהרות': '🧼 Reset All Warnings',
+        'פעולה זו תאפס את מונה האזהרות של כל חברי הקבוצה.': 'This will reset the warning counter for all group members.',
+        'חבר': 'Member',
+        'קבוצות': 'groups',
+        'חברים': 'members',
+        'מזהה': 'ID',
+        'הוד׳': 'msgs',
+        'מילים': 'words',
+        'פקודות': 'commands',
+        'שגיאה בשמירה: ': 'Save error: ',
+        'לא נמצאו קבוצות שבהן אתה מנהל והבוט חבר בהן.': 'No groups found where you are an admin and the bot is a member.',
+        'הוסף את @VolticMod_bot לקבוצה וקדם אותו למנהל!': 'Add @VolticMod_bot to a group and promote it to admin!'
+      },
+      es: {
+        'וולטיק מוד | ניהול קבוצה': 'Voltic Mod | Gestión de Grupo',
+        'וולטיק מוד • ניהול קבוצה': 'Voltic Mod • Gestión de Grupo',
+        'מיני-אפליקציה רשמית': 'Mini App Oficial',
+        'מסונכרן': 'Sincronizado',
+        'מסונכרן ✓': 'Sincronizado ✓',
+        'יש שינויים לשמירה': 'Cambios sin guardar',
+        'טוען נתונים מאובטחים מטלגרם...': 'Cargando datos seguros de Telegram...',
+        'מאמת הרשאות ניהול מול השרת': 'Verificando permisos de administrador...',
+        'יש לפתוח מתוך טלגרם': 'Abrir dentro de Telegram',
+        'נדרשת פתיחה מתוך טלגרם': 'Abrir dentro de Telegram',
+        'פתח את הבוט @VolticMod_bot בטלגרם ולחץ על כפתור המיני-אפליקציה.': 'Abre @VolticMod_bot en Telegram y pulsa el botón de la Mini App.',
+        'פתח את המיני-אפליקציה מתוך @VolticMod_bot בטלגרם.': 'Abre la Mini App desde @VolticMod_bot en Telegram.',
+        '🏢 בחר קבוצה לניהול': '🏢 Selecciona un grupo para gestionar',
+        'בחר קבוצה לניהול': 'Selecciona un grupo para gestionar',
+        '🛡️ הגנות': '🛡️ Protección',
+        '🔐 אימות וכניסה': '🔐 Verificación',
+        '🚫 פילטרים ופקודות': '🚫 Filtros y Cmds',
+        '🌙 לילה וקידומות': '🌙 Noche y Prefijos',
+        '📊 סטטיסטיקה': '📊 Estadísticas',
+        '🛡️ מערכות הגנה אוטומטיות': '🛡️ Sistemas de Protección Automática',
+        '🔒 נעילות תוכן': '🔒 Bloqueos de Contenido',
+        '⚡ בקרת קצב ואורך הודעות': '⚡ Control de Ritmo y Longitud',
+        '🌊 הגנת הצפה (מקסימום הודעות ב-15 שניות, 0 = כבוי)': '🌊 Anti-Flood (máx. mensajes en 15s, 0 = desactivado)',
+        'הגנת הצפה': 'Anti-Flood',
+        'כבוי': 'Desactivado',
+        '📏 הגבלת אורך הודעה בתווים (0 = ללא הגבלה)': '📏 Longitud máxima de mensaje (0 = sin límite)',
+        'הגבלת אורך הודעה': 'Longitud máxima',
+        'ללא': 'Sin límite',
+        '🐢 מצב איטי בקבוצה (Slow Mode)': '🐢 Modo Lento del Grupo',
+        '⚡ כבוי (ללא השהיה)': '⚡ Desactivado (sin retraso)',
+        '10 שניות': '10 segundos',
+        '30 שניות': '30 segundos',
+        'דקה אחת': '1 minuto',
+        '5 דקות': '5 minutos',
+        '15 דקות': '15 minutos',
+        'שעה אחת': '1 hora',
+        '🔐 אימות מצטרפים חדשים': '🔐 Verificación de Nuevos Miembros',
+        '🧮 אימות בתרגיל חשבון קצר': '🧮 Verificación con Captcha Matemático',
+        'מצטרפים חדשים מושתקים עד לפתרון תרגיל קצר נגד בוטים': 'Los nuevos miembros quedan silenciados hasta resolver un reto matemático',
+        '🔒 חסימת תוכן עתידי עד פתרון החידה': '🔒 Bloquear Contenido Hasta Verificar',
+        'מסתיר הודעות חדשות ממצטרף שטרם פתר ומציג אותן מיד לאחר הפתרון': 'Oculta nuevos mensajes hasta resolver la verificación',
+        '⏱️ זמן מרבי לאימות': '⏱️ Tiempo Máximo de Verificación',
+        '♾️ ללא הגבלת זמן': '♾️ Sin límite de tiempo',
+        '60 שניות': '60 segundos',
+        '3 דקות': '3 minutos',
+        '🧹 מחיקת הודעות כניסה קודמות': '🧹 Limpiar Mensajes de Entrada Anteriores',
+        '❌ אל תמחק הודעות קודמות': '❌ No eliminar mensajes anteriores',
+        '👋 מחק הודעת ברוך הבא קודמת בלבד': '👋 Eliminar solo bienvenida anterior',
+        '🔐 מחק הודעת אימות קודמת בלבד': '🔐 Eliminar solo verificación anterior',
+        '🧹 מחק גם וגם (ברוך הבא + אימות)': '🧹 Eliminar ambos (bienvenida + verificación)',
+        '👋 הודעת ברוכים הבאים וחוקים': '👋 Mensaje de Bienvenida y Reglas',
+        '👋 הפעלת הודעת ברוכים הבאים': '👋 Activar Mensaje de Bienvenida',
+        'נשלחת עם כפתור חוקי הקבוצה בעת הצטרפות או אימות': 'Se envía con el botón de reglas al unirse o verificarse',
+        '✍️ טקסט ברוכים הבאים (תומך ב-': '✍️ Texto de bienvenida (admite ',
+        '📜 מצב תצוגת חוקים': '📜 Modo de Visualización de Reglas',
+        '📢 פומבי בקבוצה': '📢 Público en el grupo',
+        '🤫 שקט (הודעת פקודה נמחקת)': '🤫 Silencioso (elimina el comando)',
+        '🔘 טקסט כפתור חוקים': '🔘 Texto del Botón de Reglas',
+        '📖 לחץ כאן לצפייה בחוקי הקבוצה': '📖 Pulsa aquí para ver las reglas del grupo',
+        '📖 תקנון וחוקי הקבוצה': '📖 Reglas del Grupo',
+        '🚫 מילים אסורות בקבוצה': '🚫 Palabras Prohibidas',
+        'הוסף מילה או ביטוי לחסימה...': 'Añade una palabra o frase a bloquear...',
+        'הוסף': 'Añadir',
+        '➕ פקודות מותאמות אישית': '➕ Comandos Personalizados',
+        'שאלה / שם פקודה (לדוגמה: מחירון)': 'Disparador / comando (ej. precios)',
+        'תשובת הבוט...': 'Respuesta del bot...',
+        '➕ הוסף פקודה מותאמת': '➕ Añadir Comando Personalizado',
+        '🌙 נעילת לילה אוטומטית (שעון ישראל)': '🌙 Modo Nocturno Automático (Hora Israel)',
+        '🌙 הפעל נעילת לילה': '🌙 Activar Modo Nocturno',
+        'מוחק הודעות של חברים רגילים בשעות שנבחרו': 'Elimina mensajes de miembros normales en el horario elegido',
+        '🕒 שעת התחלה': '🕒 Hora de Inicio',
+        '☀️ שעת סיום': '☀️ Hora de Fin',
+        '🌍 חסימת שפות זרות': '🌍 Bloquear Idiomas Extranjeros',
+        '📵 חסימת קידומות ומדינות זרות': '📵 Bloquear Prefijos Telefónicos',
+        '📵 הפעל סינון קידומות': '📵 Activar Filtro de Prefijos',
+        'חוסם מספרי טלפון עם קידומות חסומות בהודעות': 'Bloquea números con prefijos prohibidos en mensajes',
+        '🚪 חסימה אוטומטית בכניסה': '🚪 Bloqueo Automático al Entrar',
+        'חוסם מצטרפים החשודים מאותן מדינות': 'Bloquea usuarios sospechosos de esos países',
+        'הוסף קידומת (לדוגמה +98)': 'Añadir prefijo (ej. +98)',
+        'הודעות שנוטרו': 'Mensajes Monitoreados',
+        'חברים בקבוצה': 'Miembros del Grupo',
+        'אזהרות שנרשמו': 'Advertencias',
+        'חסימות שבוצעו': 'Bloqueos',
+        '🏆 5 החברים הפעילים בקבוצה': '🏆 Top 5 Miembros Activos',
+        '⚡ פעולות ניהול מהירות': '⚡ Acciones Rápidas',
+        '🧹 הסר כל הנעוצים': '🧹 Desfijar Todo',
+        '📌 שחזר נעוצים': '📌 Restaurar Fijados',
+        '💾 גיבוי הגדרות': '💾 Copia de Seguridad',
+        '🧼 אפס אזהרות לכולם': '🧼 Reiniciar Advertencias',
+        '💾 שמור שינויים בקבוצה': '💾 Guardar Cambios del Grupo',
+        '✅ השינויים נשמרו בהצלחה!': '✅ ¡Cambios guardados con éxito!',
+        '✅ כל הגדרות הקבוצה נשמרו!': '✅ ¡Toda la configuración del grupo guardada!',
+        'שגיאת שרת': 'Error del servidor',
+        'לא ניתן לטעון את הקבוצה': 'No se pudo cargar el grupo',
+        '🛡️ אנטי-ספאם אוטומטי': '🛡️ Anti-Spam Automático',
+        'מסנן הודעות ספאם והודעות ארוכות מדי': 'Filtra spam y mensajes demasiado largos',
+        '🔗 חסימת קישורים': '🔗 Anti-Enlaces',
+        'מוחק קישורים מחברים שאינם מנהלים': 'Elimina enlaces de miembros que no son administradores',
+        '🧼 ניקוי הודעות שירות': '🧼 Limpiar Mensajes de Servicio',
+        'מוחק הודעות "הצטרף / עזב" באופן אוטומטי': 'Elimina automáticamente mensajes de entrada/salida',
+        '🔄 חסימת העברות (Forward)': '🔄 Bloquear Reenvíos',
+        'מוחק הודעות מועברות מערוצים וקבוצות': 'Elimina mensajes reenviados de canales y grupos',
+        '🤖 חסימת הכנסת בוטים': '🤖 Anti-Bots',
+        'מסיר בוטים זרים שמוכנסים ע"י משתמשים': 'Elimina bots no autorizados añadidos por usuarios',
+        '📢 חסימת כתיבה בשם ערוץ': '📢 Bloquear Mensajes de Canales',
+        'מוחק הודעות שנשלחות בשם ערוץ': 'Elimina mensajes enviados en nombre de un canal',
+        '🔞 חסימת תוכן למבוגרים': '🔞 Anti-Contenido Adulto',
+        'מסנן מילים וקישורים פוגעניים': 'Filtra palabras y enlaces ofensivos',
+        '🔗 נעילת קישורים': '🔗 Bloquear Enlaces',
+        'חוסם את כל הקישורים בקבוצה': 'Bloquea todos los enlaces en el grupo',
+        '🖼️ נעילת מדיה': '🖼️ Bloquear Multimedia',
+        'חוסם תמונות, סרטונים וקבצים': 'Bloquea fotos, videos y archivos',
+        '🎭 נעילת סטיקרים': '🎭 Bloquear Stickers',
+        'חוסם שליחת סטיקרים בקבוצה': 'Bloquea el envío de stickers en el grupo',
+        'חסימת ערבית / פרסית': 'Bloquear Árabe / Persa',
+        'מוחק הודעות באותיות ערביות': 'Elimina mensajes en escritura árabe',
+        'חסימת רוסית (קירילית)': 'Bloquear Ruso (Cirílico)',
+        'מוחק הודעות באותיות קיריליות': 'Elimina mensajes en escritura cirílica',
+        'חסימת סינית / יפנית': 'Bloquear Chino / Japonés',
+        'מוחק הודעות בכתב מזרח-אסיאתי': 'Elimina mensajes en escritura asiática',
+        'חסימת הודית / תאילנדית': 'Bloquear Hindi / Tailandés',
+        'מוחק הודעות בכתב דבנגארי/תאי': 'Elimina mensajes en escritura devanagari/tai',
+        'אין עדיין נתוני פעילות בקבוצה.': 'Aún no hay datos de actividad en este grupo.',
+        'אין מילים חסומות בקבוצה.': 'No hay palabras bloqueadas en este grupo.',
+        'אין עדיין פקודות מותאמות בקבוצה.': 'Aún no hay comandos personalizados.',
+        'אין קידומות חסומות.': 'No hay prefijos bloqueados.',
+        '💾 גיבוי הגדרות הקבוצה': '💾 Copia de Seguridad del Grupo',
+        'אפשר להעתיק את קוד הגיבוי ולשמור אותו בצד. ניתן לגרור מטה לסגירה.': 'Copia el código de respaldo y guárdalo en un lugar seguro. Desliza hacia abajo para cerrar.',
+        '📋 העתק גיבוי': '📋 Copiar Respaldo',
+        '💾 קוד הגיבוי הועתק!': '💾 ¡Código de respaldo copiado!',
+        'סגור': 'Cerrar',
+        '✅ הפעולה בוצעה!': '✅ ¡Acción completada!',
+        'אישור וביצוע': 'Confirmar',
+        'ביטול': 'Cancelar',
+        '🧹 הסרת כל הנעוצים': '🧹 Desfijar Todos los Mensajes',
+        'האם להסיר את כל ההודעות הנעוצות בקבוצה? תמיד ניתן לשחזר אותן מיד לאחר מכן.': '¿Eliminar todos los mensajes fijados? Puedes restaurarlos inmediatamente después.',
+        '🧼 איפוס כל האזהרות': '🧼 Reiniciar Todas las Advertencias',
+        'פעולה זו תאפס את מונה האזהרות של כל חברי הקבוצה.': 'Esto reiniciará el contador de advertencias de todos los miembros.',
+        'חבר': 'Miembro',
+        'קבוצות': 'grupos',
+        'חברים': 'miembros',
+        'מזהה': 'ID',
+        'הוד׳': 'msgs',
+        'מילים': 'palabras',
+        'פקודות': 'comandos',
+        'שגיאה בשמירה: ': 'Error al guardar: ',
+        'לא נמצאו קבוצות שבהן אתה מנהל והבוט חבר בהן.': 'No se encontraron grupos donde seas administrador y el bot sea miembro.',
+        'הוסף את @VolticMod_bot לקבוצה וקדם אותו למנהל!': '¡Añade @VolticMod_bot a un grupo y promuévelo a administrador!'
+      }
+    };
+
+    const urlLangParam = new URLSearchParams(window.location.search).get('lang');
+    let appLang = ['he', 'en', 'es'].includes(urlLangParam)
+      ? urlLangParam
+      : (['he', 'en', 'es'].includes(localStorage.getItem('voltic_lang')) ? localStorage.getItem('voltic_lang') : 'he');
+
+    function t(heText) {
+      if (appLang === 'he') return heText;
+      return (I18N[appLang] && I18N[appLang][heText]) || heText;
+    }
+
+    const origTextMap = new WeakMap();
+    function translateDOM() {
+      document.documentElement.lang = appLang;
+      document.documentElement.dir = appLang === 'he' ? 'rtl' : 'ltr';
+      document.title = t('וולטיק מוד | ניהול קבוצה');
+
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      let node;
+      while ((node = walker.nextNode())) {
+        const parent = node.parentElement;
+        if (!parent || parent.tagName === 'SCRIPT' || parent.tagName === 'STYLE' || parent.closest('#langSwitcher')) continue;
+        if (!origTextMap.has(node)) {
+          const raw = node.nodeValue;
+          if (/[\u0590-\u05FF]/.test(raw)) origTextMap.set(node, raw);
+        }
+        if (origTextMap.has(node)) {
+          const base = origTextMap.get(node);
+          const trimmed = base.trim();
+          const tr = t(trimmed);
+          node.nodeValue = base.replace(trimmed, tr);
+        }
+      }
+
+      document.querySelectorAll('input[placeholder], textarea[placeholder]').forEach((el) => {
+        if (!el.dataset.hePh && /[\u0590-\u05FF]/.test(el.placeholder)) el.dataset.hePh = el.placeholder;
+        if (el.dataset.hePh) el.placeholder = t(el.dataset.hePh);
+      });
+
+      document.querySelectorAll('[aria-label]').forEach((el) => {
+        if (!el.dataset.heAria && /[\u0590-\u05FF]/.test(el.getAttribute('aria-label'))) el.dataset.heAria = el.getAttribute('aria-label');
+        if (el.dataset.heAria) el.setAttribute('aria-label', t(el.dataset.heAria));
+      });
+
+      document.querySelectorAll('#langSwitcher .lang-opt').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.lang === appLang);
+      });
+    }
+
+    function setAppLang(lang, { fromUser = false } = {}) {
+      if (!['he', 'en', 'es'].includes(lang)) return;
+      appLang = lang;
+      try { localStorage.setItem('voltic_lang', lang); } catch (_) {}
+      translateDOM();
+      if (currentChatId && groupState) {
+        if (fromUser) {
+          groupState.lang = lang;
+          markDirty(true);
+        } else {
+          markDirty(isDirty);
+        }
+        $('headerTitle').textContent = groupState._title;
+        $('headerSub').textContent = `${groupState._memberCount} ${t('חברים')} • ${t('מזהה')} ${currentChatId}`;
+        renderDashboard();
+        requestAnimationFrame(() => {
+          const activeBtn = $('tabsBar')?.querySelector('.tab-btn.active');
+          if (activeBtn && typeof positionTabPill === 'function') positionTabPill(activeBtn, false);
+        });
+      } else {
+        $('headerTitle').textContent = t('וולטיק מוד • ניהול קבוצה');
+        $('headerSub').textContent = groupsCache.length ? t('בחר קבוצה לניהול') : t('מיני-אפליקציה רשמית');
+        if (groupsCache.length) renderGroupsList(groupsCache);
+        markDirty(isDirty);
+      }
+    }
 
     /* =====================================================================
        Synchronized Telegram Haptics (Causality, Harmony, Restraint)
@@ -1414,11 +1834,11 @@
     }
 
     const floodSlider = createFluidSlider($('sliderFlood'), $('rngFlood'), (v) => {
-      $('valFlood').textContent = v ? `${v} הוד׳` : 'כבוי';
+      $('valFlood').textContent = v ? `${v} ${t('הוד׳')}` : t('כבוי');
       markDirty(true);
     });
     const maxLenSlider = createFluidSlider($('sliderMaxLen'), $('rngMaxLen'), (v) => {
-      $('valMaxLen').textContent = v ? `${v}` : 'ללא';
+      $('valMaxLen').textContent = v ? `${v}` : t('ללא');
       markDirty(true);
     });
 
@@ -1565,18 +1985,18 @@
       isDirty = dirty;
       const badge = $('saveBadge');
       if (dirty) {
-        badge.textContent = 'יש שינויים לשמירה';
+        badge.textContent = t('יש שינויים לשמירה');
         badge.style.color = '#f59e0b';
         badge.style.background = 'rgba(245,158,11,0.16)';
         badge.style.borderColor = 'rgba(245,158,11,0.35)';
         if (tg?.MainButton) {
-          tg.MainButton.setText('💾 שמור שינויים בקבוצה');
+          tg.MainButton.setText(t('💾 שמור שינויים בקבוצה'));
           tg.MainButton.show();
         } else {
           $('fallbackSaveBar').classList.remove('hidden');
         }
       } else {
-        badge.textContent = 'מסונכרן ✓';
+        badge.textContent = t('מסונכרן ✓');
         badge.style.color = '#10b981';
         badge.style.background = 'rgba(16,185,129,0.16)';
         badge.style.borderColor = 'rgba(16,185,129,0.35)';
@@ -1593,7 +2013,7 @@
         body: JSON.stringify({ initData, ...payload })
       });
       const data = await res.json();
-      if (!data.ok) throw new Error(data.error || 'שגיאת שרת');
+      if (!data.ok) throw new Error(data.error || t('שגיאת שרת'));
       return data;
     }
 
@@ -1626,10 +2046,10 @@
     }
 
     function renderGroupsList(groups) {
-      $('groupsCount').textContent = `${groups.length} קבוצות`;
+      $('groupsCount').textContent = `${groups.length} ${t('קבוצות')}`;
       const list = $('groupsList');
       if (!groups.length) {
-        list.innerHTML = `<div style="text-align:center;padding:24px;color:var(--hint)">לא נמצאו קבוצות שבהן אתה מנהל והבוט חבר בהן.<br>הוסף את @VolticMod_bot לקבוצה וקדם אותו למנהל!</div>`;
+        list.innerHTML = `<div style="text-align:center;padding:24px;color:var(--hint)">${t('לא נמצאו קבוצות שבהן אתה מנהל והבוט חבר בהן.')}<br>${t('הוסף את @VolticMod_bot לקבוצה וקדם אותו למנהל!')}</div>`;
         return;
       }
       list.innerHTML = groups.map((g) => `
@@ -1637,9 +2057,9 @@
           <div class="group-avatar">${escapeHtml((g.title || 'ק').slice(0, 1))}</div>
           <div class="group-meta">
             <div class="group-name">${escapeHtml(g.title || g.id)}</div>
-            <div class="group-id">${g.memberCount ? `${g.memberCount} חברים • ` : ''}מזהה: ${g.id}</div>
+            <div class="group-id">${g.memberCount ? `${g.memberCount} ${t('חברים')} • ` : ''}${t('מזהה')}: ${g.id}</div>
           </div>
-          <div style="color:var(--btn);font-weight:800">⬅️</div>
+          <div style="color:var(--btn);font-weight:800">${appLang === 'he' ? '⬅️' : '➡️'}</div>
         </div>
       `).join('');
       list.querySelectorAll('.group-item').forEach((el) => {
@@ -1663,8 +2083,13 @@
         groupState._memberCount = res.memberCount || 0;
         groupState._title = res.title || chatId;
 
+        if (res.lang && ['he', 'en', 'es'].includes(res.lang)) {
+          appLang = res.lang;
+          try { localStorage.setItem('voltic_lang', appLang); } catch (_) {}
+          translateDOM();
+        }
         $('headerTitle').textContent = groupState._title;
-        $('headerSub').textContent = `${groupState._memberCount} חברים • מזהה ${currentChatId}`;
+        $('headerSub').textContent = `${groupState._memberCount} ${t('חברים')} • ${t('מזהה')} ${currentChatId}`;
         if (tg?.BackButton && groupsCache.length > 1) tg.BackButton.show();
         renderDashboard();
         markDirty(false);
@@ -1676,7 +2101,7 @@
         });
       } catch (err) {
         Haptics.notify('error');
-        $('errTitle').textContent = 'לא ניתן לטעון את הקבוצה';
+        $('errTitle').textContent = t('לא ניתן לטעון את הקבוצה');
         $('errMsg').textContent = err.message;
         showView('viewError');
       }
@@ -1687,8 +2112,8 @@
       row.className = 'setting-row';
       row.innerHTML = `
         <div class="setting-info">
-          <div class="setting-name">${name}</div>
-          <div class="setting-desc">${desc}</div>
+          <div class="setting-name">${t(name)}</div>
+          <div class="setting-desc">${t(desc)}</div>
         </div>
         <label class="switch"><input type="checkbox" id="${id}" ${checked ? 'checked' : ''} /><span class="slider"></span></label>
       `;
@@ -1726,9 +2151,9 @@
 
       // Ranges & Slowmode
       $('rngFlood').value = g.antiflood || 0;
-      $('valFlood').textContent = g.antiflood ? `${g.antiflood} הוד׳` : 'כבוי';
+      $('valFlood').textContent = g.antiflood ? `${g.antiflood} ${t('הוד׳')}` : t('כבוי');
       $('rngMaxLen').value = a.maxlength || 0;
-      $('valMaxLen').textContent = a.maxlength ? `${a.maxlength}` : 'ללא';
+      $('valMaxLen').textContent = a.maxlength ? `${a.maxlength}` : t('ללא');
       $('selSlowMode').value = String(g._slowMode || 0);
 
       // Verify & Welcome
@@ -1774,16 +2199,16 @@
 
       const top = Object.values(a.userStats || {}).sort((x, y) => (y.count || 0) - (x.count || 0)).slice(0, 5);
       $('topUsersList').innerHTML = top.length
-        ? top.map((u, i) => `<div class="setting-row"><div class="setting-name">${['🥇','🥈','🥉','4️⃣','5️⃣'][i]} ${escapeHtml(u.name || 'חבר')}</div><div style="font-weight:800;color:var(--btn);font-variant-numeric:tabular-nums">${u.count || 0} הוד׳</div></div>`).join('')
-        : '<div style="color:var(--hint);font-size:0.86rem">אין עדיין נתוני פעילות בקבוצה.</div>';
+        ? top.map((u, i) => `<div class="setting-row"><div class="setting-name">${['🥇','🥈','🥉','4️⃣','5️⃣'][i]} ${escapeHtml(u.name || t('חבר'))}</div><div style="font-weight:800;color:var(--btn);font-variant-numeric:tabular-nums">${u.count || 0} ${t('הוד׳')}</div></div>`).join('')
+        : `<div style="color:var(--hint);font-size:0.86rem">${t('אין עדיין נתוני פעילות בקבוצה.')}</div>`;
     }
 
     function renderFilters() {
       const list = Array.isArray(groupState.filters) ? groupState.filters : [];
-      $('filtersCount').textContent = `${list.length} מילים`;
+      $('filtersCount').textContent = `${list.length} ${t('מילים')}`;
       $('filtersList').innerHTML = list.length
         ? list.map((w, i) => `<span class="chip">${escapeHtml(w)} <button class="chip-del pressable" data-idx="${i}">✕</button></span>`).join('')
-        : '<span style="color:var(--hint);font-size:0.84rem">אין מילים חסומות בקבוצה.</span>';
+        : `<span style="color:var(--hint);font-size:0.84rem">${t('אין מילים חסומות בקבוצה.')}</span>`;
       $('filtersList').querySelectorAll('.chip-del').forEach((btn) => {
         btn.addEventListener('click', () => {
           Haptics.select();
@@ -1797,7 +2222,7 @@
     function renderCustomCmds() {
       const cmds = groupState.customCommands || {};
       const keys = Object.keys(cmds);
-      $('cmdsCount').textContent = `${keys.length} פקודות`;
+      $('cmdsCount').textContent = `${keys.length} ${t('פקודות')}`;
       $('cmdsList').innerHTML = keys.length
         ? keys.map((k) => `
           <div class="setting-row">
@@ -1807,7 +2232,7 @@
             </div>
             <button class="chip-del pressable" data-cmd="${escapeHtml(k)}" style="font-size:1.05rem">🗑️</button>
           </div>`).join('')
-        : '<div style="color:var(--hint);font-size:0.84rem">אין עדיין פקודות מותאמות בקבוצה.</div>';
+        : `<div style="color:var(--hint);font-size:0.84rem">${t('אין עדיין פקודות מותאמות בקבוצה.')}</div>`;
       $('cmdsList').querySelectorAll('.chip-del').forEach((btn) => {
         btn.addEventListener('click', () => {
           Haptics.select();
@@ -1822,7 +2247,7 @@
       const pfxs = groupState.adv?.foreignCountries?.prefixes || [];
       $('prefixList').innerHTML = pfxs.length
         ? pfxs.map((p, i) => `<span class="chip" dir="ltr">${escapeHtml(p)} <button class="chip-del pressable" data-idx="${i}">✕</button></span>`).join('')
-        : '<span style="color:var(--hint);font-size:0.84rem">אין קידומות חסומות.</span>';
+        : `<span style="color:var(--hint);font-size:0.84rem">${t('אין קידומות חסומות.')}</span>`;
       $('prefixList').querySelectorAll('.chip-del').forEach((btn) => {
         btn.addEventListener('click', () => {
           Haptics.select();
@@ -1854,6 +2279,7 @@
             rulesButtonText: $('txtRulesBtn').value,
             rules: $('txtRules').value,
             cleanPrevJoinMode: $('selCleanJoin').value,
+            lang: appLang,
             blockFutureUntilVerify: $('chkBlockFuture').checked,
             slowModeDelay: Number($('selSlowMode').value) || 0,
             adv: {
@@ -1876,10 +2302,10 @@
         });
         Haptics.notify('success');
         markDirty(false);
-        showToast('✅ כל הגדרות הקבוצה נשמרו!');
+        showToast(t('✅ כל הגדרות הקבוצה נשמרו!'));
       } catch (err) {
         Haptics.notify('error');
-        tg?.showAlert ? tg.showAlert('שגיאה בשמירה: ' + err.message) : showToast('❌ ' + err.message);
+        tg?.showAlert ? tg.showAlert(t('שגיאה בשמירה: ') + err.message) : showToast('❌ ' + err.message);
       } finally {
         tg?.MainButton?.hideProgress?.();
       }
@@ -1944,24 +2370,24 @@
           Haptics.notify('success');
           if (type === 'export_backup' && res.backup) {
             BottomSheet.open({
-              title: '💾 גיבוי הגדרות הקבוצה',
-              desc: 'אפשר להעתיק את קוד הגיבוי ולשמור אותו בצד. ניתן לגרור מטה לסגירה.',
+              title: t('💾 גיבוי הגדרות הקבוצה'),
+              desc: t('אפשר להעתיק את קוד הגיבוי ולשמור אותו בצד. ניתן לגרור מטה לסגירה.'),
               code: res.backup,
               actions: [
                 {
-                  label: '📋 העתק גיבוי',
+                  label: t('📋 העתק גיבוי'),
                   cls: 'btn-sm',
                   onClick: () => {
                     navigator.clipboard?.writeText(res.backup).catch(() => {});
                     Haptics.notify('success');
-                    showToast('💾 קוד הגיבוי הועתק!');
+                    showToast(t('💾 קוד הגיבוי הועתק!'));
                   }
                 },
-                { label: 'סגור', cls: 'btn-outline' }
+                { label: t('סגור'), cls: 'btn-outline' }
               ]
             });
           } else {
-            showToast(res.message || '✅ הפעולה בוצעה!');
+            showToast(res.message || t('✅ הפעולה בוצעה!'));
             if (type === 'clear_warns_all') $('stWarns').textContent = '0';
           }
         } catch (err) {
@@ -1975,8 +2401,8 @@
           title: confirmTitle,
           desc: confirmDesc,
           actions: [
-            { label: 'אישור וביצוע', cls: 'btn-danger', onClick: exec },
-            { label: 'ביטול', cls: 'btn-outline' }
+            { label: t('אישור וביצוע'), cls: 'btn-danger', onClick: exec },
+            { label: t('ביטול'), cls: 'btn-outline' }
           ]
         });
       } else {
@@ -1985,12 +2411,12 @@
     }
 
     $('actUnpinAll').addEventListener('click', () =>
-      runQuickAction('unpin_all', '🧹 הסרת כל הנעוצים', 'האם להסיר את כל ההודעות הנעוצות בקבוצה? תמיד ניתן לשחזר אותן מיד לאחר מכן.')
+      runQuickAction('unpin_all', t('🧹 הסרת כל הנעוצים'), t('האם להסיר את כל ההודעות הנעוצות בקבוצה? תמיד ניתן לשחזר אותן מיד לאחר מכן.'))
     );
     $('actRestorePins').addEventListener('click', () => runQuickAction('restore_pins'));
     $('actBackup').addEventListener('click', () => runQuickAction('export_backup'));
     $('actClearWarns').addEventListener('click', () =>
-      runQuickAction('clear_warns_all', '🧼 איפוס כל האזהרות', 'פעולה זו תאפס את מונה האזהרות של כל חברי הקבוצה.')
+      runQuickAction('clear_warns_all', t('🧼 איפוס כל האזהרות'), t('פעולה זו תאפס את מונה האזהרות של כל חברי הקבוצה.'))
     );
     $('btnFallbackSave').addEventListener('click', saveCurrentGroup);
 
@@ -2000,8 +2426,16 @@
       if (tg.themeParams?.bg_color) tg.setBackgroundColor?.(tg.themeParams.bg_color);
     }
 
+    document.querySelectorAll('#langSwitcher .lang-opt').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        Haptics.select();
+        setAppLang(btn.dataset.lang, { fromUser: true });
+      });
+    });
+
     // Boot
     (async function init() {
+      translateDOM();
       bindPressFeedback(document);
 
       if (tg) {
@@ -2015,8 +2449,8 @@
           currentChatId = null;
           markDirty(false);
           tg.BackButton.hide();
-          $('headerTitle').textContent = 'וולטיק מוד • ניהול קבוצה';
-          $('headerSub').textContent = 'בחר קבוצה לניהול';
+          $('headerTitle').textContent = t('וולטיק מוד • ניהול קבוצה');
+          $('headerSub').textContent = t('בחר קבוצה לניהול');
           showView('viewGroups');
         });
       }
@@ -2027,6 +2461,11 @@
 
       try {
         const res = await apiCall({ webappAction: 'list_groups', startChatId });
+        if (!urlLangParam && res.userLang && ['he', 'en', 'es'].includes(res.userLang)) {
+          appLang = res.userLang;
+          try { localStorage.setItem('voltic_lang', appLang); } catch (_) {}
+          translateDOM();
+        }
         groupsCache = res.groups || [];
         if (startChatId && groupsCache.some((g) => String(g.id) === String(startChatId))) {
           await openGroup(startChatId);
@@ -2035,8 +2474,8 @@
           showView('viewGroups');
         }
       } catch (err) {
-        $('errTitle').textContent = 'נדרשת פתיחה מתוך טלגרם';
-        $('errMsg').textContent = err.message || 'פתח את המיני-אפליקציה מתוך @VolticMod_bot בטלגרם.';
+        $('errTitle').textContent = t('נדרשת פתיחה מתוך טלגרם');
+        $('errMsg').textContent = err.message || t('פתח את המיני-אפליקציה מתוך @VolticMod_bot בטלגרם.');
         showView('viewError');
       }
     })();
