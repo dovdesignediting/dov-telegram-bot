@@ -1,9 +1,12 @@
 const fs = require('fs');
 const TMP_FILE = '/tmp/telegram_bot_state.json';
 const memoryCache = {};
+const memCacheTs = {};
+const CACHE_TTL_MS = 15000;
 const floodTracker = {};
 let tursoClient = null;
 let tursoReady = false;
+let kvBackoffUntil = 0;
 
 const FORMAT_GUIDE =
   '⚠️ *שגיאה בעיצוב הטקסט – מדריך עיצוב וכפתורים:*\n' +
@@ -42,7 +45,7 @@ function createDefaultGroup() {
 }
 
 // ==========================================
-// חיבור וסנכרון דו-כיווני: Turso Cloud <-> Upstash Redis
+// מנוע מהיר + סנכרון דו-כיווני: Turso Cloud <-> Upstash Redis
 // ==========================================
 function getTursoClient() {
   if (tursoClient) return tursoClient;
@@ -121,7 +124,8 @@ function getKvConfig() {
   return kvUrl && kvToken ? { kvUrl, kvToken } : null;
 }
 
-async function kvCommand(args, timeoutMs = 3500) {
+async function kvCommand(args, timeoutMs = 1200) {
+  if (Date.now() < kvBackoffUntil) return null;
   const cfg = getKvConfig();
   if (!cfg) return null;
   const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
@@ -136,11 +140,18 @@ async function kvCommand(args, timeoutMs = 3500) {
       body: JSON.stringify(args),
       ...(controller ? { signal: controller.signal } : {})
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      kvBackoffUntil = Date.now() + 300000; // דילוג 5 דקות אם Upstash עבר מכסה/שגיאה
+      return null;
+    }
     const data = await res.json();
-    if (data && data.error) return null;
+    if (data && data.error) {
+      kvBackoffUntil = Date.now() + 300000;
+      return null;
+    }
     return data;
   } catch (err) {
+    kvBackoffUntil = Date.now() + 180000; // דילוג 3 דקות אם יש Timeout
     console.error('KV Request Error:', err.message);
     return null;
   } finally {
@@ -167,7 +178,6 @@ async function kvSet(key, value) {
   return Boolean(data && !data.error);
 }
 
-// בחירת הגרסה העדכנית ביותר בין Turso ל-Upstash לפי חותמת זמן _syncTs
 function pickNewerRecord(tursoVal, kvVal) {
   if (tursoVal && !kvVal) return { winner: tursoVal, source: 'turso', syncTarget: 'kv' };
   if (kvVal && !tursoVal) return { winner: kvVal, source: 'kv', syncTarget: 'turso' };
@@ -178,49 +188,45 @@ function pickNewerRecord(tursoVal, kvVal) {
 
   if (tTs > kTs) return { winner: tursoVal, source: 'turso', syncTarget: 'kv' };
   if (kTs > tTs) return { winner: kvVal, source: 'kv', syncTarget: 'turso' };
-
-  // אם לשניהם אין חותמת זמן עדיין (נתונים ישנים), בוחרים את האובייקט העשיר יותר ומסנכרנים
-  if (tTs === 0 && kTs === 0) {
-    const tStr = JSON.stringify(tursoVal);
-    const kStr = JSON.stringify(kvVal);
-    if (tStr !== kStr) {
-      if (kStr.length > tStr.length) return { winner: kvVal, source: 'kv', syncTarget: 'turso' };
-      return { winner: tursoVal, source: 'turso', syncTarget: 'kv' };
-    }
-  }
-
   return { winner: tursoVal, source: 'turso', syncTarget: null };
 }
 
-// קריאה מסונכרנת משני המסדים במקביל + השלמה אוטומטית למסד שחסר או לא מעודכן
+// קריאה סופר-מהירה: זיכרון פנימי (0ms) -> Turso -> Fallback ל-Upstash והעתקה אוטומטית ל-Turso
 async function rawGet(key) {
-  const [tursoRes, kvRes] = await Promise.allSettled([tursoGet(key), kvGet(key)]);
-  const tursoVal = tursoRes.status === 'fulfilled' ? tursoRes.value : null;
-  const kvVal = kvRes.status === 'fulfilled' ? kvRes.value : null;
+  if (memoryCache[key] && (Date.now() - (memCacheTs[key] || 0)) < CACHE_TTL_MS) {
+    return memoryCache[key];
+  }
 
-  const { winner, syncTarget } = pickNewerRecord(tursoVal, kvVal);
+  const fromTurso = await tursoGet(key);
+  if (fromTurso) {
+    memoryCache[key] = fromTurso;
+    memCacheTs[key] = Date.now();
+    return fromTurso;
+  }
 
-  if (winner) {
-    memoryCache[key] = winner;
-    if (syncTarget === 'kv') {
-      await kvSet(key, winner).catch(() => {});
-    } else if (syncTarget === 'turso') {
-      await tursoSet(key, winner).catch(() => {});
-    }
-    return winner;
+  const fromKv = await kvGet(key);
+  if (fromKv) {
+    memoryCache[key] = fromKv;
+    memCacheTs[key] = Date.now();
+    tursoSet(key, fromKv).catch(() => {});
+    return fromKv;
   }
 
   try {
     if (fs.existsSync(TMP_FILE)) {
       const fileData = JSON.parse(fs.readFileSync(TMP_FILE, 'utf8'));
-      if (fileData[key]) return fileData[key];
+      if (fileData[key]) {
+        memoryCache[key] = fileData[key];
+        memCacheTs[key] = Date.now();
+        return fileData[key];
+      }
     }
   } catch (e) {}
 
   return memoryCache[key] || null;
 }
 
-// כתיבה מסונכרנת לשני המסדים במקביל עם חותמת זמן _syncTs
+// כתיבה מהירה ומסונכרנת: שומר ל-Turso + מעדכן במקביל ל-Upstash (בלי לתקוע את הבוט אם Upstash מלא)
 async function rawSet(key, value) {
   const stamped =
     value && typeof value === 'object' && !Array.isArray(value)
@@ -228,11 +234,11 @@ async function rawSet(key, value) {
       : value;
 
   memoryCache[key] = stamped;
+  memCacheTs[key] = Date.now();
 
-  await Promise.allSettled([
-    tursoSet(key, stamped),
-    kvSet(key, stamped)
-  ]);
+  const tursoWrite = tursoSet(key, stamped);
+  const kvWrite = Date.now() >= kvBackoffUntil ? kvSet(key, stamped) : Promise.resolve(false);
+  await Promise.allSettled([tursoWrite, kvWrite]);
 
   try {
     let all = {};
@@ -244,8 +250,9 @@ async function rawSet(key, value) {
   } catch (e) {}
 }
 
-// סנכרון מלא דו-כיווני של כל המפתחות בין Turso ל-Upstash
+// סנכרון מלא דו-כיווני של כל המפתחות בין Turso ל-Upstash (להרצה יזומה)
 async function syncAllDatabases() {
+  kvBackoffUntil = 0;
   const report = { tursoToKv: 0, kvToTurso: 0, totalKeys: 0 };
   const client = getTursoClient();
   const tursoMap = {};
@@ -267,7 +274,7 @@ async function syncAllDatabases() {
     }
   }
 
-  const kvKeysRes = await kvCommand(['KEYS', '*'], 5000);
+  const kvKeysRes = await kvCommand(['KEYS', '*'], 3000);
   const kvKeys = Array.isArray(kvKeysRes?.result) ? kvKeysRes.result : [];
   for (const k of kvKeys) {
     const val = await kvGet(k);
