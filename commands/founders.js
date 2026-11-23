@@ -704,6 +704,96 @@ module.exports = function registerFoundersCommands(bot) {
     await saveGroupData(FOUNDERS_CHAT_ID, data);
     await ctx.reply(`🎖️ *אות הצטיינות מיוצר הבוט!*\nהמייסד *${m.name}* קיבל בונוס של *+${pts} נקודות מייסד*! (סה"כ: ${m.points} נק׳ – ${getFounderRankName(m.points, replyUser.id)})`, { parse_mode: 'Markdown' });
   });
+  // 8.5. /restore_founder (או השבה ישירה "ימים 30 נקודות 140") - שחזור ימי התפקדות ונקודות מייסד ע"י היוצר
+  function parseFounderRestoreInput(raw) {
+    const txt = String(raw || '').trim();
+    const daysMatch = txt.match(/(?:ימים|התפקדות|רצף|days|streak)\s*[:\-]?\s*(\d+)/i);
+    const ptsMatch = txt.match(/(?:נקודות|נק׳|נק|points|pts)\s*[:\-]?\s*(\d+)/i);
+    let days = daysMatch ? parseInt(daysMatch[1], 10) : null;
+    let points = ptsMatch ? parseInt(ptsMatch[1], 10) : null;
+    if (days === null && points === null) {
+      const nums = txt.match(/\d+/g);
+      if (nums && nums.length >= 2) {
+        days = parseInt(nums[0], 10);
+        points = parseInt(nums[1], 10);
+      }
+    }
+    return { days, points };
+  }
+
+  async function applyFounderRestore(ctx, rawInput) {
+    const replyUser = ctx.message?.reply_to_message?.from;
+    if (!replyUser || replyUser.is_bot) {
+      return ctx.reply(
+        '👑 *שחזור ימי התפקדות ונקודות מייסד (ליוצר בלבד):*\n\n' +
+        'השב להודעה של המייסד בקבוצה ושלח אחת מהאפשרויות:\n' +
+        '• `/restore_founder ימים 30 נקודות 140`\n' +
+        '• `/restore_founder ימים 30` (לשחזור ימים בלבד)\n' +
+        '• `/restore_founder נקודות 140` (לשחזור נקודות בלבד)\n' +
+        '• או פשוט השב ישירות להודעה שלו עם: `ימים 30 נקודות 140`',
+        { parse_mode: 'Markdown' }
+      );
+    }
+
+    const { days, points } = parseFounderRestoreInput(rawInput);
+    if (days === null && points === null) {
+      return ctx.reply(
+        '⚠️ לא זוהו מספרים לשחזור.\nדוגמה בהשבה להודעה של מייסד:\n`/restore_founder ימים 30 נקודות 140`',
+        { parse_mode: 'Markdown' }
+      );
+    }
+
+    const data = await getGroupData(FOUNDERS_CHAT_ID);
+    const f = ensureFoundersData(data);
+    const m = ensureMember(f, replyUser);
+    const changes = [];
+
+    if (days !== null && !Number.isNaN(days)) {
+      m.streak = Math.max(0, days);
+      changes.push(`🔥 *ימי התפקדות:* ${m.streak} ימים`);
+    }
+    if (points !== null && !Number.isNaN(points)) {
+      m.points = Math.max(0, points);
+      changes.push(`⭐ *נקודות מייסד:* ${m.points.toLocaleString()} נק׳`);
+    }
+
+    await saveGroupData(FOUNDERS_CHAT_ID, data);
+
+    const rankLine = isCreatorId(replyUser.id)
+      ? '👑 מעמד: היוצר של וולטיק מוד'
+      : `🏅 דרגה נוכחית: *${getFounderRankName(m.points || 0, replyUser.id)}*`;
+
+    return ctx.reply(
+      `♻️ *שחזור נתוני מייסד הושלם בהצלחה!*\n\n` +
+      `👤 *מייסד:* ${m.name}\n` +
+      `${changes.join('\n')}\n` +
+      `${rankLine}`,
+      { parse_mode: 'Markdown' }
+    );
+  }
+
+  bot.command(['restore_founder', 'set_founder', 'restorefounder', 'setfounder'], async (ctx) => {
+    if (!isFoundersGroup(ctx) || !isCreator(ctx)) return;
+    const raw = (ctx.message?.text || '').replace(/^\/(restore_founder|set_founder|restorefounder|setfounder)(@\S+)?\s*/i, '').trim();
+    return applyFounderRestore(ctx, raw);
+  });
+
+  // תמיכה בהשבה ישירה של היוצר בקבוצת המייסדים ללא סלאש, לדוגמה: "ימים 30 נקודות 140"
+  bot.use(async (ctx, next) => {
+    try {
+      if (isFoundersGroup(ctx) && isCreator(ctx) && ctx.message?.reply_to_message?.from && ctx.message?.text) {
+        const txt = ctx.message.text.trim();
+        if (
+          !txt.startsWith('/') &&
+          /^(?:שחזור\s+)?(?:(?:ימים|התפקדות|רצף)\s*[:\-]?\s*\d+\s+(?:נקודות|נק׳|נק)\s*[:\-]?\s*\d+|(?:נקודות|נק׳|נק)\s*[:\-]?\s*\d+\s+(?:ימים|התפקדות|רצף)\s*[:\-]?\s*\d+)$/i.test(txt)
+        ) {
+          return await applyFounderRestore(ctx, txt);
+        }
+      }
+    } catch (e) {}
+    return next();
+  });
+
   // 9. /preview [כפתור/הודעה] - הדמיית פקודה חיה בקבוצת המייסדים
   bot.command('preview', async (ctx) => {
     if (!isFoundersGroup(ctx)) return;
