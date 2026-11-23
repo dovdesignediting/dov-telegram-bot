@@ -41,7 +41,9 @@ function createDefaultGroup() {
   };
 }
 
-// חיבור אוטומטי למסד הנתונים Turso (גיבוי ו-Fallback ל-Upstash)
+// ==========================================
+// חיבור וסנכרון דו-כיווני: Turso Cloud <-> Upstash Redis
+// ==========================================
 function getTursoClient() {
   if (tursoClient) return tursoClient;
   const url =
@@ -113,42 +115,99 @@ async function tursoSet(key, value) {
   }
 }
 
-// קריאה ושמירה תקינה מול Turso ומול Upstash Redis (Vercel KV) שהגדרת ב-Vercel
-async function rawGet(key) {
-  const fromTurso = await tursoGet(key);
-  if (fromTurso) {
-    memoryCache[key] = fromTurso;
-    return fromTurso;
-  }
-
+function getKvConfig() {
   const kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
   const kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+  return kvUrl && kvToken ? { kvUrl, kvToken } : null;
+}
 
-  if (kvUrl && kvToken) {
+async function kvCommand(args, timeoutMs = 3500) {
+  const cfg = getKvConfig();
+  if (!cfg) return null;
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  try {
+    const res = await fetch(cfg.kvUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${cfg.kvToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(args),
+      ...(controller ? { signal: controller.signal } : {})
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data && data.error) return null;
+    return data;
+  } catch (err) {
+    console.error('KV Request Error:', err.message);
+    return null;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function kvGet(key) {
+  const data = await kvCommand(['GET', key]);
+  if (data && data.result) {
     try {
-      const res = await fetch(kvUrl, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${kvToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(['GET', key])
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.result) {
-          let parsed = JSON.parse(data.result);
-          if (typeof parsed === 'string') parsed = JSON.parse(parsed);
-          if (parsed && typeof parsed === 'object') {
-            memoryCache[key] = parsed;
-            await tursoSet(key, parsed);
-            return parsed;
-          }
-        }
-      }
+      let parsed = JSON.parse(data.result);
+      if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+      if (parsed && typeof parsed === 'object') return parsed;
     } catch (err) {
-      console.error('KV Read Error:', err.message);
+      console.error('KV Parse Error:', err.message);
     }
+  }
+  return null;
+}
+
+async function kvSet(key, value) {
+  const data = await kvCommand(['SET', key, JSON.stringify(value)]);
+  return Boolean(data && !data.error);
+}
+
+// בחירת הגרסה העדכנית ביותר בין Turso ל-Upstash לפי חותמת זמן _syncTs
+function pickNewerRecord(tursoVal, kvVal) {
+  if (tursoVal && !kvVal) return { winner: tursoVal, source: 'turso', syncTarget: 'kv' };
+  if (kvVal && !tursoVal) return { winner: kvVal, source: 'kv', syncTarget: 'turso' };
+  if (!tursoVal && !kvVal) return { winner: null, source: null, syncTarget: null };
+
+  const tTs = Number(tursoVal._syncTs || 0);
+  const kTs = Number(kvVal._syncTs || 0);
+
+  if (tTs > kTs) return { winner: tursoVal, source: 'turso', syncTarget: 'kv' };
+  if (kTs > tTs) return { winner: kvVal, source: 'kv', syncTarget: 'turso' };
+
+  // אם לשניהם אין חותמת זמן עדיין (נתונים ישנים), בוחרים את האובייקט העשיר יותר ומסנכרנים
+  if (tTs === 0 && kTs === 0) {
+    const tStr = JSON.stringify(tursoVal);
+    const kStr = JSON.stringify(kvVal);
+    if (tStr !== kStr) {
+      if (kStr.length > tStr.length) return { winner: kvVal, source: 'kv', syncTarget: 'turso' };
+      return { winner: tursoVal, source: 'turso', syncTarget: 'kv' };
+    }
+  }
+
+  return { winner: tursoVal, source: 'turso', syncTarget: null };
+}
+
+// קריאה מסונכרנת משני המסדים במקביל + השלמה אוטומטית למסד שחסר או לא מעודכן
+async function rawGet(key) {
+  const [tursoRes, kvRes] = await Promise.allSettled([tursoGet(key), kvGet(key)]);
+  const tursoVal = tursoRes.status === 'fulfilled' ? tursoRes.value : null;
+  const kvVal = kvRes.status === 'fulfilled' ? kvRes.value : null;
+
+  const { winner, syncTarget } = pickNewerRecord(tursoVal, kvVal);
+
+  if (winner) {
+    memoryCache[key] = winner;
+    if (syncTarget === 'kv') {
+      await kvSet(key, winner).catch(() => {});
+    } else if (syncTarget === 'turso') {
+      await tursoSet(key, winner).catch(() => {});
+    }
+    return winner;
   }
 
   try {
@@ -161,37 +220,75 @@ async function rawGet(key) {
   return memoryCache[key] || null;
 }
 
+// כתיבה מסונכרנת לשני המסדים במקביל עם חותמת זמן _syncTs
 async function rawSet(key, value) {
-  memoryCache[key] = value;
+  const stamped =
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? { ...value, _syncTs: Date.now() }
+      : value;
 
-  await tursoSet(key, value);
+  memoryCache[key] = stamped;
 
-  const kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-  const kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-
-  if (kvUrl && kvToken) {
-    try {
-      await fetch(kvUrl, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${kvToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(['SET', key, JSON.stringify(value)])
-      });
-    } catch (err) {
-      console.error('KV Write Error:', err.message);
-    }
-  }
+  await Promise.allSettled([
+    tursoSet(key, stamped),
+    kvSet(key, stamped)
+  ]);
 
   try {
     let all = {};
     if (fs.existsSync(TMP_FILE)) {
       all = JSON.parse(fs.readFileSync(TMP_FILE, 'utf8'));
     }
-    all[key] = value;
+    all[key] = stamped;
     fs.writeFileSync(TMP_FILE, JSON.stringify(all), 'utf8');
   } catch (e) {}
+}
+
+// סנכרון מלא דו-כיווני של כל המפתחות בין Turso ל-Upstash
+async function syncAllDatabases() {
+  const report = { tursoToKv: 0, kvToTurso: 0, totalKeys: 0 };
+  const client = getTursoClient();
+  const tursoMap = {};
+  const kvMap = {};
+
+  if (client) {
+    try {
+      await ensureTursoTable(client);
+      const res = await client.execute('SELECT k, v FROM bot_kv');
+      for (const row of res.rows || []) {
+        try {
+          let parsed = JSON.parse(String(row.v));
+          if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+          if (parsed && typeof parsed === 'object') tursoMap[String(row.k)] = parsed;
+        } catch (e) {}
+      }
+    } catch (err) {
+      console.error('Turso Bulk Read Error:', err.message);
+    }
+  }
+
+  const kvKeysRes = await kvCommand(['KEYS', '*'], 5000);
+  const kvKeys = Array.isArray(kvKeysRes?.result) ? kvKeysRes.result : [];
+  for (const k of kvKeys) {
+    const val = await kvGet(k);
+    if (val) kvMap[k] = val;
+  }
+
+  const allKeys = new Set([...Object.keys(tursoMap), ...Object.keys(kvMap)]);
+  report.totalKeys = allKeys.size;
+
+  for (const key of allKeys) {
+    const { winner, syncTarget } = pickNewerRecord(tursoMap[key] || null, kvMap[key] || null);
+    if (!winner) continue;
+    const stamped = winner._syncTs ? winner : { ...winner, _syncTs: Date.now() };
+    if (syncTarget === 'kv') {
+      if (await kvSet(key, stamped)) report.tursoToKv++;
+    } else if (syncTarget === 'turso') {
+      if (await tursoSet(key, stamped)) report.kvToTurso++;
+    }
+  }
+
+  return report;
 }
 
 async function getGroupData(chatId) {
@@ -297,6 +394,7 @@ module.exports = {
   FORMAT_GUIDE,
   getGroupData,
   saveGroupData,
+  syncAllDatabases,
   parseRichMessage,
   sendFormattedMessage,
   requireAdmin,
