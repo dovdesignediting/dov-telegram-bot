@@ -943,6 +943,18 @@ module.exports = async (req, res) => {
       return await handleWebAppApi(req, res);
     }
     if (req.method === 'POST') {
+      const incomingMsg = req.body?.message;
+      const incomingText = String(incomingMsg?.text || '').trim();
+      const incomingChatId = incomingMsg?.chat?.id;
+      const incomingChatType = incomingMsg?.chat?.type;
+      if (
+        incomingChatId &&
+        incomingText.startsWith('/') &&
+        ['private', 'group', 'supergroup'].includes(incomingChatType)
+      ) {
+        await bot.telegram.sendChatAction(incomingChatId, 'typing').catch(() => {});
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
       await bot.handleUpdate(req.body);
       return res.status(200).json({ ok: true });
     }
