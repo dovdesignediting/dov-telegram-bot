@@ -1,3 +1,4 @@
+// VolticMod api/bot.js - Typing Indicator for Commands & Buttons (2s)
 const fs = require('fs');
 const { Telegraf } = require('telegraf');
 const {
@@ -944,15 +945,14 @@ module.exports = async (req, res) => {
     }
     if (req.method === 'POST') {
       const incomingMsg = req.body?.message;
+      const incomingCb = req.body?.callback_query;
       const incomingText = String(incomingMsg?.text || '').trim();
-      const incomingChatId = incomingMsg?.chat?.id;
-      const incomingChatType = incomingMsg?.chat?.type;
-      if (
-        incomingChatId &&
-        incomingText.startsWith('/') &&
-        ['private', 'group', 'supergroup'].includes(incomingChatType)
-      ) {
-        await bot.telegram.sendChatAction(incomingChatId, 'typing').catch(() => {});
+      const isSlashCmd = Boolean(incomingMsg?.chat?.id && incomingText.startsWith('/'));
+      const isBtnClick = Boolean(incomingCb?.message?.chat?.id);
+      const typingChatId = isSlashCmd ? incomingMsg.chat.id : (isBtnClick ? incomingCb.message.chat.id : null);
+      const typingChatType = isSlashCmd ? incomingMsg.chat.type : (isBtnClick ? incomingCb.message.chat.type : '');
+      if (typingChatId && ['private', 'group', 'supergroup'].includes(typingChatType)) {
+        await bot.telegram.sendChatAction(typingChatId, 'typing').catch(() => {});
         await new Promise((resolve) => setTimeout(resolve, 2000));
       }
       await bot.handleUpdate(req.body);
